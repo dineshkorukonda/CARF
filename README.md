@@ -4,65 +4,32 @@ CARF (Change-Aware Rollback Framework) is a hosted DevOps platform and execution
 
 The framework integrates directly into existing continuous integration pipelines and cloud-native container orchestrators. Upon commit ingestion, CARF evaluates incoming metric streams from Prometheus, Datadog, or OpenTelemetry against configured vector sensitivity rules. When error rates or latency anomalies cross a vector's mathematical threshold, CARF dispatches zero-downtime rollback primitives to target controllers such as Kubernetes, PM2, Docker Swarm, or GitOps operators in under 500 milliseconds.
 
-## Entity-Relationship Diagram
+## Framework Execution Flow
 
 ```mermaid
-erDiagram
-    PROJECT ||--o{ CHANGE_VECTOR : classifies
-    PROJECT ||--o{ SENSITIVITY_RULE : configures
-    PROJECT ||--o{ DEPLOYMENT : executes
-    DEPLOYMENT ||--|| CHANGE_VECTOR : contains
-    DEPLOYMENT ||--o{ TELEMETRY_STREAM : monitors
-    TELEMETRY_STREAM ||--|| DECISION_ENGINE : evaluates
-    SENSITIVITY_RULE ||--|| DECISION_ENGINE : governs
-    DECISION_ENGINE ||--o| ROLLBACK_EXECUTION : triggers
-    ROLLBACK_EXECUTION ||--|| TARGET_RUNTIME : restores
-
-    PROJECT {
-        string project_id PK
-        string name
-        string runtime_provider
-    }
-    CHANGE_VECTOR {
-        string vector_id PK
-        string type "CODE | CONFIG | DEPENDENCY | INFRASTRUCTURE"
-        string git_commit_sha
-        string diff_summary
-    }
-    SENSITIVITY_RULE {
-        string rule_id PK
-        string vector_type
-        int window_seconds
-        float error_threshold_pct
-        string action_policy
-    }
-    DEPLOYMENT {
-        string deployment_id PK
-        string environment
-        timestamp deployed_at
-        string status
-    }
-    TELEMETRY_STREAM {
-        string stream_id PK
-        float http_5xx_rate
-        float latency_p99_ms
-        timestamp sampled_at
-    }
-    DECISION_ENGINE {
-        string decision_id PK
-        boolean threshold_breached
-        float calculated_metric
-        timestamp evaluated_at
-    }
-    ROLLBACK_EXECUTION {
-        string execution_id PK
-        string target_revision
-        int latency_ms
-        string status
-    }
-    TARGET_RUNTIME {
-        string runtime_id PK
-        string provider "KUBERNETES | PM2 | GITOPS | DOCKER"
-        string endpoint
-    }
+flowchart TD
+    A[Git Commit Push / Diff] --> B[AST Change Classifier]
+    
+    B -->|Parses File Paths & AST| C{Change Vector Tag}
+    C -->|Code: .ts, .go, .py| D1[Low Sensitivity / 15m Window]
+    C -->|Config: .env, config.json| D2[Medium Sensitivity / 5m Window]
+    C -->|Dependency: lockfiles| D3[High Sensitivity / 3m Window]
+    C -->|Infra: k8s, helm, terraform| D4[Strictest Sensitivity / 60s Window]
+    
+    D1 --> E[Observability Stream Ingestion]
+    D2 --> E
+    D3 --> E
+    D4 --> E
+    
+    E -->|Prometheus / Datadog / OTEL| F[CARF Contextual Decision Engine]
+    
+    F -->|Telemetry <= Threshold| G[Maintain Deployment & Log Baseline]
+    F -->|Telemetry > Threshold| H[Trigger Automated Rollback]
+    
+    H --> I[Rollback Executor < 500ms]
+    
+    I -->|kubectl rollout undo| J1[Kubernetes Cluster]
+    I -->|pm2 reload| J2[PM2 Process Manager]
+    I -->|git revert commit| J3[GitOps ArgoCD / Flux]
+    I -->|container swap| J4[Docker Engine / Swarm]
 ```
