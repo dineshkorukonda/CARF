@@ -11,10 +11,10 @@ flowchart TD
     A[Git Commit Push / Diff] --> B[AST Change Classifier]
     
     B -->|Parses File Paths & AST| C{Change Vector Tag}
-    C -->|Code: .ts, .go, .py| D1[Low Sensitivity / 15m Window]
+    C -->|Code: .ts, .go, .py| D1[Low Sensitivity / 10m Window]
     C -->|Config: .env, config.json| D2[Medium Sensitivity / 5m Window]
-    C -->|Dependency: lockfiles| D3[High Sensitivity / 3m Window]
-    C -->|Infra: k8s, helm, terraform| D4[Strictest Sensitivity / 60s Window]
+    C -->|Dependency: lockfiles| D3[High Sensitivity / 5m Window]
+    C -->|Infra: k8s, helm, terraform| D4[Strictest Sensitivity / 2m Window]
     
     D1 --> E[Observability Stream Ingestion]
     D2 --> E
@@ -33,3 +33,63 @@ flowchart TD
     I -->|git revert commit| J3[GitOps ArgoCD / Flux]
     I -->|container swap| J4[Docker Engine / Swarm]
 ```
+
+## Getting Started
+
+### Prerequisites
+- Node.js (v18+)
+- PostgreSQL server
+
+---
+
+### Database Setup & Migrations
+
+1. Ensure PostgreSQL is running locally and create the `carf_db` database:
+   ```bash
+   createdb carf_db
+   ```
+2. Configure environment variables in `core-api/.env`:
+   ```env
+   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/carf_db
+   PORT=3000
+   ```
+3. Run database migrations to create schema tables (`projects`, `deployments`, `metric_readings`, `rollback_events`):
+   ```bash
+   cd core-api
+   npm run migrate
+   ```
+
+---
+
+### Running the Core API Server
+
+Start the CARF Core API backend service (startsExpress API and background polling loop on boot):
+```bash
+cd core-api
+npm start
+```
+The server will be running on `http://localhost:3000`.
+
+---
+
+### Running Unit Tests
+
+Run the pure unit test suite (covering `classify.js` and `decide.js`):
+```bash
+cd core-api
+npm test
+```
+
+---
+
+### Running the Demo Target App (Failure Simulation)
+
+1. Start the target app:
+   ```bash
+   cd demo-target-app
+   npm install
+   npm start
+   ```
+2. The health check endpoint responds at `http://localhost:4000/health`:
+   - Normal health check: `GET http://localhost:4000/health` -> `{ "status": "healthy", "error_rate": 0 }`
+   - Simulated failure: `GET http://localhost:4000/health?fail=true` -> `{ "status": "degraded", "error_rate": 15 }`
