@@ -1,23 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  Play,
-  Pause,
-  RotateCcw,
   Activity,
-  GitBranch,
-  Cpu,
-  ShieldAlert,
-  CheckCircle2,
   AlertTriangle,
-  Sliders,
-  Terminal,
-  Zap,
-  Layers,
   Box,
+  CheckCircle2,
+  GitPullRequest,
   Server,
-  GitPullRequest
+  Terminal,
 } from "lucide-react";
 
 type ScenarioKey = "infra" | "config" | "dependency" | "code";
@@ -28,131 +19,107 @@ interface Scenario {
   title: string;
   category: string;
   sensitivity: string;
-  sensitivityColor: string;
   window: string;
   threshold: number;
   diffSnippet: string;
-  description: string;
 }
 
 export function InteractiveSimulator() {
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("infra");
   const [targetRuntime, setTargetRuntime] = useState<TargetRuntime>("kubernetes");
-  const [errorRate, setErrorRate] = useState<number>(0.38); // Simulated error rate %
-  const [isRunning, setIsRunning] = useState<boolean>(true);
-  const [stepIndex, setStepIndex] = useState<number>(3); // 0: Classify, 1: Monitor, 2: Decide, 3: Executed
+  const [errorRate, setErrorRate] = useState(0.38);
   const [logs, setLogs] = useState<string[]>([]);
 
   const scenarios: Record<ScenarioKey, Scenario> = {
     infra: {
       key: "infra",
-      title: "Kubernetes Ingress YAML Edit",
+      title: "Ingress YAML edit",
       category: "INFRASTRUCTURE",
       sensitivity: "Strictest",
-      sensitivityColor: "text-red-400 border-red-800/60 bg-red-950/30",
       window: "60 seconds",
-      threshold: 0.20,
-      diffSnippet: `--- a/k8s/ingress.yaml\n+++ b/k8s/ingress.yaml\n@@ -12,2 +12,2 @@\n- path: /api/v1\n+ path: /api/v2 # Breaks 100% of proxy traffic`,
-      description: "Routing and ingress proxy changes have zero tolerance for post-deploy errors.",
+      threshold: 0.2,
+      diffSnippet:
+        "--- a/k8s/ingress.yaml\n+++ b/k8s/ingress.yaml\n- path: /api/v1\n+ path: /api/v2",
     },
     config: {
       key: "config",
-      title: "DB Pool Max Conn Overhaul",
+      title: "DB pool overhaul",
       category: "CONFIG",
       sensitivity: "Medium",
-      sensitivityColor: "text-amber-300 border-amber-800/50 bg-amber-950/20",
       window: "5 minutes",
-      threshold: 2.50,
-      diffSnippet: `--- a/config/production.env\n+++ b/config/production.env\n@@ -8,2 +8,2 @@\n- DATABASE_POOL_MAX=20\n+ DATABASE_POOL_MAX=5000 # Exhausts Postgres connections`,
-      description: "Environment variables and database configuration changes trigger fast rollbacks.",
+      threshold: 2.5,
+      diffSnippet:
+        "--- a/config/production.env\n+++ b/config/production.env\n- DATABASE_POOL_MAX=20\n+ DATABASE_POOL_MAX=5000",
     },
     dependency: {
       key: "dependency",
-      title: "Major Version Package Bump",
+      title: "Major package bump",
       category: "DEPENDENCY",
       sensitivity: "High",
-      sensitivityColor: "text-cyan-300 border-cyan-800/50 bg-cyan-950/20",
       window: "3 minutes",
-      threshold: 1.00,
-      diffSnippet: `--- a/package.json\n+++ b/package.json\n@@ -14,2 +14,2 @@\n- "express-session": "1.17.3"\n+ "express-session": "2.0.0-rc1" # Native memory leak`,
-      description: "Package lockfile updates undergo strict 3-minute monitoring for unhandled exceptions.",
+      threshold: 1.0,
+      diffSnippet:
+        '--- a/package.json\n+++ b/package.json\n- "express-session": "1.17.3"\n+ "express-session": "2.0.0-rc1"',
     },
     code: {
       key: "code",
-      title: "User Controller Response Format",
+      title: "Controller response",
       category: "CODE",
       sensitivity: "Low",
-      sensitivityColor: "text-zinc-300 border-zinc-700 bg-zinc-900/60",
       window: "15 minutes",
-      threshold: 5.00,
-      diffSnippet: `--- a/src/controllers/user.ts\n+++ b/src/controllers/user.ts\n@@ -40,2 +40,2 @@\n- return res.status(200).json({ status: "ok" });\n+ return res.status(200).json({ status: "success" });`,
-      description: "Application code changes allow wider tolerance so non-fatal bugs can be patched forward.",
+      threshold: 5.0,
+      diffSnippet:
+        '--- a/src/controllers/user.ts\n+++ b/src/controllers/user.ts\n- return res.json({ status: "ok" });\n+ return res.json({ status: "success" });',
     },
   };
 
-  const currentScenario = scenarios[selectedScenario];
-  const isBreached = errorRate > currentScenario.threshold;
+  const current = scenarios[selectedScenario];
+  const isBreached = errorRate > current.threshold;
 
-  // Runtime command mapping
   const runtimeCommands: Record<TargetRuntime, string> = {
-    kubernetes: `kubectl rollout undo deployment/checkout-api -n production`,
-    pm2: `pm2 reload checkout-api --update-env`,
-    argocd: `git revert HEAD -m "revert: CARF breach trigger" && git push origin main`,
-    docker: `docker service update --image registry.internal/api:v1.41 checkout_service`,
+    kubernetes: "kubectl rollout undo deployment/checkout-api -n production",
+    pm2: "pm2 reload checkout-api --update-env",
+    argocd: 'git revert HEAD && git push origin main',
+    docker: "docker service update --image registry/api:v1.41 checkout_service",
   };
 
   useEffect(() => {
-    if (isRunning) {
-      setLogs((prev) => [
-        `[${new Date().toLocaleTimeString()}] Telemetry tick: HTTP 5xx=${errorRate.toFixed(
-          2
-        )}% (Threshold: ${currentScenario.threshold.toFixed(2)}%)`,
-        ...prev.slice(0, 8),
-      ]);
-    }
-  }, [errorRate, isRunning, currentScenario.threshold]);
+    setLogs((prev) => [
+      `[${new Date().toLocaleTimeString()}] HTTP 5xx=${errorRate.toFixed(2)}% · threshold ${current.threshold.toFixed(2)}%`,
+      ...prev.slice(0, 6),
+    ]);
+  }, [errorRate, current.threshold]);
 
   const handleScenarioChange = (key: ScenarioKey) => {
     setSelectedScenario(key);
-    // Set realistic default error rate based on scenario
     if (key === "infra") setErrorRate(0.38);
     else if (key === "config") setErrorRate(2.85);
     else if (key === "dependency") setErrorRate(1.45);
-    else setErrorRate(1.20);
+    else setErrorRate(1.2);
   };
 
   return (
-    <section id="interactive-demo" className="py-20 border-b border-zinc-800/60 bg-[#070709] relative overflow-hidden">
-      
+    <section id="interactive-demo" className="py-24 sm:py-28 border-t border-white/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        
-        {/* Section Header */}
-        <div className="max-w-3xl mb-12">
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 mb-3 uppercase tracking-wider">
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-            LIVE FRAMEWORK SIMULATOR
+        <div className="max-w-2xl mb-12">
+          <div className="inline-flex items-center gap-2 text-[#f56031] mb-4">
+            <span className="font-mono text-xs uppercase tracking-[0.18em]">Simulator</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-sans">
-            Interactive Demonstration: Test CARF in Real Time
+          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+            Test CARF in real time.
           </h2>
-          <p className="mt-3 text-base text-zinc-400 leading-relaxed">
-            Select a deployment scenario, adjust the post-deploy error rate slider, and watch how CARF's decision engine automatically classifies, monitors, and triggers a target rollback.
+          <p className="mt-4 text-base sm:text-lg text-neutral-400 leading-relaxed">
+            Pick a change vector, drag the post-deploy error rate, and watch the decision engine
+            classify, score, and roll back — or stand down.
           </p>
         </div>
 
-        {/* Playground Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* Left Column: Control Panel */}
-          <div className="lg:col-span-5 space-y-6">
-            
-            {/* Step 1: Select Change Scenario */}
-            <div className="rounded-lg border border-zinc-800 bg-[#0d0d10] p-5 space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
-                <span className="text-cyan-400 font-semibold uppercase">1. Select Change Scenario</span>
-                <span>Git Diff Vector</span>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-5 space-y-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#f56031]">
+                1. Change scenario
               </div>
-
               <div className="grid grid-cols-2 gap-2">
                 {(Object.keys(scenarios) as ScenarioKey[]).map((key) => {
                   const s = scenarios[key];
@@ -160,62 +127,58 @@ export function InteractiveSimulator() {
                   return (
                     <button
                       key={key}
+                      type="button"
                       onClick={() => handleScenarioChange(key)}
-                      className={`p-3 rounded border text-left font-mono transition-all ${
+                      className={`rounded-2xl border p-3 text-left transition ${
                         active
-                          ? "border-cyan-500/60 bg-cyan-950/30 text-white"
-                          : "border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                          ? "border-[#f56031]/50 bg-[#f56031]/10 text-white"
+                          : "border-white/10 bg-black/40 text-zinc-400 hover:border-white/20"
                       }`}
                     >
-                      <div className="text-[10px] text-cyan-400 mb-1">{s.category}</div>
-                      <div className="text-xs font-semibold truncate">{s.title}</div>
+                      <div className="text-[10px] font-mono text-[#f56031] mb-1">{s.category}</div>
+                      <div className="text-sm font-medium">{s.title}</div>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Step 2: Interactive Error Rate Slider */}
-            <div className="rounded-lg border border-zinc-800 bg-[#0d0d10] p-5 space-y-4">
-              <div className="flex items-center justify-between text-xs font-mono">
-                <span className="text-cyan-400 font-semibold uppercase">2. Adjust Post-Deploy Error Rate</span>
-                <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                  isBreached ? "bg-red-950 text-red-400 border border-red-800" : "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                }`}>
-                  {errorRate.toFixed(2)}% HTTP 5xx
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#f56031]">
+                  2. Error rate
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-mono font-semibold ${
+                    isBreached
+                      ? "bg-[#f56031] text-black"
+                      : "bg-[#58de54]/20 text-[#58de54]"
+                  }`}
+                >
+                  {errorRate.toFixed(2)}%
                 </span>
               </div>
-
-              <div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="6.0"
-                  step="0.05"
-                  value={errorRate}
-                  onChange={(e) => setErrorRate(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                />
-                <div className="flex justify-between text-[10px] font-mono text-zinc-500 mt-1">
-                  <span>0.0% (Clean)</span>
-                  <span className="text-amber-400 font-semibold">Threshold: {currentScenario.threshold.toFixed(2)}%</span>
-                  <span>6.0% (Outage)</span>
-                </div>
+              <input
+                type="range"
+                min="0"
+                max="6"
+                step="0.05"
+                value={errorRate}
+                onChange={(e) => setErrorRate(parseFloat(e.target.value))}
+                className="w-full accent-[#f56031]"
+              />
+              <div className="flex justify-between text-[11px] font-mono text-zinc-500">
+                <span>0.0%</span>
+                <span className="text-[#f56031]">ceil {current.threshold.toFixed(2)}%</span>
+                <span>6.0%</span>
               </div>
-
-              <p className="text-xs text-zinc-400 font-sans">
-                Drag the slider above the <strong className="text-amber-300 font-mono">{currentScenario.threshold.toFixed(2)}%</strong> threshold for <strong className="text-white">{currentScenario.category}</strong> to trigger an immediate automated rollback.
-              </p>
             </div>
 
-            {/* Step 3: Target Runtime Controller */}
-            <div className="rounded-lg border border-zinc-800 bg-[#0d0d10] p-5 space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
-                <span className="text-cyan-400 font-semibold uppercase">3. Target Runtime Controller</span>
-                <span>Rollback Provider</span>
+            <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 space-y-3">
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-[#f56031]">
+                3. Runtime
               </div>
-
-              <div className="grid grid-cols-4 gap-2 font-mono text-xs">
+              <div className="grid grid-cols-4 gap-2">
                 {[
                   { id: "kubernetes", label: "K8s", icon: Server },
                   { id: "pm2", label: "PM2", icon: Terminal },
@@ -227,11 +190,12 @@ export function InteractiveSimulator() {
                   return (
                     <button
                       key={r.id}
+                      type="button"
                       onClick={() => setTargetRuntime(r.id as TargetRuntime)}
-                      className={`p-2.5 rounded border flex flex-col items-center gap-1 transition-all ${
+                      className={`rounded-2xl border p-2.5 flex flex-col items-center gap-1 transition ${
                         active
-                          ? "border-cyan-500/60 bg-cyan-950/40 text-cyan-300 font-bold"
-                          : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700"
+                          ? "border-[#f56031]/50 bg-[#f56031]/10 text-[#f56031]"
+                          : "border-white/10 text-zinc-400 hover:border-white/20"
                       }`}
                     >
                       <Icon className="h-4 w-4" />
@@ -241,98 +205,87 @@ export function InteractiveSimulator() {
                 })}
               </div>
             </div>
-
           </div>
 
-          {/* Right Column: Live Decision Simulator Monitor */}
           <div className="lg:col-span-7">
-            <div className="rounded-lg border border-zinc-800 bg-[#0a0a0d] overflow-hidden font-mono text-xs shadow-2xl">
-              
-              {/* Header Bar */}
-              <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-3">
-                <div className="flex items-center gap-2 text-cyan-400">
-                  <Activity className="h-4 w-4 animate-pulse" />
-                  <span className="font-semibold">CARF Decision Engine Stream</span>
+            <div className="rounded-[28px] overflow-hidden border border-white/10 shadow-2xl shadow-black/40">
+              <div className="bg-hatch px-4 py-3 flex items-center justify-between border-b border-white/10">
+                <div className="flex items-center gap-2 text-sm text-zinc-200">
+                  <Activity className="h-4 w-4 text-[#f56031]" />
+                  Decision stream
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${currentScenario.sensitivityColor}`}>
-                    {currentScenario.category} · {currentScenario.sensitivity} Sensitivity
-                  </span>
-                </div>
+                <span className="rounded-full bg-[#f56031] px-3 py-1 text-[11px] font-semibold text-black">
+                  {current.category} · {current.sensitivity}
+                </span>
               </div>
 
-              {/* Parsed Diff Inspection */}
-              <div className="p-4 bg-[#08080a] border-b border-zinc-800/80 space-y-2">
-                <div className="flex justify-between text-[11px] text-zinc-500">
-                  <span>INPUT GIT DIFF (PARSED BY AST CLASSIFIER)</span>
-                  <span>Window: {currentScenario.window}</span>
+              <div className="bg-[#f4f4f0] text-black">
+                <div className="px-5 py-4 border-b border-black/10">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-black/40 mb-2">
+                    Parsed diff · window {current.window}
+                  </div>
+                  <pre className="rounded-2xl bg-black text-zinc-200 p-3 text-[11px] leading-relaxed overflow-x-auto">
+                    {current.diffSnippet}
+                  </pre>
                 </div>
-                <pre className="p-3 rounded bg-zinc-950 border border-zinc-800 text-[11px] leading-relaxed text-zinc-300 overflow-x-auto">
-                  {currentScenario.diffSnippet}
-                </pre>
-              </div>
 
-              {/* Status Banner */}
-              <div className="p-4 border-b border-zinc-800/80">
-                {isBreached ? (
-                  <div className="p-3.5 rounded border border-red-800/80 bg-red-950/40 text-red-300 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 font-semibold text-xs">
-                      <AlertTriangle className="h-5 w-5 text-red-400 animate-bounce" />
+                <div className="px-5 py-4 border-b border-black/10">
+                  {isBreached ? (
+                    <div className="rounded-2xl border border-[#f56031]/40 bg-[#f56031]/10 px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <AlertTriangle className="h-5 w-5 text-[#f56031]" />
+                        <div>
+                          <div className="text-sm font-semibold">Automated rollback triggered</div>
+                          <div className="text-xs text-black/55">
+                            {errorRate.toFixed(2)}% crossed {current.threshold.toFixed(2)}% ceiling
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-mono rounded-full bg-black text-white px-2.5 py-1">
+                        380ms
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-[#58de54]/30 bg-[#58de54]/10 px-4 py-3 flex items-center gap-2.5">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
                       <div>
-                        <div>AUTOMATED ROLLBACK TRIGGERED</div>
-                        <div className="text-[11px] text-red-400/80 font-normal">
-                          HTTP 5xx Error ({errorRate.toFixed(2)}%) crossed {currentScenario.category} threshold ({currentScenario.threshold.toFixed(2)}%)
+                        <div className="text-sm font-semibold">Deployment healthy</div>
+                        <div className="text-xs text-black/55">
+                          Within {current.category} tolerance
                         </div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-mono bg-red-900/60 px-2 py-1 rounded border border-red-700">
-                      MTTR: 380ms
-                    </span>
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded border border-emerald-800/80 bg-emerald-950/30 text-emerald-300 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 font-semibold text-xs">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                      <div>
-                        <div>DEPLOYMENT HEALTHY — NO ROLLBACK NEEDED</div>
-                        <div className="text-[11px] text-emerald-400/80 font-normal">
-                          Error rate ({errorRate.toFixed(2)}%) is within allowed {currentScenario.category} tolerance ({currentScenario.threshold.toFixed(2)}%)
-                        </div>
-                      </div>
+                  )}
+                </div>
+
+                <div className="px-5 py-4 space-y-3">
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-black/40 mb-1">
+                      Runtime command
                     </div>
-                    <span className="text-[10px] font-mono bg-emerald-900/40 px-2 py-1 rounded border border-emerald-700">
-                      Monitoring Active
-                    </span>
+                    <div className="rounded-2xl bg-black text-[#f56031] font-mono text-xs px-3 py-2.5 overflow-x-auto">
+                      {isBreached
+                        ? runtimeCommands[targetRuntime]
+                        : "# monitoring… no command dispatched"}
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {/* Executed Command & Telemetry Feed */}
-              <div className="p-4 space-y-3 bg-[#070709]">
-                <div>
-                  <div className="text-[10px] text-zinc-500 uppercase mb-1">Target Runtime Command</div>
-                  <div className="p-2.5 rounded bg-zinc-950 border border-zinc-800 text-cyan-300 text-[11.5px] font-mono overflow-x-auto">
-                    {isBreached ? runtimeCommands[targetRuntime] : "# Monitoring telemetry stream... No command dispatched."}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-[10px] text-zinc-500 uppercase mb-1">Real-time Event Log</div>
-                  <div className="space-y-1 font-mono text-[11px] max-h-36 overflow-y-auto">
-                    {logs.map((log, i) => (
-                      <div key={i} className="text-zinc-400 border-l border-zinc-800 pl-2 py-0.5">
-                        {log}
-                      </div>
-                    ))}
+                  <div>
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-black/40 mb-1">
+                      Event log
+                    </div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto font-mono text-[11px] text-black/55">
+                      {logs.map((log, i) => (
+                        <div key={`${log}-${i}`} className="border-l-2 border-[#f56031]/40 pl-2">
+                          {log}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
-
         </div>
-
       </div>
     </section>
   );
