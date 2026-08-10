@@ -14,12 +14,21 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CARF — Change-Aware Rollback Framework",
-  description: "Hosted DevOps service that automatically decides when to roll back deployments based on change type (code, config, dependency, infrastructure).",
-  keywords: ["rollback framework", "devops", "kubernetes rollback", "gitops", "deployment intelligence", "change classification"],
+  description:
+    "Rollback decisions that understand what changed. Adaptive thresholding for code, config, dependency, and infrastructure deployments.",
+  keywords: [
+    "rollback framework",
+    "devops",
+    "kubernetes rollback",
+    "gitops",
+    "deployment intelligence",
+    "change classification",
+  ],
   authors: [{ name: "CARF Team" }],
   openGraph: {
     title: "CARF — Change-Aware Rollback Framework",
-    description: "Rollback decisions that understand what changed. Adaptive thresholding for code, config, dependency, and infrastructure deployments.",
+    description:
+      "Rollback decisions that understand what changed. Adaptive thresholding for code, config, dependency, and infrastructure deployments.",
     type: "website",
   },
 };
@@ -34,7 +43,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#08080a] text-zinc-100 selection:bg-cyan-500/20 selection:text-cyan-300">
+      <body className="min-h-full flex flex-col bg-black text-white selection:bg-[#f56031]/30 selection:text-white">
         {children}
       </body>
     </html>

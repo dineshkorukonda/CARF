@@ -58,20 +58,20 @@ export default function DocsPage() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#08080a] text-zinc-100 selection:bg-cyan-500/20 selection:text-cyan-300 font-sans">
+    <div className="min-h-screen flex flex-col bg-black text-zinc-100 selection:bg-orange-500/20 selection:text-orange-300 font-sans">
       
       {/* Top Header Navigation */}
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-[#08080a]/90 backdrop-blur-md">
+      <header className="sticky top-0 z-50 w-full border-b border-zinc-800/80 bg-black/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8 h-14">
           <div className="flex items-center gap-4">
             <Link
               href="/"
               className="flex items-center gap-2 font-mono text-sm font-semibold tracking-tight text-white hover:opacity-90 transition-opacity"
             >
-              <span className="tracking-widest text-cyan-400">CARF</span>
+              <span className="tracking-widest text-orange-400">CARF</span>
             </Link>
             <span className="text-zinc-700">/</span>
-            <span className="font-mono text-xs text-cyan-400 flex items-center gap-1.5 font-medium">
+            <span className="font-mono text-xs text-orange-400 flex items-center gap-1.5 font-medium">
               <BookOpen className="h-3.5 w-3.5" /> Documentation
             </span>
           </div>
@@ -81,9 +81,9 @@ export default function DocsPage() {
               href={paperUrl}
               target="_blank"
               rel="noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded border border-cyan-500/40 bg-cyan-950/30 px-3 py-1.5 text-xs font-mono text-cyan-300 hover:bg-cyan-900/40 transition-colors"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded border border-orange-500/40 bg-orange-950/30 px-3 py-1.5 text-xs font-mono text-orange-300 hover:bg-orange-900/40 transition-colors"
             >
-              <FileText className="h-3.5 w-3.5 text-cyan-400" />
+              <FileText className="h-3.5 w-3.5 text-orange-400" />
               <span>Research Paper PDF</span>
               <ExternalLink className="h-3 w-3 opacity-70" />
             </a>
@@ -106,8 +106,8 @@ export default function DocsPage() {
           <div className="sticky top-20 space-y-6">
             
             {/* Paper Callout Widget */}
-            <div className="rounded-lg border border-cyan-500/30 bg-cyan-950/10 p-3.5 font-mono text-xs">
-              <div className="flex items-center gap-2 text-cyan-400 font-semibold mb-1">
+            <div className="rounded-lg border border-orange-500/30 bg-orange-950/10 p-3.5 font-mono text-xs">
+              <div className="flex items-center gap-2 text-orange-400 font-semibold mb-1">
                 <Quote className="h-4 w-4" />
                 <span>Conference Paper</span>
               </div>
@@ -118,7 +118,7 @@ export default function DocsPage() {
                 href={paperUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full inline-flex justify-center items-center gap-1.5 rounded bg-cyan-500/10 border border-cyan-500/40 px-2.5 py-1.5 text-[11px] font-mono text-cyan-300 hover:bg-cyan-500/20 transition-colors"
+                className="w-full inline-flex justify-center items-center gap-1.5 rounded bg-orange-500/10 border border-orange-500/40 px-2.5 py-1.5 text-[11px] font-mono text-orange-300 hover:bg-orange-500/20 transition-colors"
               >
                 <span>Download Paper</span>
                 <ExternalLink className="h-3 w-3" />
@@ -135,13 +135,13 @@ export default function DocsPage() {
                   onClick={() => setActiveSection(item.id)}
                   className={`flex items-center justify-between px-3 py-2 rounded transition-colors ${
                     activeSection === item.id
-                      ? "bg-zinc-800 text-cyan-400 border-l-2 border-cyan-400 font-medium"
+                      ? "bg-zinc-800 text-orange-400 border-l-2 border-orange-400 font-medium"
                       : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50"
                   }`}
                 >
                   <span className="truncate">{item.label}</span>
                   {item.badge && (
-                    <span className="rounded bg-cyan-950 px-1.5 py-0.2 text-[9px] text-cyan-400 border border-cyan-800/50 font-mono">
+                    <span className="rounded bg-orange-950 px-1.5 py-0.2 text-[9px] text-orange-400 border border-orange-800/50 font-mono">
                       {item.badge}
                     </span>
                   )}
@@ -157,8 +157,8 @@ export default function DocsPage() {
           
           {/* SECTION 1: OVERVIEW */}
           <section id="overview" className="scroll-mt-24 space-y-4 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               ARCHITECTURE OVERVIEW
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white font-sans">
@@ -174,34 +174,34 @@ export default function DocsPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-4">
               <div className="p-3 rounded border border-zinc-800 bg-[#0d0d10] font-mono text-xs">
                 <div className="text-zinc-500 text-[10px]">1. CLASSIFY</div>
-                <div className="text-cyan-300 font-medium">Git Diff & AST Parser</div>
+                <div className="text-orange-300 font-medium">Git Diff & AST Parser</div>
               </div>
               <div className="p-3 rounded border border-zinc-800 bg-[#0d0d10] font-mono text-xs">
                 <div className="text-zinc-500 text-[10px]">2. MONITOR</div>
-                <div className="text-cyan-300 font-medium">Adaptive Telemetry Window</div>
+                <div className="text-orange-300 font-medium">Adaptive Telemetry Window</div>
               </div>
               <div className="p-3 rounded border border-zinc-800 bg-[#0d0d10] font-mono text-xs">
                 <div className="text-zinc-500 text-[10px]">3. DECIDE</div>
-                <div className="text-cyan-300 font-medium">Contextual Engine</div>
+                <div className="text-orange-300 font-medium">Contextual Engine</div>
               </div>
               <div className="p-3 rounded border border-zinc-800 bg-[#0d0d10] font-mono text-xs">
                 <div className="text-zinc-500 text-[10px]">4. EXECUTE</div>
-                <div className="text-cyan-300 font-medium">&lt; 500ms Restoration</div>
+                <div className="text-orange-300 font-medium">&lt; 500ms Restoration</div>
               </div>
             </div>
           </section>
 
           {/* SECTION 2: RESEARCH PAPER LINK & CITATION */}
           <section id="research-paper" className="scroll-mt-24 space-y-6 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               PEER-REVIEWED RESEARCH & CONFERENCE PAPER
             </div>
 
-            <div className="rounded-lg border border-cyan-500/40 bg-[#0c0c12] p-6 space-y-4">
+            <div className="rounded-lg border border-orange-500/40 bg-[#0c0c12] p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
                 <div>
-                  <span className="px-2 py-0.5 rounded bg-cyan-950 border border-cyan-800/60 font-mono text-[11px] text-cyan-300">
+                  <span className="px-2 py-0.5 rounded bg-orange-950 border border-orange-800/60 font-mono text-[11px] text-orange-300">
                     Conference Research Paper
                   </span>
                   <h2 className="text-xl font-semibold text-white font-sans mt-2">
@@ -213,7 +213,7 @@ export default function DocsPage() {
                   href={paperUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-2 rounded bg-cyan-500/20 border border-cyan-400/60 px-4 py-2 text-xs font-mono font-medium text-cyan-300 hover:bg-cyan-500/30 transition-all flex-shrink-0"
+                  className="inline-flex items-center gap-2 rounded bg-orange-500/20 border border-orange-400/60 px-4 py-2 text-xs font-mono font-medium text-orange-300 hover:bg-orange-500/30 transition-all flex-shrink-0"
                 >
                   <Download className="h-4 w-4" />
                   <span>View / Download Full Paper (PDF)</span>
@@ -222,7 +222,7 @@ export default function DocsPage() {
               </div>
 
               <div className="space-y-3 font-sans text-xs text-zinc-300">
-                <h3 className="font-mono text-xs text-cyan-400 uppercase tracking-wider font-semibold">Abstract</h3>
+                <h3 className="font-mono text-xs text-orange-400 uppercase tracking-wider font-semibold">Abstract</h3>
                 <p className="leading-relaxed text-zinc-300 bg-zinc-950 p-4 rounded border border-zinc-800 font-mono text-[11.5px]">
                   &quot;Continuous delivery pipelines in cloud-native microservice architectures frequently treat deployment verification as an unconditioned signal evaluation problem. In this paper, we present the Change-Aware Rollback Framework (CARF), an automated decision system that models post-deployment failure probability as a function of the git change vector. By classifying commits into code, configuration, dependency, and infrastructure dimensions via AST inspection, CARF synthesizes adaptive observation windows and error variance ceilings. Empirical validation across 14,000 production deployments demonstrates a 94.2% reduction in false-alarm rollbacks and an average mean-time-to-recovery (MTTR) of 420 milliseconds.&quot;
                 </p>
@@ -235,7 +235,7 @@ export default function DocsPage() {
                   href={paperUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-cyan-400 hover:underline text-[11.5px] truncate max-w-md flex items-center gap-1"
+                  className="text-orange-400 hover:underline text-[11.5px] truncate max-w-md flex items-center gap-1"
                 >
                   <span>{paperUrl}</span>
                   <ExternalLink className="h-3 w-3" />
@@ -253,7 +253,7 @@ export default function DocsPage() {
                         "bibtex"
                       )
                     }
-                    className="flex items-center gap-1 text-[11px] text-cyan-400 hover:text-cyan-300"
+                    className="flex items-center gap-1 text-[11px] text-orange-400 hover:text-orange-300"
                   >
                     {copiedSnippet === "bibtex" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                     <span>{copiedSnippet === "bibtex" ? "Copied" : "Copy BibTeX"}</span>
@@ -274,8 +274,8 @@ export default function DocsPage() {
 
           {/* SECTION 3: CHANGE VECTOR CLASSIFICATION */}
           <section id="classification" className="scroll-mt-24 space-y-6 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               AST & FILE PATH VECTOR CLASSIFICATION
             </div>
 
@@ -284,17 +284,17 @@ export default function DocsPage() {
             </h2>
 
             <p className="text-zinc-400 font-sans">
-              When a deployment job is triggered, CARF inspects the unified <code className="font-mono text-cyan-300">git diff</code> between the target commit and the current running deployment tag. Files are categorized into four distinct vectors:
+              When a deployment job is triggered, CARF inspects the unified <code className="font-mono text-orange-300">git diff</code> between the target commit and the current running deployment tag. Files are categorized into four distinct vectors:
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono text-xs">
               <div className="p-4 rounded border border-zinc-800 bg-[#0c0c0f] space-y-2">
                 <div className="flex items-center gap-2 text-white font-semibold">
-                  <Code className="h-4 w-4 text-cyan-400" />
+                  <Code className="h-4 w-4 text-orange-400" />
                   <span>1. Application Code</span>
                 </div>
                 <p className="text-[11px] text-zinc-400 font-sans">
-                  Target extensions: <code className="text-cyan-300">.ts, .go, .py, .rs, .java</code>. Changes within user-space functions, routes, and business logic algorithms.
+                  Target extensions: <code className="text-orange-300">.ts, .go, .py, .rs, .java</code>. Changes within user-space functions, routes, and business logic algorithms.
                 </p>
                 <div className="text-[10px] text-zinc-500 bg-zinc-950 p-2 rounded">
                   Default Policy: Low Sensitivity · 15m Window
@@ -307,7 +307,7 @@ export default function DocsPage() {
                   <span>2. Runtime Config</span>
                 </div>
                 <p className="text-[11px] text-zinc-400 font-sans">
-                  Target paths: <code className="text-cyan-300">.env, config/*.json, feature-flags.yml</code>. Environment variables, database pools, and secrets.
+                  Target paths: <code className="text-orange-300">.env, config/*.json, feature-flags.yml</code>. Environment variables, database pools, and secrets.
                 </p>
                 <div className="text-[10px] text-zinc-500 bg-zinc-950 p-2 rounded">
                   Default Policy: Medium Sensitivity · 5m Window
@@ -316,11 +316,11 @@ export default function DocsPage() {
 
               <div className="p-4 rounded border border-zinc-800 bg-[#0c0c0f] space-y-2">
                 <div className="flex items-center gap-2 text-white font-semibold">
-                  <Package className="h-4 w-4 text-cyan-400" />
+                  <Package className="h-4 w-4 text-orange-400" />
                   <span>3. Dependencies</span>
                 </div>
                 <p className="text-[11px] text-zinc-400 font-sans">
-                  Target lockfiles: <code className="text-cyan-300">package-lock.json, Cargo.lock, go.sum, pom.xml</code>. Third-party package updates.
+                  Target lockfiles: <code className="text-orange-300">package-lock.json, Cargo.lock, go.sum, pom.xml</code>. Third-party package updates.
                 </p>
                 <div className="text-[10px] text-zinc-500 bg-zinc-950 p-2 rounded">
                   Default Policy: High Sensitivity · 3m Window
@@ -333,7 +333,7 @@ export default function DocsPage() {
                   <span>4. Infrastructure</span>
                 </div>
                 <p className="text-[11px] text-zinc-400 font-sans">
-                  Target paths: <code className="text-cyan-300">k8s/*.yaml, helm/*, Terraform, Dockerfile, nginx.conf</code>. System routing & cluster specs.
+                  Target paths: <code className="text-orange-300">k8s/*.yaml, helm/*, Terraform, Dockerfile, nginx.conf</code>. System routing & cluster specs.
                 </p>
                 <div className="text-[10px] text-zinc-500 bg-zinc-950 p-2 rounded">
                   Default Policy: Strictest Sensitivity · 60s Window
@@ -344,8 +344,8 @@ export default function DocsPage() {
 
           {/* SECTION 4: SENSITIVITY MATRIX */}
           <section id="sensitivity-matrix" className="scroll-mt-24 space-y-6 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               MATHEMATICAL FORMULATION & MATRIX
             </div>
 
@@ -357,30 +357,30 @@ export default function DocsPage() {
               CARF computes the instant decision metric over the monitoring window defined for change vector:
             </p>
 
-            <div className="p-4 rounded bg-zinc-950 border border-zinc-800 font-mono text-xs text-cyan-300 overflow-x-auto text-center">
+            <div className="p-4 rounded bg-zinc-950 border border-zinc-800 font-mono text-xs text-orange-300 overflow-x-auto text-center">
               {"D(t) = (1 / W_v) * Integral[ E_http5xx(t) + lambda * L_p99(t) ] dt > Threshold_v"}
             </div>
 
             <div className="space-y-2 text-xs font-sans">
               <p className="font-semibold text-zinc-200">Variables:</p>
               <ul className="list-disc pl-5 space-y-1 text-zinc-400 font-mono text-[11.5px]">
-                <li><code className="text-cyan-400">W_v</code>: Time observation window for change vector v.</li>
-                <li><code className="text-cyan-400">E_http5xx(t)</code>: Instantaneous HTTP 5xx error rate percentage.</li>
-                <li><code className="text-cyan-400">L_p99(t)</code>: Latency 99th percentile degradation factor.</li>
-                <li><code className="text-cyan-400">Threshold_v</code>: Maximum allowed error threshold ceiling for vector v.</li>
+                <li><code className="text-orange-400">W_v</code>: Time observation window for change vector v.</li>
+                <li><code className="text-orange-400">E_http5xx(t)</code>: Instantaneous HTTP 5xx error rate percentage.</li>
+                <li><code className="text-orange-400">L_p99(t)</code>: Latency 99th percentile degradation factor.</li>
+                <li><code className="text-orange-400">Threshold_v</code>: Maximum allowed error threshold ceiling for vector v.</li>
               </ul>
             </div>
           </section>
 
           {/* SECTION 5: CONFIGURATION REFERENCE (.carf.yml) */}
           <section id="config-reference" className="scroll-mt-24 space-y-6 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               SPECIFICATION
             </div>
 
             <h2 className="text-2xl font-bold text-white font-sans">
-              Configuration Reference (<code className="text-cyan-400">.carf.yml</code>)
+              Configuration Reference (<code className="text-orange-400">.carf.yml</code>)
             </h2>
 
             <div className="rounded-lg border border-zinc-800 bg-[#0c0c0f] overflow-hidden">
@@ -393,7 +393,7 @@ export default function DocsPage() {
                       "config-ref"
                     )
                   }
-                  className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300"
+                  className="flex items-center gap-1 text-orange-400 hover:text-orange-300"
                 >
                   {copiedSnippet === "config-ref" ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   <span>Copy Configuration</span>
@@ -432,8 +432,8 @@ target:
 
           {/* SECTION 6: CI INTEGRATION GUIDES */}
           <section id="ci-integration" className="scroll-mt-24 space-y-6 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               PIPELINE SETUP
             </div>
 
@@ -442,7 +442,7 @@ target:
             </h2>
 
             <div className="space-y-4 font-sans text-xs">
-              <h3 className="font-mono text-sm text-cyan-300 font-semibold">GitHub Actions Integration</h3>
+              <h3 className="font-mono text-sm text-orange-300 font-semibold">GitHub Actions Integration</h3>
               <div className="p-4 rounded border border-zinc-800 bg-[#0c0c0f] font-mono leading-relaxed text-zinc-300 overflow-x-auto">
 {`- name: CARF Change-Aware Deployment Verification
   uses: carf-devops/evaluate-action@v1.2
@@ -455,8 +455,8 @@ target:
 
           {/* SECTION 7: TARGET RUNTIMES */}
           <section id="target-runtimes" className="scroll-mt-24 space-y-6 border-b border-zinc-800/80 pb-12">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               EXECUTION PRIMITIVES
             </div>
 
@@ -467,11 +467,11 @@ target:
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
               <div className="p-4 rounded border border-zinc-800 bg-zinc-950 space-y-1">
                 <div className="text-white font-semibold">Kubernetes</div>
-                <div className="text-zinc-400 font-sans">Executes <code className="text-cyan-300">kubectl rollout undo deployment/app</code> with pod readiness verification.</div>
+                <div className="text-zinc-400 font-sans">Executes <code className="text-orange-300">kubectl rollout undo deployment/app</code> with pod readiness verification.</div>
               </div>
               <div className="p-4 rounded border border-zinc-800 bg-zinc-950 space-y-1">
                 <div className="text-white font-semibold">PM2</div>
-                <div className="text-zinc-400 font-sans">Executes zero-downtime process reload via IPC <code className="text-cyan-300">pm2 reload app</code>.</div>
+                <div className="text-zinc-400 font-sans">Executes zero-downtime process reload via IPC <code className="text-orange-300">pm2 reload app</code>.</div>
               </div>
               <div className="p-4 rounded border border-zinc-800 bg-zinc-950 space-y-1">
                 <div className="text-white font-semibold">GitOps (ArgoCD / Flux)</div>
@@ -486,8 +486,8 @@ target:
 
           {/* SECTION 8: TELEMETRY API */}
           <section id="telemetry" className="scroll-mt-24 space-y-6">
-            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-cyan-400 uppercase tracking-wider">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-mono text-orange-400 uppercase tracking-wider">
+              <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
               OBSERVABILITY
             </div>
 
@@ -512,10 +512,10 @@ target:
       <footer className="border-t border-zinc-800 bg-[#050507] text-xs font-mono text-zinc-500 py-8">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 font-mono">
-            <span className="text-cyan-400 font-semibold">CARF</span> Documentation & Research Portal
+            <span className="text-orange-400 font-semibold">CARF</span> Documentation & Research Portal
           </div>
           <div>
-            <a href={paperUrl} target="_blank" rel="noreferrer" className="text-cyan-400 hover:underline">
+            <a href={paperUrl} target="_blank" rel="noreferrer" className="text-orange-400 hover:underline">
               Conference Paper PDF
             </a>
           </div>
