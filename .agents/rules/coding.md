@@ -14,3 +14,6 @@
 ## 3. Backend & Testing
 - The backend must have comprehensive and robust test coverage.
 - You must write **Unit**, **Integration**, **Smoke**, and **Redundant** tests for all backend logic to guarantee system resilience.
+
+## 4. Pull Requests
+- All pull requests MUST be assigned to `dineshkorukonda`.
