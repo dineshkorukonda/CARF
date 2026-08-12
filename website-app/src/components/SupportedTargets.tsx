@@ -1,67 +1,47 @@
-import { Box, Cloud, GitPullRequest, Layers, Server, Terminal } from "lucide-react";
+import { Activity, LayoutDashboard, Server, Layers } from "lucide-react";
 
 export function SupportedTargets() {
   const targets = [
     {
-      name: "PM2",
-      type: "Process Manager",
-      icon: Terminal,
-      method: "Zero-Downtime Reload",
-      protocol: "Native CLI / IPC",
-      badge: "Supported",
-      description:
-        "Restores previous process state via `pm2 reload` with zero lost HTTP connections.",
-    },
-    {
-      name: "Docker Engine",
-      type: "Container Runtime",
-      icon: Box,
-      method: "Container Re-tag & Swarm",
-      protocol: "Docker Engine API",
-      badge: "Supported",
-      description:
-        "Swaps active container image digest back to last verified immutable registry tag.",
-    },
-    {
-      name: "Kubernetes",
-      type: "Orchestrator",
+      name: "Argo Rollouts",
+      type: "Progressive Delivery",
       icon: Server,
-      method: "Rollout Undo",
-      protocol: "K8s API / Operator",
-      badge: "Native Operator",
+      method: "AnalysisTemplate Webhook",
+      protocol: "HTTP API",
+      badge: "Native Integration",
       description:
-        "Executes `kubectl rollout undo deployment` and manages pod generation revisions.",
+        "CARF responds to Argo Rollouts mid-canary to provide the dynamic threshold for the commit.",
     },
     {
-      name: "GitOps (ArgoCD / Flux)",
-      type: "Continuous Delivery",
-      icon: GitPullRequest,
-      method: "Automated Revert Commit",
-      protocol: "Webhook / Git Push",
-      badge: "GitOps Native",
-      description:
-        "Commits a revert to your GitOps repository, triggering ArgoCD or Flux synchronization.",
-    },
-    {
-      name: "Helm",
-      type: "Package Manager",
+      name: "Flagger",
+      type: "Progressive Delivery",
       icon: Layers,
-      method: "Helm Rollback",
-      protocol: "Helm gRPC API",
-      badge: "Supported",
+      method: "Webhook Metric",
+      protocol: "HTTP API",
+      badge: "Native Integration",
       description:
-        "Reverts Helm release to last healthy revision number with chart value preservation.",
+        "Plugs into Flagger's webhook metric provider to drive rollback decisions intelligently.",
     },
     {
-      name: "AWS ECS",
-      type: "Cloud Container Service",
-      icon: Cloud,
-      method: "Task Definition Revert",
-      protocol: "AWS SDK / EventBridge",
+      name: "Prometheus",
+      type: "Metrics Backend",
+      icon: Activity,
+      method: "PromQL client",
+      protocol: "HTTP API",
       badge: "Supported",
       description:
-        "Deploys previous AWS ECS Task Definition revision with target group health checks.",
+        "CARF queries baseline health data from Prometheus to optionally adjust its threshold output.",
     },
+    {
+      name: "Datadog",
+      type: "Metrics Backend",
+      icon: LayoutDashboard,
+      method: "API Client",
+      protocol: "HTTP API",
+      badge: "Supported",
+      description:
+        "Integrates with Datadog telemetry to inform dynamic threshold scoring.",
+    }
   ];
 
   return (
@@ -69,18 +49,17 @@ export function SupportedTargets() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mb-12">
           <div className="inline-flex items-center gap-2 text-[#f56031] mb-4">
-            <span className="font-mono text-xs uppercase tracking-[0.18em]">Targets</span>
+            <span className="font-mono text-xs uppercase tracking-[0.18em]">Integrations</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
-            Supported deployment targets
+            Supported integrations
           </h2>
           <p className="mt-4 text-base sm:text-lg text-neutral-400 leading-relaxed">
-            Plugs into the controllers you already run — with native handlers and sub-500ms
-            response latency.
+            Plugs into the progressive delivery tools you already run — providing dynamic thresholds without replacing them.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
           {targets.map((target) => {
             const Icon = target.icon;
             return (

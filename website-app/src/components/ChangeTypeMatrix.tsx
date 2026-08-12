@@ -16,7 +16,7 @@ export function ChangeTypeMatrix() {
       sensitivity: "Low",
       window: "15 minutes",
       threshold: "5.0%",
-      rollbackAction: "Alert & Log",
+      rollbackAction: "Permissive Target",
       rationale:
         "Allows non-critical feature bugs to be hotfixed forward without disruptive automated rollbacks.",
       diffExample: `--- a/src/controllers/userController.ts
@@ -31,7 +31,7 @@ export function ChangeTypeMatrix() {
       sensitivity: "Medium",
       window: "5 minutes",
       threshold: "2.5%",
-      rollbackAction: "Rollback on breach",
+      rollbackAction: "Strict Target",
       rationale:
         "Detects invalid environment variables, secret mismatches, or malformed feature flag JSON quickly.",
       diffExample: `--- a/config/production.env
@@ -46,7 +46,7 @@ export function ChangeTypeMatrix() {
       sensitivity: "High",
       window: "3 minutes",
       threshold: "1.0%",
-      rollbackAction: "Rollback on breach",
+      rollbackAction: "Very Strict Target",
       rationale:
         "Reverts lockfile updates or major version upgrades that introduce silent memory leaks.",
       diffExample: `--- a/package.json
@@ -61,7 +61,7 @@ export function ChangeTypeMatrix() {
       sensitivity: "Strictest",
       window: "60 seconds",
       threshold: "0.2%",
-      rollbackAction: "Immediate Rollback",
+      rollbackAction: "Zero Tolerance",
       rationale:
         "Zero-tolerance policy. Ingress, Terraform, Helm, or mesh failures revert within seconds.",
       diffExample: `--- a/k8s/ingress.yaml
@@ -98,7 +98,7 @@ export function ChangeTypeMatrix() {
                   <th className="py-3.5 px-4 font-medium">Sensitivity</th>
                   <th className="py-3.5 px-4 font-medium">Window</th>
                   <th className="py-3.5 px-4 font-medium">Threshold</th>
-                  <th className="py-3.5 px-4 font-medium">Action</th>
+                  <th className="py-3.5 px-4 font-medium">Target</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10 bg-white/[0.02]">
@@ -196,7 +196,7 @@ export function ChangeTypeMatrix() {
                   <span className="font-mono text-[#f56031]">{activeItem.threshold}</span>
                 </div>
                 <div className="flex justify-between text-black/50">
-                  <span>Policy</span>
+                  <span>Target</span>
                   <span className="font-mono text-black">{activeItem.rollbackAction}</span>
                 </div>
               </div>
@@ -205,7 +205,7 @@ export function ChangeTypeMatrix() {
               </p>
               <div className="flex items-start gap-2 rounded-2xl bg-black text-white px-3 py-2.5 text-xs">
                 <Zap className="h-4 w-4 text-[#f56031] shrink-0 mt-0.5" />
-                CARF updates its telemetry window as soon as this commit lands.
+                CARF generates dynamic bounds as soon as this commit lands.
               </div>
             </div>
           </div>

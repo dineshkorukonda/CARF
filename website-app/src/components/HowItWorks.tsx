@@ -11,34 +11,34 @@ const steps = [
     icon: GitBranch,
     description:
       "Tags deploys by change type from git diffs and file ASTs — code, config, dependency, or infrastructure.",
-    output: "Tag: INFRASTRUCTURE · Sensitivity: STRICT · Window: 60s",
+    output: "Tag: INFRASTRUCTURE · Complexity Score: High",
   },
   {
     id: "02",
-    label: "Monitor",
-    name: "Metrics collector",
+    label: "Persist",
+    name: "Vector Storage",
     icon: Activity,
     description:
-      "Watches real-time HTTP 5xx, latency p99, and panic metrics during the adaptive post-deploy window.",
-    output: "Telemetry: error_rate=0.38% · p99=420ms · window remaining 41s",
+      "Saves the computed change vector to Postgres, ready to be queried during progressive delivery.",
+    output: "Stored: commit_sha 8f7a9d -> {type: infra, score: 0.8}",
   },
   {
     id: "03",
-    label: "Decide",
-    name: "Decision engine",
+    label: "Evaluate",
+    name: "Dynamic Threshold API",
     icon: Cpu,
     description:
-      "Applies per-project, per-change-type sensitivity thresholds and confidence curves — not flat SLOs.",
-    output: "DECISION: THRESHOLD_BREACHED (0.38% > 0.20%)",
+      "Mid-canary, Argo Rollouts or Flagger queries CARF for the context-aware threshold for that specific commit.",
+    output: "Response: { error_tolerance: 0.20%, window: '60s' }",
   },
   {
     id: "04",
     label: "Execute",
-    name: "Rollback executor",
+    name: "Delegated Rollback",
     icon: RotateCcw,
     description:
-      "Calls Kubernetes, PM2, Docker, or GitOps webhooks to restore the last known stable revision instantly.",
-    output: "SUCCESS: Revision 142 restored in 420ms",
+      "Argo Rollouts or Flagger evaluates real telemetry against CARF's dynamic threshold and executes the rollback.",
+    output: "Argo Rollouts: Rollback executed (0.38% > 0.20%)",
   },
 ];
 
@@ -56,8 +56,7 @@ export function HowItWorks() {
             Four steps. One change-aware loop.
           </h2>
           <p className="mt-4 text-base sm:text-lg text-neutral-400 leading-relaxed">
-            From commit classification to automated restoration, CARF executes with contextual
-            judgment — usually in under 500 milliseconds.
+            From commit classification to automated restoration, CARF acts as the decision layer for your progressive delivery pipeline.
           </p>
         </div>
 

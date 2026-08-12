@@ -33,7 +33,7 @@ export function ProblemStatement() {
                 Live traces
               </div>
               {[
-                { title: "Ingress path rewrite", status: "Rolling back", hot: true },
+                { title: "Ingress path rewrite", status: "Computing", hot: true },
                 { title: "Pool max bump", status: "Monitoring", hot: false },
                 { title: "express-session major", status: "Idle", hot: false },
               ].map((item) => (
@@ -67,14 +67,13 @@ export function ProblemStatement() {
             <div className="lg:col-span-8 p-5 sm:p-6 space-y-4">
               <div className="rounded-2xl border border-[#f56031]/50 bg-white p-4 sm:p-5">
                 <div className="font-mono text-xs text-[#f56031] mb-3">
-                  CARF Decision Engine · INFRASTRUCTURE
+                  CARF Webhook Provider · INFRASTRUCTURE
                 </div>
                 <h3 className="text-xl sm:text-2xl font-semibold tracking-tight mb-2">
-                  Threshold breached — reverting revision 142
+                  Strictest threshold dispatched to Argo
                 </h3>
                 <p className="text-sm text-black/55 leading-relaxed max-w-xl">
-                  HTTP 5xx spiked to 0.38% inside a 60s window. Allowed ceiling for infrastructure
-                  changes is 0.20%. Rollback latency: 420ms.
+                  Calculated dynamic threshold for infrastructure change. Allowed ceiling is 0.20%. Returning to Argo Rollouts for canary enforcement.
                 </p>
                 <div className="mt-4 grid grid-cols-3 gap-3 text-xs font-mono">
                   <div className="rounded-xl bg-black/[0.04] px-3 py-2">
@@ -86,14 +85,13 @@ export function ProblemStatement() {
                     <div className="font-semibold">60s</div>
                   </div>
                   <div className="rounded-xl bg-black/[0.04] px-3 py-2">
-                    <div className="text-black/40">Action</div>
-                    <div className="font-semibold text-[#f56031]">UNDO</div>
+                    <div className="text-black/40">Threshold</div>
+                    <div className="font-semibold text-[#f56031]">0.20%</div>
                   </div>
                 </div>
               </div>
               <div className="rounded-2xl bg-black text-white font-mono text-xs sm:text-sm px-4 py-3">
-                <span className="text-[#f56031]">›</span> kubectl rollout undo deployment/checkout-api
-                -n production
+                <span className="text-[#f56031]">›</span> POST /api/v1/argo/analyze ➔ 200 OK
               </div>
             </div>
           </div>
@@ -121,7 +119,7 @@ export function ProblemStatement() {
           </p>
           <p className="text-white">
             CARF is different. It reads what changed before it watches what fails. Code gets room to
-            breathe. Infrastructure gets zero tolerance. Your rollbacks don&apos;t guess. They know.
+            breathe. Infrastructure gets zero tolerance. Your delivery tools don&apos;t guess. They know.
           </p>
         </div>
       </div>
