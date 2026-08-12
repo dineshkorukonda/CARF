@@ -35,7 +35,7 @@ export function FinalCTA() {
             </a>
           </div>
           <p className="mt-6 text-sm text-zinc-400">
-            Open evaluation engine · Hosted control plane · Live decision traces
+            Webhook sidecar · Postgres storage · Live decision traces
           </p>
         </div>
       </div>
