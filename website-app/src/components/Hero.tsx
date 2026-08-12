@@ -9,9 +9,9 @@ const paperUrl =
 function StarburstGraphic() {
   const labels = [
     { text: "classify", angle: -28, dist: 38 },
-    { text: "monitor", angle: 18, dist: 42 },
-    { text: "decide", angle: 118, dist: 40 },
-    { text: "rollback", angle: 210, dist: 44 },
+    { text: "persist", angle: 18, dist: 42 },
+    { text: "evaluate", angle: 118, dist: 40 },
+    { text: "delegate", angle: 210, dist: 44 },
   ];
 
   return (
@@ -98,8 +98,7 @@ export function Hero() {
               </h1>
               <p className="max-w-md text-base leading-7 text-neutral-400">
                 CARF classifies every deploy by change type — code, config, dependency, or
-                infrastructure — then applies adaptive sensitivity instead of a flat error
-                percentage.
+                infrastructure — then provides adaptive sensitivity thresholds to Argo Rollouts or Flagger.
               </p>
             </div>
 
@@ -133,12 +132,11 @@ export function Hero() {
               CARF
             </span>
             <span className="rounded-full bg-zinc-800 px-4 py-1.5 text-xs font-medium text-zinc-300 border border-white/10">
-              Control Plane
+              Webhook Sidecar
             </span>
           </div>
           <p className="max-w-md text-sm leading-6 text-neutral-400 sm:text-right">
-            Tap into change-aware rollback intelligence. Request access to the hosted control
-            plane, or run the open evaluation engine locally.
+            Tap into change-aware rollback intelligence. Run the CARF sidecar locally and connect it to Argo Rollouts or Flagger.
           </p>
         </div>
       </div>

@@ -1,40 +1,43 @@
 # CARF — Change-Aware Rollback Framework
 
-CARF (Change-Aware Rollback Framework) is a hosted DevOps platform and execution engine that automates post-deployment verification and contextual rollback decisions. Unlike conventional continuous delivery systems that evaluate post-deploy telemetry against flat failure metrics, CARF inspects AST syntax trees and unified git diffs prior to telemetry ingestion. By classifying releases into application code, runtime configuration, dependency lockfiles, or infrastructure manifests, CARF dynamically synthesizes adaptive observation windows and error variance ceilings, preventing false-alarm rollbacks while ensuring instantaneous recovery during high-risk environment or system changes.
+**Status:** Architecture finalized, pre-implementation  
+**Repo:** git@github.com:dineshkorukonda/CARF.git  
+**Based on:** "Change-Aware Automated Rollback Decision Framework for DevOps Pipelines" (co-authored research paper — Dinesh Korukonda, Tammineni Monika, Jonnalagadda Surya Kiran, Hemachand Pallam)
 
-The framework integrates directly into existing continuous integration pipelines and cloud-native container orchestrators. Upon commit ingestion, CARF evaluates incoming metric streams from Prometheus, Datadog, or OpenTelemetry against configured vector sensitivity rules. When error rates or latency anomalies cross a vector's mathematical threshold, CARF dispatches zero-downtime rollback primitives to target controllers such as Kubernetes, PM2, Docker Swarm, or GitOps operators in under 500 milliseconds.
+---
 
-## Framework Execution Flow
+## 1. What CARF Is
+
+CARF is a **decision layer / sidecar** that plugs into progressive delivery tools like Argo Rollouts or Flagger. 
+
+**Argo Rollouts and Flagger decide rollback purely from metrics — they don't know if a diff was a typo fix or a schema migration. CARF reads the actual change, framework-agnostically, and tells them how strict to be, through their existing webhook interfaces.**
+
+CARF is **not** a full rollback platform. It does not touch Kubernetes, does not generate git revert commits, and does not run its own canary analysis loop. Mature, production-grade tools already do that correctly.
+
+## 2. Features
+
+- **Tier 1 Classifier:** Classifies a changed file by what kind of artifact it is (e.g., `Dockerfile` -> `infra/container`), framework-agnostic by construction.
+- **Tier 2 Classifier:** Uses `tree-sitter` for structural diff parsing to compute a complexity score for code changes.
+- **Change Vector Storage:** Persists classified commits to Postgres for fast lookups.
+- **Dynamic Threshold Webhook API:** Exposes a dynamic threshold (based on the change score) via a webhook that Argo Rollouts or Flagger calls mid-canary.
+- **Custom Sensitivity Rules API:** Allows teams to override default classification/scoring (e.g., "anything under `payment/` is always high-sensitivity").
+
+## 3. Architecture Flow
 
 ```mermaid
 flowchart TD
-    A[Git Commit Push / Diff] --> B[AST Change Classifier]
+    A[CI/PR webhook] --> B[CARF Classifier\nTier 1 & Tier 2]
+    B -->|Persists vector| C[(Postgres)]
     
-    B -->|Parses File Paths & AST| C{Change Vector Tag}
-    C -->|Code: .ts, .go, .py| D1[Low Sensitivity / 10m Window]
-    C -->|Config: .env, config.json| D2[Medium Sensitivity / 5m Window]
-    C -->|Dependency: lockfiles| D3[High Sensitivity / 5m Window]
-    C -->|Infra: k8s, helm, terraform| D4[Strictest Sensitivity / 2m Window]
+    C --> D[CARF Webhook Endpoint]
     
-    D1 --> E[Observability Stream Ingestion]
-    D2 --> E
-    D3 --> E
-    D4 --> E
+    E[Argo Rollouts / Flagger\nAnalysisTemplate] -->|Calls CARF| D
+    D -->|Returns dynamic threshold| E
     
-    E -->|Prometheus / Datadog / OTEL| F[CARF Contextual Decision Engine]
-    
-    F -->|Telemetry <= Threshold| G[Maintain Deployment & Log Baseline]
-    F -->|Telemetry > Threshold| H[Trigger Automated Rollback]
-    
-    H --> I[Rollback Executor < 500ms]
-    
-    I -->|kubectl rollout undo| J1[Kubernetes Cluster]
-    I -->|pm2 reload| J2[PM2 Process Manager]
-    I -->|git revert commit| J3[GitOps ArgoCD / Flux]
-    I -->|container swap| J4[Docker Engine / Swarm]
+    E -->|Reads Prometheus/Datadog| F{DECIDES + EXECUTES\nrollback itself}
 ```
 
-## Getting Started
+## 4. Getting Started
 
 ### Prerequisites
 - Node.js (v18+)
@@ -53,7 +56,7 @@ flowchart TD
    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/carf_db
    PORT=3000
    ```
-3. Run database migrations to create schema tables (`projects`, `deployments`, `metric_readings`, `rollback_events`):
+3. Run database migrations:
    ```bash
    cd core-api
    npm run migrate
@@ -63,7 +66,7 @@ flowchart TD
 
 ### Running the Core API Server
 
-Start the CARF Core API backend service (startsExpress API and background polling loop on boot):
+Start the CARF Core API backend service:
 ```bash
 cd core-api
 npm start
@@ -74,7 +77,7 @@ The server will be running on `http://localhost:3000`.
 
 ### Running Unit Tests
 
-Run the pure unit test suite (covering `classify.js` and `decide.js`):
+Run the pure unit test suite:
 ```bash
 cd core-api
 npm test
@@ -82,14 +85,6 @@ npm test
 
 ---
 
-### Running the Demo Target App (Failure Simulation)
+### Demo Target App
 
-1. Start the target app:
-   ```bash
-   cd demo-target-app
-   npm install
-   npm start
-   ```
-2. The health check endpoint responds at `http://localhost:4000/health`:
-   - Normal health check: `GET http://localhost:4000/health` -> `{ "status": "healthy", "error_rate": 0 }`
-   - Simulated failure: `GET http://localhost:4000/health?fail=true` -> `{ "status": "degraded", "error_rate": 15 }`
+The `demo-target-app/` contains a small sample app used to validate that CARF's threshold responses actually change canary behavior when deployed via Argo Rollouts in a local cluster.
