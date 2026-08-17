@@ -58,4 +58,10 @@ Open `http://localhost:3000` to view the interactive simulator, proposed archite
 
 ## 4. Documentation & Specifications
 
-Detailed technical specifications, math formulas, and build order roadmap can be found in [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](file:///C:/Users/dines/Developer/CARF/docs/CARF_PROPOSED_IMPLEMENTATION.md).
+Detailed technical specifications, math formulas, and build order roadmap can be found in [docs/CARF_PROPOSED_IMPLEMENTATION.md](docs/CARF_PROPOSED_IMPLEMENTATION.md).
+
+---
+
+## 5. Implementation Roadmap & Monorepo
+
+CARF is implemented across three structured phases within the monorepo (`core-api`, `packages/github-action`, and `demo-target-app`): **Phase 1** establishes the two-tier classification engine (path pattern matching + Tree-sitter AST structural delta parsing), **Phase 2** delivers the configurable threshold decay calculation engine and Postgres/Prisma persistence layer, and **Phase 3** provides Augment mode Fastify webhooks, Standalone health-checking execution adapters (Docker Compose and kubectl), and the synthetic deployment evaluation harness.
