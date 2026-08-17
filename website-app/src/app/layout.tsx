@@ -2,11 +2,30 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 
+const description =
+  "CARF classifies every commit diff through a two-tier engine — path/manifest rules, then Tree-sitter AST structural diffing — and turns that into a dynamic per-type error threshold fed to Argo Rollouts or Flagger in real time.";
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+  ? process.env.NEXT_PUBLIC_SITE_URL
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "CARF — Change-Aware Rollback Framework",
-  description:
-    "A framework that links what changed in a deployment with how the system behaves to decide when to rollback automatically.",
+  description,
   authors: [{ name: "CARF Team" }],
+  openGraph: {
+    title: "CARF — Change-Aware Rollback Framework",
+    description,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "CARF — Change-Aware Rollback Framework",
+    description,
+  },
 };
 
 export default function RootLayout({
@@ -30,12 +49,12 @@ export default function RootLayout({
                 Conference Paper
               </Link>
               <a
-                href="https://github.com/dineshkorukonda/CARF"
+                href="https://github.com/dineshkorukonda/CARF/milestones"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-[#111] transition-colors flex items-center gap-1"
               >
-                GitHub
+                GitHub Milestones
                 <svg className="w-3 h-3 text-[#888]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>

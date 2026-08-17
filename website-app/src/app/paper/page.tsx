@@ -1,8 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { GitBranch, Activity, Cpu, RotateCcw } from "lucide-react";
+import { FlowDiagram } from "@/components/FlowDiagram";
+import { DecisionConvergenceDiagram } from "@/components/DecisionConvergenceDiagram";
+
+const architectureNodes = [
+  { icon: GitBranch, title: "Change Classifier", caption: "Pre-deployment" },
+  { icon: Activity, title: "Metrics Collector", caption: "Post-deploy window" },
+  { icon: Cpu, title: "Decision Engine", caption: "Change-keyed threshold" },
+  { icon: RotateCcw, title: "Rollback Executor", caption: "kubectl / git revert" },
+];
 
 const TOC = [
   { id: "introduction", label: "Introduction" },
@@ -57,16 +66,11 @@ export default function PaperPage() {
         </div>
       </div>
 
-      {/* ── Hero image ── */}
-      <div className="max-w-[800px] mx-auto px-[#18px] px-6 mb-14">
-        <Image
-          src="/hero.jpg"
-          alt="CARF system hero illustration"
-          width={1732}
-          height={824}
-          priority
-          className="w-full h-auto block rounded-[8px] border border-[#e5e5e5] shadow-xs"
-        />
+      {/* ── Hero diagram: what changed + how it behaves → decision ── */}
+      <div className="max-w-[800px] mx-auto px-6 mb-14">
+        <div className="rounded-[8px] border border-[#e5e5e5] bg-white p-8 sm:p-10">
+          <DecisionConvergenceDiagram />
+        </div>
       </div>
 
       {/* ── Content shell: left TOC + article ── */}
@@ -239,14 +243,8 @@ export default function PaperPage() {
 
             {/* Architecture diagram */}
             <figure className="my-8">
-              <Image
-                src="/carf-arch.jpg"
-                alt="Four-phase CARF architecture: Change Classifier → Metrics Collector → Decision Engine → Rollback Executor"
-                width={1400}
-                height={788}
-                className="w-full h-auto block rounded-[4px] border border-[#eee]"
-              />
-              <figcaption className="mt-3 font-['Inter',system-ui,sans-serif] text-[12.5px] leading-[1.5] text-[#888]">
+              <FlowDiagram nodes={architectureNodes} />
+              <figcaption className="mt-1.5 font-['Inter',system-ui,sans-serif] text-[12.5px] leading-[1.5] text-[#888]">
                 Figure 1. The four-phase CARF pipeline. A deployment enters
                 the pre-deployment classifier, moves into post-deployment
                 monitoring, automated decision logic, and finally rollback
