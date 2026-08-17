@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { InteractiveSystemFlow } from "@/components/InteractiveSystemFlow";
+import { ArchitectureFlowDiagram } from "@/components/ArchitectureFlowDiagram";
 
 const TOC = [
   { id: "problem-statement", label: "Problem statement" },
@@ -14,6 +15,7 @@ const TOC = [
   { id: "algorithms-formulas", label: "Algorithms & mathematical formulas" },
   { id: "evaluation-harness", label: "Evaluation harness (H1 proof)" },
   { id: "technical-stack", label: "Technical stack & build order" },
+  { id: "related-work", label: "Related work" },
   { id: "research-gaps-closed", label: "Research gaps closed" },
 ];
 
@@ -63,6 +65,48 @@ export default function ProposedArchitectureLandingPage() {
           <Link href="/paper" className="text-[#111] font-medium underline underline-offset-2 hover:opacity-60">
             View Conference Paper →
           </Link>
+        </div>
+      </div>
+
+      {/* ── Project Status ── */}
+      <div className="max-w-[720px] mx-auto px-6 pb-10">
+        <div className="rounded-[6px] border border-[#e5e5e5] bg-[#fafafa] p-5 font-['Inter',system-ui,sans-serif]">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-[13px] font-semibold uppercase tracking-wider text-[#111] m-0">
+              Project Status
+            </h2>
+            <a
+              href="https://github.com/dineshkorukonda/CARF/milestones"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[12.5px] font-medium text-[#111] underline underline-offset-2 hover:opacity-60 whitespace-nowrap"
+            >
+              Follow progress on GitHub →
+            </a>
+          </div>
+          <p className="text-[13.5px] leading-[1.6] text-[#555] mb-4">
+            CARF is currently in the architecture and specification phase. No implementation exists yet in any part of the monorepo — the priority right now is building the classification engine correctly before moving to threshold computation and integrations.
+          </p>
+          <div className="space-y-2">
+            {[
+              { phase: "Phase 1", title: "Classification Engine", desc: "Two-tier commit classifier producing a normalized change vector" },
+              { phase: "Phase 2", title: "Threshold Engine + Persistence", desc: "Change vector → dynamic threshold, Postgres storage" },
+              { phase: "Phase 3", title: "Integrations + Evaluation", desc: "Augment/Standalone adapters, synthetic evaluation harness" },
+            ].map((p) => (
+              <div key={p.phase} className="flex items-start justify-between gap-3 bg-white border border-[#eaeaea] rounded-[4px] px-3.5 py-2.5">
+                <div className="min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-mono text-[11px] text-[#888] shrink-0">{p.phase}</span>
+                    <span className="text-[13px] font-medium text-[#111]">{p.title}</span>
+                  </div>
+                  <div className="text-[12px] text-[#888] mt-0.5">{p.desc}</div>
+                </div>
+                <span className="shrink-0 text-[10.5px] font-mono font-medium uppercase tracking-wide text-[#a16207] bg-[#fef9e7] border border-[#fde68a] px-2 py-0.5 rounded mt-0.5">
+                  Not started
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -219,6 +263,8 @@ export default function ProposedArchitectureLandingPage() {
               The data flow moves sequentially from commit arrival to vector storage and webhook resolution:
             </p>
 
+            <ArchitectureFlowDiagram />
+
             <div className="my-6 pl-0 space-y-3 font-['Inter',system-ui,sans-serif] text-[14px]">
               {[
                 { step: "1", title: "CI Trigger", desc: "PR merge triggers Git Webhook adapter passing target commit SHA and unified diff payload." },
@@ -338,6 +384,10 @@ change_vector = normalize({
               <div className="pl-4">final_threshold *= (1 − complexity_decay × code_complexity)</div>
             </div>
 
+            <p className="mb-5">
+              <strong>Calibrating the constants.</strong> <code className="font-mono text-[12px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">decay</code>, <code className="font-mono text-[12px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">complexity_decay</code>, and the per-type <code className="font-mono text-[12px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">base_threshold</code> / <code className="font-mono text-[12px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">base_window</code> values are not hand-picked. They are fit via grid search against the evaluation harness in §7, optimizing for false-positive rollback rate at equal-or-better true-positive MTTR (per hypothesis H1). A sensitivity sweep is run around the selected values to confirm the resulting metrics are not a knife-edge function of any single constant — i.e., small perturbations to <code className="font-mono text-[12px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">decay</code> or <code className="font-mono text-[12px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">complexity_decay</code> should produce small, monotonic changes in FPR and MTTR, not discontinuous jumps. This grid-search-plus-sensitivity-check process is reported alongside the results, not just the final constants.
+            </p>
+
             {/* § 7. Evaluation Harness */}
             <h2
               id="evaluation-harness"
@@ -359,6 +409,10 @@ change_vector = normalize({
               </ul>
             </div>
 
+            <p className="mb-5">
+              <strong>Why synthetic injection.</strong> Real production incident logs rarely carry a reliable ground-truth label for the question this evaluation needs answered: <em>was this specific rollback actually necessary?</em> Incidents are recorded after the fact, mixed with confounding causes, and biased toward whatever a team&apos;s existing (static-threshold) tooling already chose to flag — which makes them unsuitable for testing whether a <em>different</em> thresholding approach would have made a better call. Synthetic injection avoids this by construction: each generated deployment is seeded as known-safe or known-risky before it runs, giving a clean label to measure false positives and true positives against. This is standard practice in chaos engineering and fault-injection research more broadly — production and staging environments are typically too large, too distributed, or too risky to reproduce faithfully for controlled comparison, so hypothesis-driven synthetic fault injection is treated as the accepted methodology for this kind of evaluation, not a lesser substitute for real-world data.
+            </p>
+
             {/* § 8. Technical Stack & Build Order */}
             <h2
               id="technical-stack"
@@ -374,12 +428,29 @@ change_vector = normalize({
               <div><strong className="text-[#111]">Integrations:</strong> Argo Rollouts AnalysisTemplate, Flagger Webhook Metric, Prometheus, Datadog, Docker Compose CLI, kubectl.</div>
             </div>
 
-            {/* § 9. Research Gaps Closed */}
+            {/* § 9. Related Work */}
+            <h2
+              id="related-work"
+              className="scroll-mt-24 font-['Lora',Georgia,serif] text-[1.3rem] font-semibold leading-[1.25] tracking-[-0.015em] text-[#0a0a0a] mt-10 mb-3"
+            >
+              9. Related Work
+            </h2>
+            <p className="mb-4">
+              Risk-aware deployment tooling is not new. A parallel line of work proposes a Deployment Risk Index (DRI) — a weighted score computed from properties of the deployment target itself (package size, target environment, team deployment history, service criticality) — used to select a rollout <em>strategy</em> (Big Bang, Rolling, Blue-Green, Canary, Feature Toggle) before the release begins. Similar risk-scoring approaches appear in industry rollout-policy systems, where an upgrade event&apos;s properties are scored up front to assign it to a low-, medium-, or high-risk deployment policy.
+            </p>
+            <p className="mb-4">
+              CARF addresses a different, complementary problem. DRI-style systems ask <em>&quot;how should we deploy this?&quot;</em> — evaluated once, before rollout, based on what is being shipped and where. CARF asks <em>&quot;how strict should the canary gate be right now, for this specific commit?&quot;</em> — evaluated continuously, during the canary window, based on what actually changed in the diff itself.
+            </p>
+            <p className="mb-5">
+              Where DRI scores the target and the package, CARF&apos;s Tier 1/Tier 2 classifiers score the structural content of the commit — file paths touched and AST-level code complexity — and translate that directly into a dynamic error-rate tolerance and observation window for an existing canary tool (Argo Rollouts, Flagger). CARF does not select a rollout strategy; it does not replace DRI-style pre-deployment risk assessment. It sits downstream of that decision, inside the canary analysis loop itself, and can be layered on top of a DRI-informed rollout choice rather than in competition with it.
+            </p>
+
+            {/* § 10. Research Gaps Closed */}
             <h2
               id="research-gaps-closed"
               className="scroll-mt-24 font-['Lora',Georgia,serif] text-[1.3rem] font-semibold leading-[1.25] tracking-[-0.015em] text-[#0a0a0a] mt-10 mb-3"
             >
-              9. Research Gaps Closed
+              10. Research Gaps Closed
             </h2>
             <p className="mb-4">
               This implementation directly addresses and resolves previous literature critiques:
