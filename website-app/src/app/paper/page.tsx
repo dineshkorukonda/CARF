@@ -51,7 +51,7 @@ export default function PaperPage() {
           Change-Aware Automated Rollback Decisions for DevOps Pipelines
         </h1>
         <div className="flex flex-wrap items-center gap-2 font-['Inter',system-ui,sans-serif] text-[13px] text-[#888]">
-          <span className="font-medium text-[#333]">Dinesh Korukonda, Tammineni Monika, Jonnalagadda Surya Kiran, Hemachand Pallam</span>
+          <span className="font-medium text-[#333]">Tammineni Monika, Dinesh Korukonda, Pallam Hemachand, Jonnalagadda Surya Kiran.</span>
           <span className="text-[#ccc]">·</span>
           <span>Aug 2026</span>
         </div>
