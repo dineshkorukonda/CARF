@@ -1,3 +1,5 @@
+import { classifyTier2 } from "./tier2.js";
+
 export interface CodeFile {
   path: string;
   before: string;
@@ -33,5 +35,20 @@ function scoreFile(before: string, after: string): number {
 export class StubComplexityScorer implements CodeComplexityScorer {
   score(codeFiles: CodeFile[]): number {
     return codeFiles.reduce((total, file) => total + scoreFile(file.before, file.after), 0);
+  }
+}
+
+/**
+ * Real tree-sitter-backed complexity scorer (#7). Thin adapter over `classifyTier2()`
+ * so the pure AST-diff logic in tier2.ts stays a plain function and this class only
+ * satisfies the CodeComplexityScorer interface shape.
+ *
+ * NOT wired in as the default yet — `vector.ts`'s `classifyCommit()` still defaults to
+ * `StubComplexityScorer` until a follow-up issue swaps it in. This class is exported so
+ * that swap is a one-line change when it happens.
+ */
+export class TreeSitterComplexityScorer implements CodeComplexityScorer {
+  score(codeFiles: CodeFile[]): number {
+    return classifyTier2(codeFiles);
   }
 }
