@@ -96,4 +96,33 @@ describe("POST /webhooks/github", () => {
     expect(response.statusCode).toBe(200);
     expect(onValidWebhook).not.toHaveBeenCalled();
   });
+
+  it("responds with an error instead of crashing when onValidWebhook throws", async () => {
+    onValidWebhook.mockRejectedValueOnce(new Error("downstream failure"));
+    const body = JSON.stringify(pushPayload);
+    const response = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "content-type": "application/json",
+        "x-github-event": "push",
+        "x-hub-signature-256": sign(body),
+      },
+      payload: body,
+    });
+    expect(response.statusCode).toBe(500);
+
+    onValidWebhook.mockResolvedValueOnce(undefined);
+    const followUp = await app.inject({
+      method: "POST",
+      url: "/webhooks/github",
+      headers: {
+        "content-type": "application/json",
+        "x-github-event": "push",
+        "x-hub-signature-256": sign(body),
+      },
+      payload: body,
+    });
+    expect(followUp.statusCode).toBe(202);
+  });
 });
