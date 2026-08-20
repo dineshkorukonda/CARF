@@ -85,13 +85,29 @@ export default function ProposedArchitectureLandingPage() {
             </a>
           </div>
           <p className="text-[13.5px] leading-[1.6] text-[#555] mb-4">
-            CARF is currently in the architecture and specification phase. No implementation exists yet in any part of the monorepo — the priority right now is building the classification engine correctly before moving to threshold computation and integrations.
+            CARF is in active Phase 1 implementation. The Tier 1 path/manifest classifier, change vector normalization, and the GitHub App webhook receiver (signature verification + installation-token auth) are built and tested in <code className="font-mono text-[12px] bg-[#eee] px-1 rounded">core-api/</code>; Tier 2 (Tree-sitter AST complexity) is still a stub behind its scorer interface. Threshold computation, persistence, and pipeline integrations have not started.
           </p>
           <div className="space-y-2">
             {[
-              { phase: "Phase 1", title: "Classification Engine", desc: "Two-tier commit classifier producing a normalized change vector" },
-              { phase: "Phase 2", title: "Threshold Engine + Persistence", desc: "Change vector → dynamic threshold, Postgres storage" },
-              { phase: "Phase 3", title: "Integrations + Evaluation", desc: "Augment/Standalone adapters, synthetic evaluation harness" },
+              {
+                phase: "Phase 1",
+                title: "Classification Engine",
+                desc: "Two-tier commit classifier producing a normalized change vector",
+                status: "In progress",
+                detail: "Tier 1 + vector normalization + webhook receiver shipped · Tier 2 AST scorer pending",
+              },
+              {
+                phase: "Phase 2",
+                title: "Threshold Engine + Persistence",
+                desc: "Change vector → dynamic threshold, Postgres storage",
+                status: "Not started",
+              },
+              {
+                phase: "Phase 3",
+                title: "Integrations + Evaluation",
+                desc: "Augment/Standalone adapters, synthetic evaluation harness",
+                status: "Not started",
+              },
             ].map((p) => (
               <div key={p.phase} className="flex items-start justify-between gap-3 bg-white border border-[#eaeaea] rounded-[4px] px-3.5 py-2.5">
                 <div className="min-w-0">
@@ -100,9 +116,16 @@ export default function ProposedArchitectureLandingPage() {
                     <span className="text-[13px] font-medium text-[#111]">{p.title}</span>
                   </div>
                   <div className="text-[12px] text-[#888] mt-0.5">{p.desc}</div>
+                  {p.detail && <div className="text-[11px] text-[#a16207] mt-1">{p.detail}</div>}
                 </div>
-                <span className="shrink-0 text-[10.5px] font-mono font-medium uppercase tracking-wide text-[#a16207] bg-[#fef9e7] border border-[#fde68a] px-2 py-0.5 rounded mt-0.5">
-                  Not started
+                <span
+                  className={`shrink-0 text-[10.5px] font-mono font-medium uppercase tracking-wide px-2 py-0.5 rounded mt-0.5 ${
+                    p.status === "In progress"
+                      ? "text-[#a16207] bg-[#fef9e7] border border-[#fde68a]"
+                      : "text-[#666] bg-[#f4f4f4] border border-[#e5e5e5]"
+                  }`}
+                >
+                  {p.status}
                 </span>
               </div>
             ))}
