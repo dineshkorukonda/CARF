@@ -15,7 +15,7 @@ core-api-specific conventions on top, it doesn't replace them.
 
 ## Package layout
 `core-api/` is a standalone package — its own `package.json`/lockfile, same pattern
-`website-app/` already uses. No root npm/pnpm workspace.
+`web/` already uses. No root npm/pnpm workspace.
 
 ## Folder structure
 ```

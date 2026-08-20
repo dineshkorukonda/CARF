@@ -1,6 +1,38 @@
 # CARF — Change-Aware Rollback Framework
 
+[![core-api CI](https://github.com/dineshkorukonda/CARF/actions/workflows/core-api.yml/badge.svg)](https://github.com/dineshkorukonda/CARF/actions/workflows/core-api.yml)
+[![web CI](https://github.com/dineshkorukonda/CARF/actions/workflows/web.yml/badge.svg)](https://github.com/dineshkorukonda/CARF/actions/workflows/web.yml)
+
 CARF (Change-Aware Rollback Framework) is a framework-agnostic decision layer and sidecar protocol for progressive delivery pipelines (such as Argo Rollouts, Flagger, and standalone deployment scripts) that replaces static rollback thresholds with dynamic, risk-calibrated error tolerances computed from commit diffs via deterministic file-path classification and Tree-sitter AST structural complexity parsing.
+
+## Repository layout
+
+```
+CARF/
+  core-api/    CARF's classification + decision engine (Fastify, TypeScript, Prisma). See core-api/README.md
+  web/         Marketing/docs site — landing page, /docs, /paper (Next.js). See web/README.md
+  examples/    Argo Rollouts / Flagger augment-mode configs
+  docs/        Full design spec (CARF_PROPOSED_IMPLEMENTATION.md)
+```
+
+`core-api` and `web` are standalone packages (own lockfile each) — no root workspace.
+
+## Status
+
+| Capability | Status |
+| --- | --- |
+| Change vector classification (Tier 1 path/manifest + Tier 2 Tree-sitter AST) | Implemented |
+| GitHub App webhook receiver (signature auth, diff acquisition) | Implemented |
+| Threshold decay engine + persistence | Implemented |
+| Augment mode: `GET /v1/threshold` webhook API | Implemented |
+| Standalone mode: rollback adapters + health-check loop (Kubernetes, Docker Compose) | Implemented |
+| Synthetic evaluation harness (H1 proof) | Implemented |
+| `.carf.yml` configuration reference | Planned |
+| First-class CI/CD Action (beyond the GitHub App webhook + example configs below) | Partial |
+| Additional restoration targets (PM2, GitOps, Docker Swarm) | Planned |
+| Telemetry/observability ingest API | Planned |
+
+See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.
 
 ## Augment Mode Integration
 
@@ -20,3 +52,14 @@ Two example configs show how to wire this into common progressive-delivery tools
 - [`examples/flagger-webhook-metric.yaml`](examples/flagger-webhook-metric.yaml) — a Flagger `MetricTemplate` (webhook provider) plus a `Canary` excerpt showing both the metric and a `pre-rollout` webhook check hitting the same endpoint; a `400`/`404` response fails the check closed, blocking promotion.
 
 Both examples reference `core-api.carf.svc.cluster.local` as a placeholder in-cluster address — point them at wherever `core-api` is actually reachable in your environment.
+
+## Standalone mode
+
+Where there's no existing progressive-delivery pipeline to augment, `core-api` can drive the rollback itself: `runStandaloneLoop` polls a `RollbackAdapter` for the commit's `finalWindow` and rolls back the moment observed error rate breaches `finalThreshold`. Kubernetes (`kubectl rollout undo`) and Docker Compose adapters are implemented today — see [`core-api/README.md`](core-api/README.md#standalone-mode-rollback-adapters--health-check-loop).
+
+## CI
+
+Two independent GitHub Actions workflows gate changes per package (path-filtered, so a `web/`-only change doesn't run `core-api`'s suite and vice versa):
+
+- [`.github/workflows/core-api.yml`](.github/workflows/core-api.yml) — lint, typecheck, Vitest (against a real Postgres service container; Prisma-backed tests are skipped automatically when `DATABASE_URL` isn't set), and a production build.
+- [`.github/workflows/web.yml`](.github/workflows/web.yml) — lint, typecheck, and a production Next.js build.
