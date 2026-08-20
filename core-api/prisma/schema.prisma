@@ -1,0 +1,39 @@
+// Phase 1 note: this schema is wired up now so Phase 2 (#10, #11) doesn't require a
+// rewrite, but nothing in Phase 1 persists to it yet — classifyCommit() stays pure.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Commit {
+  id             String        @id @default(cuid())
+  owner          String
+  repo           String
+  sha            String
+  baseSha        String
+  installationId String?
+  changeVector   ChangeVector?
+  createdAt      DateTime      @default(now())
+
+  @@unique([owner, repo, sha])
+  @@index([owner, repo])
+}
+
+// Mirrors the ChangeVector shape from core-api/src/classifier/vector.ts.
+// A commit with no ChangeVector row means classifyCommit() returned null (no-op) for it.
+model ChangeVector {
+  id              String   @id @default(cuid())
+  commit          Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  commitId        String   @unique
+  infra           Float
+  dependency      Float
+  config          Float
+  code            Float
+  codeComplexity  Float
+  computedAt      DateTime @default(now())
+}
