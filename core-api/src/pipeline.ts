@@ -90,8 +90,8 @@ export interface PipelinePrismaClient {
   threshold: {
     upsert(args: {
       where: { commitId: string };
-      create: { commitId: string; finalThreshold: number; finalWindow: number };
-      update: { finalThreshold: number; finalWindow: number };
+      create: { commitId: string; finalThreshold: number; finalWindow: number; activeTypes: string[] };
+      update: { finalThreshold: number; finalWindow: number; activeTypes: string[] };
     }): Promise<unknown>;
   };
 }
@@ -187,8 +187,17 @@ export async function processCommit(
 
   await prismaClient.threshold.upsert({
     where: { commitId: commit.id },
-    create: { commitId: commit.id, finalThreshold: result.finalThreshold, finalWindow: result.finalWindow },
-    update: { finalThreshold: result.finalThreshold, finalWindow: result.finalWindow },
+    create: {
+      commitId: commit.id,
+      finalThreshold: result.finalThreshold,
+      finalWindow: result.finalWindow,
+      activeTypes: result.activeTypes,
+    },
+    update: {
+      finalThreshold: result.finalThreshold,
+      finalWindow: result.finalWindow,
+      activeTypes: result.activeTypes,
+    },
   });
 
   return result;

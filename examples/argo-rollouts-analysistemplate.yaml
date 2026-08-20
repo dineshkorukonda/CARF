@@ -1,0 +1,45 @@
+# Argo Rollouts AnalysisTemplate — Augment mode integration (see core-api/src/routes/threshold.ts).
+#
+# Calls CARF's `GET /v1/threshold?commit=<sha>` webhook API to fetch the risk-calibrated
+# rollback threshold/window computed for the commit being rolled out, then feeds
+# `finalThreshold` in as the success-rate floor for a webhook metric provider. Argo
+# Rollouts re-runs this analysis on the configured `interval`, so the threshold used to
+# gate promotion tracks whatever CARF has most recently computed for `args.commit-sha`.
+#
+# Usage: reference this AnalysisTemplate from a Rollout's `spec.strategy.canary.analysis`,
+# passing `commit-sha` (the SHA CARF classified, e.g. from the CI job or webhook payload)
+# and `carf-base-url` (where core-api is reachable from the cluster).
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: carf-augment-threshold
+spec:
+  args:
+    - name: commit-sha
+    - name: carf-base-url
+      value: http://core-api.carf.svc.cluster.local
+  metrics:
+    - name: carf-threshold
+      interval: 30s
+      successCondition: result.finalThreshold != null
+      failureLimit: 1
+      provider:
+        web:
+          url: "{{args.carf-base-url}}/v1/threshold?commit={{args.commit-sha}}"
+          timeoutSeconds: 5
+          headers:
+            - key: Accept
+              value: application/json
+          jsonPath: "{$}"
+    # A second metric consumes carf-threshold's result.finalThreshold as the error-rate
+    # threshold for the canary's real success-rate query (e.g. Prometheus), instead of a
+    # static value. Adjust the query/provider below to match your metrics backend.
+    - name: success-rate
+      interval: 30s
+      successCondition: result >= {{args.carf-threshold.finalThreshold}}
+      provider:
+        prometheus:
+          address: http://prometheus.monitoring.svc.cluster.local:9090
+          query: |
+            sum(rate(http_requests_total{status!~"5.."}[{{args.carf-threshold.finalWindow}}s])) /
+            sum(rate(http_requests_total[{{args.carf-threshold.finalWindow}}s]))
