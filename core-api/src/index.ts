@@ -1,9 +1,7 @@
-import Fastify from "fastify";
+import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
 
-const app = Fastify({ logger: true });
-
-app.get("/healthz", async () => ({ status: "ok" }));
+const app = buildApp();
 
 app
   .listen({ port: env.port, host: "0.0.0.0" })
