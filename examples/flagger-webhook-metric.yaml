@@ -1,0 +1,50 @@
+# Flagger webhook metric — Augment mode integration (see core-api/src/routes/threshold.ts).
+#
+# Calls CARF's `GET /v1/threshold?commit=<sha>` webhook API during a Flagger canary
+# analysis run and uses the response to gate promotion with a risk-calibrated threshold
+# instead of a static one. Flagger's webhook metric provider treats a non-2xx response (or
+# a response failing `jq` validation, where supported) as a failed check, so this metric
+# effectively fails closed if core-api is unreachable or the commit hasn't been classified
+# yet (404).
+#
+# Usage: reference this metric from a Canary resource's `spec.analysis.metrics`, and
+# substitute `commit-sha` with the SHA CARF classified for the release under test (e.g.
+# injected via a Flagger `metadata` field or a templating step in your pipeline).
+apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: carf-augment-threshold
+  namespace: flagger-system
+spec:
+  provider:
+    type: webhook
+    address: http://core-api.carf.svc.cluster.local/v1/threshold?commit=${commit-sha}
+  query: ""
+---
+# Canary analysis excerpt wiring the above MetricTemplate in as a webhook check. Flagger
+# runs this on the configured `interval`, so promotion is gated on CARF's most recently
+# computed threshold for the commit under test.
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: example-app
+spec:
+  analysis:
+    interval: 30s
+    threshold: 5
+    metrics:
+      - name: carf-augment-threshold
+        templateRef:
+          name: carf-augment-threshold
+          namespace: flagger-system
+    webhooks:
+      - name: carf-threshold-check
+        type: pre-rollout
+        url: http://core-api.carf.svc.cluster.local/v1/threshold
+        timeout: 5s
+        metadata:
+          commit: "${commit-sha}"
+          # Flagger's generic webhook check only validates HTTP status by default (2xx =
+          # pass); a 400/404 response from GET /v1/threshold (missing commit param, or
+          # commit not yet classified) fails this check and blocks promotion, matching the
+          # "fail closed" behavior described above.
