@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { InteractiveSystemFlow } from "@/components/InteractiveSystemFlow";
@@ -394,15 +393,15 @@ change_vector = normalize({
             </p>
 
             <div className="my-5 p-4 bg-[#f8f9fa] border border-[#e9ecef] rounded-[4px] font-mono text-[12.5px] leading-[1.6] text-[#111]">
-              <div className="text-[#777] text-[11px] mb-2 font-sans">// Per-type decay contribution formula</div>
+              <div className="text-[#777] text-[11px] mb-2 font-sans">{"// Per-type decay contribution formula"}</div>
               <div>contribution[type] = base_threshold[type] × (1 − decay × change_vector[type])</div>
               <div>contribution_window[type] = base_window[type] × (1 − decay × change_vector[type])</div>
               <br />
-              <div className="text-[#777] text-[11px] mb-2 font-sans">// Strictest vector constraint wins</div>
+              <div className="text-[#777] text-[11px] mb-2 font-sans">{"// Strictest vector constraint wins"}</div>
               <div>final_threshold = min(contribution[type] for type in active_types)</div>
               <div>final_window = min(contribution_window[type] for type in active_types)</div>
               <br />
-              <div className="text-[#777] text-[11px] mb-2 font-sans">// Code complexity penalty factor</div>
+              <div className="text-[#777] text-[11px] mb-2 font-sans">{"// Code complexity penalty factor"}</div>
               <div>if code_complexity &gt; 0:</div>
               <div className="pl-4">final_threshold *= (1 − complexity_decay × code_complexity)</div>
             </div>

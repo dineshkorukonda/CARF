@@ -4,16 +4,10 @@ import { useState } from "react";
 import {
   Code2,
   FileCode2,
-  GitCommit,
   Layers,
-  Activity,
-  AlertTriangle,
-  RotateCcw,
-  Zap,
   CheckCircle2,
   ShieldAlert,
   Settings2,
-  ArrowRight,
   Gauge,
   Sliders
 } from "lucide-react";
