@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { StubComplexityScorer } from "../../src/classifier/codeComplexityScorer.js";
+import { StubComplexityScorer, TreeSitterComplexityScorer } from "../../src/classifier/codeComplexityScorer.js";
 
 describe("StubComplexityScorer", () => {
   const scorer = new StubComplexityScorer();
@@ -42,5 +42,30 @@ describe("StubComplexityScorer", () => {
     const singleA = scorer.score([fileA]);
     const singleB = scorer.score([fileB]);
     expect(combined).toBe(singleA + singleB);
+  });
+});
+
+describe("TreeSitterComplexityScorer", () => {
+  const scorer = new TreeSitterComplexityScorer();
+
+  it("implements the CodeComplexityScorer interface (score() delegates to classifyTier2)", () => {
+    expect(scorer.score([])).toBe(0);
+  });
+
+  it("scores a real AST structural change above zero", () => {
+    const score = scorer.score([
+      {
+        path: "a.ts",
+        before: "function classify(x) { return x; }",
+        after: `function classify(x) {
+          if (x > 0) { return "positive"; } else { return "non-positive"; }
+        }`,
+      },
+    ]);
+    expect(score).toBeGreaterThan(0);
+  });
+
+  it("does not throw for an unsupported extension, contributing 0", () => {
+    expect(scorer.score([{ path: "script.rb", before: "puts 1", after: "puts 2" }])).toBe(0);
   });
 });
