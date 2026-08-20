@@ -47,6 +47,11 @@ model Threshold {
   commitId       String   @unique
   finalThreshold Float
   finalWindow    Int
+  // The ChangeType names (see src/threshold/engine.ts) that contributed to
+  // finalThreshold/finalWindow, i.e. ThresholdResult.activeTypes from computeThreshold().
+  // Added for #12 (GET /v1/threshold) so the webhook API can return it without
+  // recomputing from ChangeVector.
+  activeTypes    String[] @default([])
   computedAt     DateTime @default(now())
 }
 

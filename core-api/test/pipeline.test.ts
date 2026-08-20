@@ -43,6 +43,7 @@ interface FakeThresholdRow {
   commitId: string;
   finalThreshold: number;
   finalWindow: number;
+  activeTypes: string[];
 }
 
 class FakePrismaClient implements PipelinePrismaClient {
@@ -159,6 +160,7 @@ describe("processCommit", () => {
     expect(thresholdRow?.finalThreshold).toBe(result.finalThreshold);
     expect(thresholdRow?.finalWindow).toBe(result.finalWindow);
     expect(result.activeTypes.length).toBeGreaterThan(0);
+    expect(thresholdRow?.activeTypes).toEqual(result.activeTypes);
   });
 
   it("splits the 'owner/repo' slug and persists owner/repo separately on the Commit row", async () => {
