@@ -45,12 +45,12 @@ export default function DocsPage() {
   const navItems = [
     { id: "overview", label: "Overview & Core Concept" },
     { id: "research-paper", label: "Conference Research Paper", badge: "PDF" },
-    { id: "classification", label: "Change Vector Classification", status: "Partial" as const },
+    { id: "classification", label: "Change Vector Classification", status: "Implemented" as const },
     { id: "github-webhook", label: "GitHub Webhook Receiver", status: "Implemented" as const },
-    { id: "sensitivity-matrix", label: "Sensitivity & Thresholding", status: "Planned" as const },
+    { id: "sensitivity-matrix", label: "Sensitivity & Thresholding", status: "Implemented" as const },
     { id: "config-reference", label: "Configuration Reference (.carf.yml)", status: "Planned" as const },
-    { id: "ci-integration", label: "CI/CD Integration Guides", status: "Planned" as const },
-    { id: "target-runtimes", label: "Target Runtimes & Execution", status: "Planned" as const },
+    { id: "ci-integration", label: "CI/CD Integration Guides", status: "Partial" as const },
+    { id: "target-runtimes", label: "Target Runtimes & Execution", status: "Partial" as const },
     { id: "telemetry", label: "Telemetry & Observability API", status: "Planned" as const },
   ];
 
@@ -251,14 +251,14 @@ export default function DocsPage() {
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 Change Vector Classification
               </h2>
-              <StatusBadge status="Partial" />
+              <StatusBadge status="Implemented" />
             </div>
 
             <p className="font-['Inter',system-ui,sans-serif] text-[15px] leading-[1.65] text-[#555]">
               When a deployment job is triggered, CARF inspects the unified <code className="font-mono text-[13px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">git diff</code> between the target commit and the current running deployment tag. Files are categorized into four distinct vectors:
             </p>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              Tier 1 path/manifest classification and vector normalization are implemented in <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/classifier</code>. Tier 2 (Tree-sitter AST structural complexity) is wired behind the <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">CodeComplexityScorer</code> interface but currently backed by a stub scorer pending the real implementation.
+              Tier 1 path/manifest classification and vector normalization are implemented in <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/classifier</code>. Tier 2 structural complexity now runs a real Tree-sitter AST diff parser (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">tier2.ts</code>, TypeScript/Go/Python/Rust/Java grammars) behind the <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">CodeComplexityScorer</code> interface.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-['Inter',system-ui,sans-serif] text-xs">
@@ -351,10 +351,10 @@ Responses:
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 Sensitivity & Thresholding Formulation
               </h2>
-              <StatusBadge status="Planned" />
+              <StatusBadge status="Implemented" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              Threshold engine not yet implemented — formulation below is the target design.
+              The decay engine (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/threshold/engine.ts</code>) computes <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalThreshold</code>/<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalWindow</code> per classified commit and persists them; augment-mode pipelines pull the result via <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">GET /v1/threshold?commit=&lt;sha&gt;</code>.
             </p>
 
             <p className="font-['Inter',system-ui,sans-serif] text-[15px] leading-[1.65] text-[#555]">
@@ -449,10 +449,10 @@ target:
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 CI/CD Integration Guides
               </h2>
-              <StatusBadge status="Planned" />
+              <StatusBadge status="Partial" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              Today CI/CD systems reach core-api via the GitHub App webhook (see above), not a dedicated Action. The example below is the target design for a first-class Action wrapper.
+              &quot;Augment mode&quot; example configs ship today for Argo Rollouts (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">examples/argo-rollouts-analysistemplate.yaml</code>) and Flagger (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">examples/flagger-webhook-metric.yaml</code>), both calling <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">GET /v1/threshold</code>. A first-class GitHub Action wrapper is still planned — the snippet below is that target design.
             </p>
 
             <div className="space-y-4 text-xs">
@@ -477,18 +477,24 @@ target:
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 Target Runtimes & Restoration Mechanisms
               </h2>
-              <StatusBadge status="Planned" />
+              <StatusBadge status="Partial" />
             </div>
+            <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
+              Standalone mode (no external progressive-delivery pipeline) polls a <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">RollbackAdapter</code> for the commit&apos;s window and rolls back the moment the error rate breaches <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalThreshold</code> (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/adapters/loop.ts</code>). Kubernetes and Docker Compose adapters are implemented; PM2, GitOps, and Docker Swarm are still planned.
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-['Inter',system-ui,sans-serif]">
               {[
-                { title: "Kubernetes", desc: <>Executes <code className="font-mono text-[#111]">kubectl rollout undo deployment/app</code> with pod readiness verification.</> },
-                { title: "PM2", desc: <>Executes zero-downtime process reload via IPC <code className="font-mono text-[#111]">pm2 reload app</code>.</> },
-                { title: "GitOps (ArgoCD / Flux)", desc: "Dispatches automated Git revert commit back to target branch repository." },
-                { title: "Docker Swarm / Engine", desc: "Re-tags and updates container image service to last known stable hash." },
+                { title: "Kubernetes", desc: <>Executes <code className="font-mono text-[#111]">kubectl rollout undo deployment/app</code>, deriving health from <code className="font-mono text-[#111]">unavailableReplicas</code>.</>, status: "Implemented" as const },
+                { title: "Docker Compose", desc: <>Redeploys the previous image tag via <code className="font-mono text-[#111]">docker compose up -d</code>, deriving health from container/health state.</>, status: "Implemented" as const },
+                { title: "PM2", desc: <>Zero-downtime process reload via IPC <code className="font-mono text-[#111]">pm2 reload app</code>.</>, status: "Planned" as const },
+                { title: "GitOps (ArgoCD / Flux)", desc: "Dispatches automated Git revert commit back to target branch repository.", status: "Planned" as const },
               ].map((r) => (
-                <div key={r.title} className="p-4 rounded-[4px] border border-[#eaeaea] bg-[#fafafa] space-y-1">
-                  <div className="text-[#111] font-semibold">{r.title}</div>
+                <div key={r.title} className="p-4 rounded-[4px] border border-[#eaeaea] bg-[#fafafa] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[#111] font-semibold">{r.title}</div>
+                    <StatusBadge status={r.status} />
+                  </div>
                   <div className="text-[#666]">{r.desc}</div>
                 </div>
               ))}
