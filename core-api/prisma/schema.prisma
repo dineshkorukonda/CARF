@@ -18,6 +18,7 @@ model Commit {
   baseSha        String
   installationId String?
   changeVector   ChangeVector?
+  threshold      Threshold?
   createdAt      DateTime      @default(now())
 
   @@unique([owner, repo, sha])
@@ -36,4 +37,30 @@ model ChangeVector {
   code            Float
   codeComplexity  Float
   computedAt      DateTime @default(now())
+}
+
+// Output of the threshold engine (#11): the final rollback threshold/window computed
+// for a commit from its ChangeVector. 1:1 with Commit, same relation style as ChangeVector.
+model Threshold {
+  id             String   @id @default(cuid())
+  commit         Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  commitId       String   @unique
+  finalThreshold Float
+  finalWindow    Int
+  computedAt     DateTime @default(now())
+}
+
+// Records the outcome of an evaluation run (baseline vs. carf condition) for a given
+// commit SHA. Deliberately not FK-related to Commit — evaluation runs may reference
+// commits from historical/synthetic datasets that don't have a Commit row.
+model EvaluationLog {
+  id        String   @id @default(cuid())
+  commitSha String
+  condition String
+  outcome   String
+  mttrMs    Int?
+  createdAt DateTime @default(now())
+
+  @@index([commitSha])
+  @@index([condition])
 }
