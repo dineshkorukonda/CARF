@@ -70,3 +70,30 @@ daemon or Kubernetes cluster:
    deployment/<target>` afterward shows the previous revision healthy again.
 5. Repeat with a healthy rollout and confirm the loop runs the full window with no
    rollback.
+
+## `.carf.yml` configuration
+
+An optional file at the repo root lets you tune classification and
+threshold behavior without touching source. See
+[`.carf.example.yml`](.carf.example.yml) for the full annotated schema.
+No file at all → core-api runs on its built-in hardcoded defaults,
+unchanged.
+
+- `classification.rules` — path-glob rules checked *before*
+  `src/classifier/tier1.ts`'s built-in rules (first-match-wins overall).
+  Anything not matched by a user rule falls through to the built-in
+  rules.
+- `threshold` — overrides `src/threshold/engine.ts`'s `DEFAULT_CONFIG`,
+  per field: an omitted field (or omitted type) keeps its built-in
+  default.
+- `mode` / `adapter` — validated against the schema, but **not yet
+  wired to any runtime behavior**. There is no composition root today
+  that reads `mode` to select Standalone vs Augment behavior or that
+  drives a rollback adapter from `adapter.kind`/`adapter.target` — that
+  wiring is a separate, future project. Setting these fields today has
+  no effect beyond passing validation.
+
+A malformed or schema-invalid `.carf.yml` (bad YAML, unknown field,
+invalid enum value) causes the loader (`src/config/carfConfig.ts`) to
+throw — this is deliberate "fail closed" behavior, not a bug: an invalid
+config must never be silently ignored in favor of defaults.

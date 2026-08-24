@@ -27,7 +27,7 @@ CARF/
 | Augment mode: `GET /v1/threshold` webhook API | Implemented |
 | Standalone mode: rollback adapters + health-check loop (Kubernetes, Docker Compose) | Implemented |
 | Synthetic evaluation harness (H1 proof) | Implemented |
-| `.carf.yml` configuration reference | Planned |
+| `.carf.yml` configuration reference (classification rules + threshold/decay tuning; `mode`/`adapter` schema defined, not yet wired) | Implemented |
 | First-class CI/CD Action (beyond the GitHub App webhook + example configs below) | Partial |
 | Additional restoration targets (PM2, GitOps, Docker Swarm) | Planned |
 | Telemetry/observability ingest API | Planned |

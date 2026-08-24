@@ -48,7 +48,7 @@ export default function DocsPage() {
     { id: "classification", label: "Change Vector Classification", status: "Implemented" as const },
     { id: "github-webhook", label: "GitHub Webhook Receiver", status: "Implemented" as const },
     { id: "sensitivity-matrix", label: "Sensitivity & Thresholding", status: "Implemented" as const },
-    { id: "config-reference", label: "Configuration Reference (.carf.yml)", status: "Planned" as const },
+    { id: "config-reference", label: "Configuration Reference (.carf.yml)", status: "Implemented" as const },
     { id: "ci-integration", label: "CI/CD Integration Guides", status: "Partial" as const },
     { id: "target-runtimes", label: "Target Runtimes & Execution", status: "Partial" as const },
     { id: "telemetry", label: "Telemetry & Observability API", status: "Planned" as const },
@@ -386,10 +386,10 @@ Responses:
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 Configuration Reference (<code className="text-[#111]">.carf.yml</code>)
               </h2>
-              <StatusBadge status="Planned" />
+              <StatusBadge status="Implemented" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              core-api does not yet read a <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">.carf.yml</code> file — schema below is the target design for the threshold engine phase.
+              An optional file at the repo root. core-api reads <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">classification</code> and <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">threshold</code> to tune Tier 1 path rules and threshold/decay parameters without a code change. <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">mode</code> and <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">adapter</code> below are schema-validated but not yet wired to runtime behavior — there is no composition root yet that reads them to select Standalone vs Augment mode.
             </p>
 
             <div className="rounded-[4px] border border-[#eaeaea] overflow-hidden">
@@ -398,7 +398,7 @@ Responses:
                 <button
                   onClick={() =>
                     handleCopy(
-                      `version: "1.0"\nproject_id: checkout-service-v2\n\nsensitivity_rules:\n  infrastructure:\n    window: 60s\n    error_threshold: 0.2%\n    action: immediate_rollback\n  config:\n    window: 5m\n    error_threshold: 2.5%\n    action: rollback_with_alert\n  dependency:\n    window: 3m\n    error_threshold: 1.0%\n    action: rollback_on_confidence\n  code:\n    window: 15m\n    error_threshold: 5.0%\n    action: alert_on_threshold\n\ntarget:\n  provider: kubernetes\n  namespace: production\n  deployment: checkout-api`,
+                      `# .carf.yml — repo-root configuration for core-api. All top-level keys are\n# optional. No file at all is valid and produces core-api's built-in\n# hardcoded defaults, unchanged.\n\nclassification:\n  rules:\n    # Checked BEFORE core-api's built-in classification rules\n    # (src/classifier/tier1.ts), first-match-wins. Omit this block\n    # entirely to use only the built-in rules.\n    - type: infra\n      patterns:\n        - "deploy/**/*.yaml"\n\nthreshold:\n  # Overrides src/threshold/engine.ts's DEFAULT_CONFIG. Any key, or any\n  # field within a type, that you omit here falls back to the built-in\n  # default for that field.\n  decay: 0.6\n  complexityDecay: 0.3\n  types:\n    infra:\n      baseThreshold: 0.01\n      baseWindow: 60\n    # dependency / config / code accept the same { baseThreshold,\n    # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG\n    # value entirely.\n\n# --- The two fields below are validated but NOT YET WIRED. Setting them\n# --- has NO EFFECT on core-api's runtime behavior today — there is no\n# --- code path that reads mode/adapter to actually select Standalone vs\n# --- Augment mode or drive a rollback adapter. This will change in a\n# --- future project. Until then, treat these as a schema preview, not a\n# --- working switch.\nmode: standalone   # standalone | augment\nadapter:\n  kind: kubernetes  # kubernetes | dockerCompose\n  target: "my-deployment"`,
                       "config-ref"
                     )
                   }
@@ -409,32 +409,43 @@ Responses:
                 </button>
               </div>
               <pre className="p-4 bg-[#1e1e1e] text-[#d4d4d4] font-mono text-xs overflow-x-auto leading-relaxed">
-{`version: "1.0"
-project_id: checkout-service-v2
+{`# .carf.yml — repo-root configuration for core-api. All top-level keys are
+# optional. No file at all is valid and produces core-api's built-in
+# hardcoded defaults, unchanged.
 
-# Adaptive risk sensitivity per change vector
-sensitivity_rules:
-  infrastructure:
-    window: 60s
-    error_threshold: 0.2%
-    action: immediate_rollback
-  config:
-    window: 5m
-    error_threshold: 2.5%
-    action: rollback_with_alert
-  dependency:
-    window: 3m
-    error_threshold: 1.0%
-    action: rollback_on_confidence
-  code:
-    window: 15m
-    error_threshold: 5.0%
-    action: alert_on_threshold
+classification:
+  rules:
+    # Checked BEFORE core-api's built-in classification rules
+    # (src/classifier/tier1.ts), first-match-wins. Omit this block
+    # entirely to use only the built-in rules.
+    - type: infra
+      patterns:
+        - "deploy/**/*.yaml"
 
-target:
-  provider: kubernetes # Options: kubernetes, pm2, docker, gitops, helm, ecs
-  namespace: production
-  deployment: checkout-api`}
+threshold:
+  # Overrides src/threshold/engine.ts's DEFAULT_CONFIG. Any key, or any
+  # field within a type, that you omit here falls back to the built-in
+  # default for that field.
+  decay: 0.6
+  complexityDecay: 0.3
+  types:
+    infra:
+      baseThreshold: 0.01
+      baseWindow: 60
+    # dependency / config / code accept the same { baseThreshold,
+    # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG
+    # value entirely.
+
+# --- The two fields below are validated but NOT YET WIRED. Setting them
+# --- has NO EFFECT on core-api's runtime behavior today — there is no
+# --- code path that reads mode/adapter to actually select Standalone vs
+# --- Augment mode or drive a rollback adapter. This will change in a
+# --- future project. Until then, treat these as a schema preview, not a
+# --- working switch.
+mode: standalone   # standalone | augment
+adapter:
+  kind: kubernetes  # kubernetes | dockerCompose
+  target: "my-deployment"`}
               </pre>
             </div>
           </section>
