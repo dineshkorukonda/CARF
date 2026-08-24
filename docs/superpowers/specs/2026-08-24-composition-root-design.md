@@ -114,7 +114,12 @@ the existing interface with zero changes to
   GitHubApiClient`.
   - `compareCommits`: `GET
     /repos/{owner}/{repo}/compare/{base}...{head}`, maps the response's
-    `files[]` to `{ filename, status }`.
+    `files[]` to `{ filename, status }`. Single page only — GitHub's
+    compare endpoint returns up to 300 changed files per response with
+    no pagination support on this endpoint; a commit touching more than
+    300 files sees a truncated diff. Documented limitation, not handled
+    in this project (no realistic synthetic/manual test case produces
+    that many files).
   - `getContent`: `GET /repos/{owner}/{repo}/contents/{path}?ref={ref}`,
     base64-decodes the response `content` field. A 404 response is
     mapped to a rejected promise carrying `HttpError{status: 404}` — the
