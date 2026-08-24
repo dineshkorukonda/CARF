@@ -1,5 +1,6 @@
 import type { SyntheticDeployment } from "./injector.js";
 import { classifyCommit } from "../classifier/vector.js";
+import type { UserPatternRule } from "../classifier/tier1.js";
 import { computeThreshold, DEFAULT_CONFIG, type ThresholdConfig, type ThresholdResult } from "../threshold/engine.js";
 import { runStandaloneLoop } from "../adapters/loop.js";
 import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
@@ -175,6 +176,8 @@ export interface RunEvaluationOptions {
   prismaClient?: EvaluationPrismaClient;
   /** Threshold engine tuning for Condition B; defaults to DEFAULT_CONFIG. */
   thresholdConfig?: ThresholdConfig;
+  /** User classification rules (from .carf.yml), checked before Tier 1's hardcoded rules. Defaults to none. */
+  classificationRules?: UserPatternRule[];
 }
 
 /**
@@ -206,7 +209,7 @@ export async function runEvaluation(
   for (const deployment of deployments) {
     const series = buildErrorRateSeries(deployment);
 
-    const vector = classifyCommit(deployment.changedFiles);
+    const vector = classifyCommit(deployment.changedFiles, undefined, options.classificationRules ?? []);
     if (vector === null) {
       // The synthetic categories generateSyntheticDeployments() produces always carry
       // classifiable files (see injector.ts) — a null vector here means the dataset
