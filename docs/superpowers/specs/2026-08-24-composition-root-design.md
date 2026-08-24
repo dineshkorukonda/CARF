@@ -85,14 +85,23 @@ loop.
 ## 3. New real GitHub App adapters
 
 All under `core-api/src/adapters/github/`, alongside the existing
-interfaces they implement. New dependency: `jose` (pure JS, ESM-native,
-no native bindings — fits this project's ESM `.js`-extension imports and
-ships an ordinary ESM `dependencies` entry, no build-tooling changes
-needed).
+interfaces they implement. New dependency: `jsonwebtoken` (plus
+`@types/jsonwebtoken`) — **not** `jose`. `JwtSigner.sign()`
+(`installationTokenClient.ts`) is a **synchronous** interface
+(`sign(appId, privateKey): string`, no `Promise`), and
+`InstallationTokenClient.getInstallationToken()` calls it unawaited:
+`const appJwt = this.jwtSigner.sign(...)`. `jose`'s signing API is
+fully async (`SignJWT.sign()` returns a `Promise`), which would require
+changing this already-tested interface and its consumer —
+out of scope. `jsonwebtoken`'s `jwt.sign(payload, privateKey, options)`
+returns a string synchronously when called without a callback, fitting
+the existing interface with zero changes to
+`installationTokenClient.ts` or its tests.
 
 - **`realJwtSigner.ts`** — `RealJwtSigner implements JwtSigner`. Signs a
-  ~10-minute GitHub App JWT (`iat`, `exp`, `iss: appId`) with RS256 via
-  `jose`'s `SignJWT`, from the PEM string returned by
+  ~10-minute GitHub App JWT (`iat` implicit, `exp` via `expiresIn:
+  "10m"`, `iss: appId`) with RS256 via `jsonwebtoken`'s synchronous
+  `jwt.sign(...)`, from the PEM string returned by
   `env.githubAppPrivateKey()`.
 - **`realInstallationTokenExchangeClient.ts`** —
   `RealInstallationTokenExchangeClient implements
