@@ -1,0 +1,15 @@
+classification:
+  rules:
+    - type: infra
+      patterns: ["deploy/**/*.yaml"]
+threshold:
+  decay: 0.6
+  complexityDecay: 0.25
+  types:
+    infra:
+      baseThreshold: 0.02
+      baseWindow: 45
+mode: standalone
+adapter:
+  kind: kubernetes
+  target: "my-deployment"

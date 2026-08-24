@@ -95,4 +95,32 @@ describe("classifyTier1", () => {
     expect(result.files).toEqual([]);
     expect(result.totalFiles).toBe(0);
   });
+
+  it("checks user rules before the hardcoded rules (first-match-wins, user rules first)", () => {
+    // Without a user rule, config/production.yaml is "config" per the
+    // hardcoded rules (see the first test in this file).
+    const withoutUserRule = classifyTier1(["config/production.yaml"]);
+    expect(withoutUserRule.files[0]?.type).toBe("config");
+
+    const withUserRule = classifyTier1(
+      ["config/production.yaml"],
+      [{ type: "infra", patterns: ["config/production.yaml"] }]
+    );
+    expect(withUserRule.files[0]?.type).toBe("infra");
+  });
+
+  it("falls through to hardcoded rules for paths no user rule matches", () => {
+    const result = classifyTier1(
+      ["src/handler.ts", "deploy/prod.yaml"],
+      [{ type: "infra", patterns: ["deploy/**/*.yaml"] }]
+    );
+    const typeByPath = Object.fromEntries(result.files.map((f) => [f.path, f.type]));
+    expect(typeByPath["deploy/prod.yaml"]).toBe("infra"); // matched by user rule
+    expect(typeByPath["src/handler.ts"]).toBe("code"); // matched by hardcoded rule
+  });
+
+  it("defaults to no user rules (today's exact hardcoded behavior) when the parameter is omitted", () => {
+    const result = classifyTier1(["Dockerfile"]);
+    expect(result.files[0]?.type).toBe("infra");
+  });
 });

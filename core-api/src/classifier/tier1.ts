@@ -1,4 +1,5 @@
 import micromatch from "micromatch";
+import type { ClassificationChangeType } from "../config/carfConfigSchema.js";
 
 export type ChangeType = "infra" | "dependency" | "config" | "code" | "data" | "unclassified";
 
@@ -22,6 +23,11 @@ export interface Tier1Result {
 interface PatternRule {
   patterns: string[];
   type: ChangeType;
+}
+
+export interface UserPatternRule {
+  type: ClassificationChangeType;
+  patterns: string[];
 }
 
 // Ordered specific -> generic, first match wins. Non-signal paths (docs, license,
@@ -61,8 +67,8 @@ const RULES: PatternRule[] = [
   },
 ];
 
-function matchPath(path: string): { type: ChangeType; matchedRule: boolean } {
-  for (const rule of RULES) {
+function matchPath(path: string, rules: PatternRule[]): { type: ChangeType; matchedRule: boolean } {
+  for (const rule of rules) {
     if (micromatch.isMatch(path, rule.patterns, { dot: true, nocase: true })) {
       return { type: rule.type, matchedRule: true };
     }
@@ -76,10 +82,11 @@ function emptyTally(): Record<ChangeType, number> {
   return { infra: 0, dependency: 0, config: 0, code: 0, data: 0, unclassified: 0 };
 }
 
-export function classifyTier1(changedFilePaths: string[]): Tier1Result {
+export function classifyTier1(changedFilePaths: string[], userRules: UserPatternRule[] = []): Tier1Result {
+  const rules: PatternRule[] = [...userRules, ...RULES];
   const tally = emptyTally();
   const files: FileClassification[] = changedFilePaths.map((path) => {
-    const { type, matchedRule } = matchPath(path);
+    const { type, matchedRule } = matchPath(path, rules);
     if (!matchedRule) {
       console.warn(`[tier1] unmatched path, treated as unclassified: ${path}`);
     }

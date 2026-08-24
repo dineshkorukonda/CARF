@@ -1,4 +1,4 @@
-import { classifyTier1, type Tier1Result } from "./tier1.js";
+import { classifyTier1, type Tier1Result, type UserPatternRule } from "./tier1.js";
 import { StubComplexityScorer, type CodeComplexityScorer, type CodeFile } from "./codeComplexityScorer.js";
 
 export interface ChangeVector {
@@ -45,9 +45,13 @@ export function buildChangeVector(tier1: Tier1Result, tier2ComplexityScore: numb
  */
 export function classifyCommit(
   changedFiles: CodeFile[],
-  scorer: CodeComplexityScorer = new StubComplexityScorer()
+  scorer: CodeComplexityScorer = new StubComplexityScorer(),
+  userRules: UserPatternRule[] = []
 ): ChangeVector | null {
-  const tier1 = classifyTier1(changedFiles.map((f) => f.path));
+  const tier1 = classifyTier1(
+    changedFiles.map((f) => f.path),
+    userRules
+  );
   const codeFiles = changedFiles.filter((f) =>
     tier1.files.some((classified) => classified.path === f.path && classified.type === "code")
   );
