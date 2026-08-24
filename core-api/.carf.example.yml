@@ -1,0 +1,37 @@
+# .carf.yml — repo-root configuration for core-api. All top-level keys are
+# optional. No file at all is valid and produces core-api's built-in
+# hardcoded defaults, unchanged.
+
+classification:
+  rules:
+    # Checked BEFORE core-api's built-in classification rules
+    # (src/classifier/tier1.ts), first-match-wins. Omit this block
+    # entirely to use only the built-in rules.
+    - type: infra
+      patterns:
+        - "deploy/**/*.yaml"
+
+threshold:
+  # Overrides src/threshold/engine.ts's DEFAULT_CONFIG. Any key, or any
+  # field within a type, that you omit here falls back to the built-in
+  # default for that field.
+  decay: 0.6
+  complexityDecay: 0.3
+  types:
+    infra:
+      baseThreshold: 0.01
+      baseWindow: 60
+    # dependency / config / code accept the same { baseThreshold,
+    # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG
+    # value entirely.
+
+# --- The two fields below are validated but NOT YET WIRED. Setting them
+# --- has NO EFFECT on core-api's runtime behavior today — there is no
+# --- code path that reads mode/adapter to actually select Standalone vs
+# --- Augment mode or drive a rollback adapter. This will change in a
+# --- future project. Until then, treat these as a schema preview, not a
+# --- working switch.
+mode: standalone   # standalone | augment
+adapter:
+  kind: kubernetes  # kubernetes | dockerCompose
+  target: "my-deployment"
