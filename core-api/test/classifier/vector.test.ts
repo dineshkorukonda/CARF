@@ -114,4 +114,21 @@ describe("classifyCommit", () => {
     expect(vector).not.toBeNull();
     expect(vector!.code_complexity).toBeGreaterThan(0);
   });
+
+  it("threads userRules through to Tier 1 classification", () => {
+    const vector = classifyCommit(
+      [{ path: "config/production.yaml", before: "a", after: "b" }],
+      zeroScorer,
+      [{ type: "infra", patterns: ["config/production.yaml"] }]
+    );
+    // Reclassified as infra by the user rule, so it's still the only
+    // classified file and infra takes the full weight.
+    expect(vector).toEqual({
+      infra: 1,
+      dependency: 0,
+      config: 0,
+      code: 0,
+      code_complexity: 0,
+    });
+  });
 });
