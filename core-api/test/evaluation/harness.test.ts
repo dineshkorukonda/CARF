@@ -85,6 +85,33 @@ describe("runEvaluation", () => {
 
     expect(conditionB.falsePositiveRate).toBeLessThanOrEqual(conditionA.falsePositiveRate);
   });
+
+  it("threads classificationRules through to classifyCommit for every deployment", async () => {
+    const deployments = generateSyntheticDeployments(10);
+    const prismaClient = new FakeEvaluationPrismaClient();
+
+    // A deliberately extreme user rule: reclassify every path as "infra".
+    // If classificationRules isn't threaded through, this has no effect
+    // and the test below (comparing against a run with no rules) would
+    // see identical outcomes.
+    const withRule = await runEvaluation(deployments, {
+      prismaClient,
+      classificationRules: [{ type: "infra", patterns: ["**/*"] }],
+    });
+    const withoutRule = await runEvaluation(deployments, {
+      prismaClient: new FakeEvaluationPrismaClient(),
+    });
+
+    // Both runs must still produce finite, well-formed metrics either way.
+    expectFiniteMetrics(withRule.conditionB);
+    expectFiniteMetrics(withoutRule.conditionB);
+    // Forcing every file to "infra" changes the ChangeVector CARF
+    // computes for every deployment, which changes the dynamic threshold
+    // fed into Condition B — so the two runs' Condition B MTTR should
+    // differ (infra carries the tightest, fastest-tripping base
+    // threshold/window in DEFAULT_CONFIG).
+    expect(withRule.conditionB.truePositiveMttrMs).not.toBe(withoutRule.conditionB.truePositiveMttrMs);
+  });
 });
 
 describe("writeReport", () => {
