@@ -1,9 +1,0 @@
-version: 2
-secret:
-  ignored-matches:
-    # Ephemeral Postgres service-container credential used only inside the
-    # core-api CI job's own network namespace (github.com/dineshkorukonda/CARF/
-    # actions/workflows/core-api.yml). It is never a real credential, is not
-    # reachable outside the job, and is discarded when the job container exits.
-    - name: core-api CI ephemeral Postgres test credential
-      match: ci-local-only
