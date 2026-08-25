@@ -48,13 +48,16 @@ describe("PM2Adapter.checkHealth", () => {
 });
 
 describe("PM2Adapter.rollback", () => {
-  it("repoints the current symlink at the previous release and reloads the process", async () => {
+  it("verifies the previous release directory exists before repointing the symlink, then reloads the process", async () => {
     const exec = mockExec("");
     const adapter = new PM2Adapter("abc123", { exec });
 
     await adapter.rollback("web");
 
-    expect(exec).toHaveBeenNthCalledWith(1, "ln -sfn /var/www/releases/abc123 /var/www/current");
+    expect(exec).toHaveBeenNthCalledWith(
+      1,
+      "test -d /var/www/releases/abc123 && ln -sfn /var/www/releases/abc123 /var/www/current"
+    );
     expect(exec).toHaveBeenNthCalledWith(2, "pm2 reload web");
   });
 
@@ -68,6 +71,17 @@ describe("PM2Adapter.rollback", () => {
 
     await adapter.rollback("web");
 
-    expect(exec).toHaveBeenNthCalledWith(1, "ln -sfn /srv/app/releases/abc123 /srv/app/current");
+    expect(exec).toHaveBeenNthCalledWith(
+      1,
+      "test -d /srv/app/releases/abc123 && ln -sfn /srv/app/releases/abc123 /srv/app/current"
+    );
+  });
+
+  it("propagates the failure (never reloads) when the previous release directory doesn't exist on this host", async () => {
+    const exec = vi.fn().mockRejectedValue(new Error("Command failed: test -d ... exit code 1"));
+    const adapter = new PM2Adapter("missing-sha", { exec });
+
+    await expect(adapter.rollback("web")).rejects.toThrow();
+    expect(exec).toHaveBeenCalledTimes(1); // never reached the `pm2 reload` call
   });
 });

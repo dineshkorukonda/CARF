@@ -1,10 +1,5 @@
-import { exec as execCallback } from "node:child_process";
-import { promisify } from "node:util";
+import { defaultExec, type ExecFn } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
-
-export type ExecFn = (command: string) => Promise<{ stdout: string; stderr: string }>;
-
-const defaultExec: ExecFn = promisify(execCallback);
 
 const DEFAULT_RELEASES_ROOT = "/var/www/releases";
 const DEFAULT_CURRENT_SYMLINK = "/var/www/current";
@@ -71,7 +66,14 @@ export class PM2Adapter implements RollbackAdapter {
   }
 
   async rollback(target: string): Promise<void> {
-    await this.exec(`ln -sfn ${this.releasesRoot}/${this.previousSha} ${this.currentSymlink}`);
+    const releaseDir = `${this.releasesRoot}/${this.previousSha}`;
+    // `ln -sfn` happily creates a dangling symlink pointing at a directory that doesn't
+    // exist -- it doesn't fail just because the target is missing. Guarding with `test -d`
+    // (chained so the whole command fails, and this.exec()'s promisified child_process
+    // rejects on a non-zero exit) means a rollback to a release that was never actually
+    // deployed here (retention-pruned, or never built on this host) throws instead of
+    // silently repointing the symlink at nothing and reporting success.
+    await this.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
     await this.exec(`pm2 reload ${target}`);
   }
 }
