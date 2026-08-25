@@ -46,6 +46,7 @@ const target: DeployTarget = {
   baseSha: "base123",
   headSha: "head456",
   installationId: "inst-1",
+  event: "push",
 };
 
 function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrchestratorDeps {
@@ -130,6 +131,22 @@ describe("handleWebhookCommit", () => {
     expect(call[0]).toBe("head456"); // sha
     expect(call[1]).toBe(fakeAdapter);
     expect(call[3]).toBe("web"); // target string
+  });
+
+  it("Standalone + dockerCompose adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback tag there)", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "dockerCompose", target: "web" } },
+      standaloneLoopRunner,
+    });
+
+    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ adapter: { kind: "dockerCompose", target: "web" }, event: "pull_request" }),
+      expect.stringContaining("push event")
+    );
   });
 
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {

@@ -78,6 +78,7 @@ describe("POST /webhooks/github", () => {
       baseSha: "abc111",
       headSha: "def222",
       installationId: "12345",
+      event: "push",
     });
   });
 
