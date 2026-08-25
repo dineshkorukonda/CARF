@@ -2,12 +2,15 @@ import { acquireDiff } from "./adapters/github/diffAcquisition.js";
 import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
+import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import type { CarfConfig } from "./config/carfConfigSchema.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
+
+export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
 
 export interface OrchestratorLogger {
   info(details: Record<string, unknown>, message: string): void;
@@ -21,10 +24,26 @@ export interface WebhookOrchestratorDeps {
   carfConfig: CarfConfig | undefined;
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
-  /** Testable seam; defaults to `(target) => new KubectlAdapter()`. */
-  rollbackAdapterFactory?: (target: string) => RollbackAdapter;
+  /**
+   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"` or a
+   * `DockerComposeAdapter` for `kind: "dockerCompose"` (using `baseSha` as the previous
+   * image tag -- see `DockerComposeAdapter`'s doc comment on the `IMAGE_TAG` convention
+   * this assumes).
+   */
+  rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
   standaloneLoopRunner?: typeof runStandaloneLoop;
+}
+
+function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
+  if (adapterConfig.kind === "kubernetes") {
+    return new KubectlAdapter();
+  }
+  // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
+  // stale the moment a new commit lands anyway, since "previous" changes every deploy) --
+  // baseSha (the commit before this push) is used instead, on the documented assumption
+  // that the deployment pipeline tags images by commit SHA. See issue #50.
+  return new DockerComposeAdapter(baseSha);
 }
 
 // Process-local only. Guards against GitHub's webhook redelivery starting a second
@@ -44,15 +63,13 @@ function loopKey(owner: string, repo: string, sha: string): string {
  * persist + compute threshold), then branches on .carf.yml's `mode`:
  *   - Augment (or no mode / no .carf.yml at all): stops here. GET /v1/threshold
  *     (src/routes/threshold.ts) serves the persisted result separately.
- *   - Standalone with adapter.kind "kubernetes": additionally kicks off
- *     runStandaloneLoop() in the background (not awaited -- the loop can run for the
+ *   - Standalone with adapter.kind "kubernetes" or "dockerCompose": additionally kicks
+ *     off runStandaloneLoop() in the background (not awaited -- the loop can run for the
  *     full threshold window, up to DEFAULT_CONFIG's largest baseWindow, which would hang
  *     the webhook's HTTP response if awaited).
- *   - Standalone with any other/missing adapter (including dockerCompose, whose
- *     .carf.yml schema has no source for the previousImageTag DockerComposeAdapter
- *     requires -- see the design spec's "Explicitly out of scope"): logs an error and
- *     skips the loop. processCommit()'s result has already persisted successfully --
- *     this is a partial success, not a failure of the webhook itself.
+ *   - Standalone with no adapter configured at all: logs an error and skips the loop.
+ *     processCommit()'s result has already persisted successfully -- this is a partial
+ *     success, not a failure of the webhook itself.
  */
 export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrchestratorDeps): Promise<void> {
   const token = await deps.installationTokenClient.getInstallationToken(target.installationId);
@@ -92,10 +109,10 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   const adapterConfig = carfConfig.adapter;
-  if (!adapterConfig || adapterConfig.kind !== "kubernetes") {
+  if (!adapterConfig) {
     deps.logger.error(
       { adapter: adapterConfig },
-      "standalone mode configured but adapter is missing or unsupported (only kubernetes is wired today)"
+      "standalone mode configured but no adapter specified"
     );
     return;
   }
@@ -107,8 +124,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
   activeLoops.add(key);
 
-  const buildAdapter = deps.rollbackAdapterFactory ?? (() => new KubectlAdapter());
-  const adapter = buildAdapter(adapterConfig.target);
+  const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
+  const adapter = buildAdapter(adapterConfig, target.baseSha);
   const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;
 
   void loopRunner(target.headSha, adapter, result, adapterConfig.target)
