@@ -35,10 +35,17 @@ at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
   reads `kubectl get deployment <target> -o json` and derives `errorRate` from
   `status.unavailableReplicas / spec.replicas`. `rollback` runs
   `kubectl rollout undo deployment/<target>`.
+- `src/adapters/pm2.ts` — `PM2Adapter`, shells out to `pm2`. `checkHealth` reads `pm2
+  jlist`, filters to entries whose `name` matches `target`, and derives `errorRate` from
+  the fraction whose `pm2_env.status` isn't `"online"`. `rollback` assumes a
+  Capistrano-style release layout (`${releasesRoot}/${sha}`, default `/var/www/releases`)
+  reached through a `currentSymlink` (default `/var/www/current`): it repoints the symlink
+  at the previous release and runs `pm2 reload <target>`.
 
-Both adapters take an injectable exec function (defaulting to Node's real
+All three adapters take an injectable exec function (defaulting to Node's real
 `child_process.exec`, promisified) so unit tests never shell out for real — see
-`test/adapters/dockerCompose.test.ts` and `test/adapters/kubectl.test.ts`.
+`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`, and
+`test/adapters/pm2.test.ts`.
 
 ### Manual validation against `demo-target-app/`
 

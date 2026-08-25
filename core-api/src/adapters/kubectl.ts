@@ -1,10 +1,5 @@
-import { exec as execCallback } from "node:child_process";
-import { promisify } from "node:util";
+import { defaultExec, type ExecFn } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
-
-export type ExecFn = (command: string) => Promise<{ stdout: string; stderr: string }>;
-
-const defaultExec: ExecFn = promisify(execCallback);
 
 export interface KubectlAdapterOptions {
   /** Injected exec function, defaulting to Node's real `child_process.exec`, promisified. */

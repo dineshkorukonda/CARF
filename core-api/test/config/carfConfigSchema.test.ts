@@ -54,7 +54,7 @@ describe("CarfConfigSchema", () => {
 
   it("rejects an invalid adapter.kind value", () => {
     const result = CarfConfigSchema.safeParse({
-      adapter: { kind: "pm2", target: "x" },
+      adapter: { kind: "dockerSwarm", target: "x" },
     });
     expect(result.success).toBe(false);
   });
