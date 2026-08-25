@@ -7,6 +7,17 @@
  * Acquisition never blocks/waits — a failed acquire means "another instance holds this
  * lock and it isn't stale," so the caller should just skip this delivery (GitHub will
  * redeliver later if needed, same as the old Set-based guard's behavior).
+ *
+ * Known limitation (inherent to any TTL/heartbeat lease, not specific to this
+ * implementation): if the holding instance's heartbeat renewal is merely *delayed* past
+ * the TTL (GC pause, event-loop congestion, a slow DB) rather than the holder actually
+ * being dead, a second instance can reclaim the lock and start a second concurrent loop —
+ * the exact double-kickoff this guard exists to prevent. The default TTL (60s) is a large
+ * multiple of the default heartbeat interval (20s) specifically to make this rare in
+ * practice, but a lease-based lock cannot rule it out entirely without fencing tokens
+ * (each acquisition gets a monotonically increasing token; the loop checks it's still the
+ * current token before performing rollback actions). That's a larger change than this
+ * issue's scope — see issue #56's discussion.
  */
 
 export const DEFAULT_LOCK_TTL_MS = 60_000;
