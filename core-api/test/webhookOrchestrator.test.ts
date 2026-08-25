@@ -228,6 +228,61 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(2);
   });
 
+  it("a failed lock release is caught and logged, not left as an unhandled rejection", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
+    const lockPrismaClient = new FakeLockPrismaClient();
+    lockPrismaClient.standaloneLoopLock.deleteMany = async () => {
+      throw new Error("connection lost");
+    };
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+      standaloneLoopRunner,
+      lockPrismaClient,
+    });
+
+    await expect(handleWebhookCommit(target, deps)).resolves.toBeUndefined();
+    await flushMicrotasks();
+
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.any(Error) }),
+      expect.stringContaining("failed to release standalone loop lock")
+    );
+  });
+
+  it("a failed heartbeat renewal is caught and logged, not left as an unhandled rejection", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveLoop!: (value: { rolledBack: boolean }) => void;
+      const loopPromise = new Promise<{ rolledBack: boolean }>((resolve) => {
+        resolveLoop = resolve;
+      });
+      const standaloneLoopRunner = vi.fn().mockReturnValue(loopPromise);
+      const lockPrismaClient = new FakeLockPrismaClient();
+      lockPrismaClient.standaloneLoopLock.updateMany = async () => {
+        throw new Error("connection lost");
+      };
+      const deps = baseDeps({
+        carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+        standaloneLoopRunner,
+        lockPrismaClient,
+        heartbeatIntervalMs: 10,
+      });
+
+      const handled = handleWebhookCommit(target, deps);
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(deps.logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ error: expect.any(Error) }),
+        expect.stringContaining("failed to renew standalone loop lock heartbeat")
+      );
+
+      resolveLoop({ rolledBack: false });
+      await handled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a NoSignalError from processCommit is a clean no-op, not a thrown failure, and is logged", async () => {
     const githubApiClient: GitHubApiClient = {
       compareCommits: vi.fn().mockResolvedValue({ files: [{ filename: "README.md", status: "modified" }] }),
