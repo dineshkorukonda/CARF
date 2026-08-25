@@ -59,5 +59,5 @@ export async function runStandaloneLoop(
     }
   }
 
-  return { rolledBack: false, finalErrorRate: lastErrorRate, durationMs: windowMs };
+  return { rolledBack: false, finalErrorRate: lastErrorRate, durationMs: elapsedMs };
 }
