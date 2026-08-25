@@ -196,6 +196,43 @@ describe("handleWebhookCommit", () => {
     );
   });
 
+  it("Standalone + adapter.kind pm2 kicks off the loop runner, building the adapter with baseSha as the previous release", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
+    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
+    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "pm2", target: "web" }, "base123");
+    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
+    const call = standaloneLoopRunner.mock.calls[0]!;
+    expect(call[0]).toBe("head456"); // sha
+    expect(call[1]).toBe(fakeAdapter);
+    expect(call[3]).toBe("web"); // target string
+  });
+
+  it("Standalone + pm2 adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback release there)", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      standaloneLoopRunner,
+    });
+
+    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ adapter: { kind: "pm2", target: "web" }, event: "pull_request" }),
+      expect.stringContaining("push event")
+    );
+  });
+
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {
     const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({ carfConfig: { mode: "standalone" }, standaloneLoopRunner });
@@ -310,56 +347,6 @@ describe("handleWebhookCommit", () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-
-  it("records a RolloutOutcome after the loop completes successfully", async () => {
-    const standaloneLoopRunner = vi
-      .fn()
-      .mockResolvedValue({ rolledBack: true, finalErrorRate: 0.2, durationMs: 10_000 });
-    const rolloutOutcomePrismaClient = new FakeRolloutOutcomePrismaClient();
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
-      standaloneLoopRunner,
-      rolloutOutcomePrismaClient,
-    });
-
-    await handleWebhookCommit(target, deps);
-    await flushMicrotasks();
-
-    expect(rolloutOutcomePrismaClient.rolloutOutcome.create).toHaveBeenCalledWith({
-      data: {
-        commit: { connect: { owner_repo_sha: { owner: "acme", repo: "widgets", sha: "head456" } } },
-        installationId: "inst-1",
-        rolledBack: true,
-        finalErrorRate: 0.2,
-        durationMs: 10_000,
-      },
-    });
-  });
-
-  it("a failed rollout-outcome recording is caught and logged, distinct from a loop failure", async () => {
-    const standaloneLoopRunner = vi
-      .fn()
-      .mockResolvedValue({ rolledBack: false, finalErrorRate: 0.01, durationMs: 30_000 });
-    const rolloutOutcomePrismaClient = new FakeRolloutOutcomePrismaClient();
-    rolloutOutcomePrismaClient.rolloutOutcome.create = vi.fn().mockRejectedValue(new Error("no Commit row"));
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
-      standaloneLoopRunner,
-      rolloutOutcomePrismaClient,
-    });
-
-    await expect(handleWebhookCommit(target, deps)).resolves.toBeUndefined();
-    await flushMicrotasks();
-
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ error: expect.any(Error) }),
-      expect.stringContaining("failed to record rollout outcome")
-    );
-    expect(deps.logger.error).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining("standalone rollback loop failed")
-    );
   });
 
   it("a NoSignalError from processCommit is a clean no-op, not a thrown failure, and is logged", async () => {

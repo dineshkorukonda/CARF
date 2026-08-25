@@ -23,7 +23,7 @@ npm run dev
 `src/adapters/loop.ts` (`runStandaloneLoop`) polls a `RollbackAdapter` at a configurable
 interval for the duration of a commit's `ThresholdResult.finalWindow`, triggering
 `adapter.rollback()` and exiting early the moment `checkHealth()` reports an error rate
-at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
+at or above `finalThreshold`. Adapters implementing `RollbackAdapter`:
 
 - `src/adapters/dockerCompose.ts` — `DockerComposeAdapter`, shells out to the `docker
   compose` CLI. `checkHealth` reads `docker compose ps --format json <target>` and derives
@@ -35,10 +35,17 @@ at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
   reads `kubectl get deployment <target> -o json` and derives `errorRate` from
   `status.unavailableReplicas / spec.replicas`. `rollback` runs
   `kubectl rollout undo deployment/<target>`.
+- `src/adapters/pm2.ts` — `PM2Adapter`, shells out to `pm2`. `checkHealth` reads `pm2
+  jlist`, filters to entries whose `name` matches `target`, and derives `errorRate` from
+  the fraction whose `pm2_env.status` isn't `"online"`. `rollback` assumes a
+  Capistrano-style release layout (`${releasesRoot}/${sha}`, default `/var/www/releases`)
+  reached through a `currentSymlink` (default `/var/www/current`): it repoints the symlink
+  at the previous release and runs `pm2 reload <target>`.
 
-Both adapters take an injectable exec function (defaulting to Node's real
+All three adapters take an injectable exec function (defaulting to Node's real
 `child_process.exec`, promisified) so unit tests never shell out for real — see
-`test/adapters/dockerCompose.test.ts` and `test/adapters/kubectl.test.ts`.
+`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`, and
+`test/adapters/pm2.test.ts`.
 
 ### Manual validation against `demo-target-app/`
 
@@ -101,14 +108,22 @@ unchanged.
 - `threshold` — overrides `src/threshold/engine.ts`'s `DEFAULT_CONFIG`,
   per field: an omitted field (or omitted type) keeps its built-in
   default.
-- `mode` / `adapter` — validated against the schema, but **not yet
-  wired to any runtime behavior**. There is no composition root today
-  that reads `mode` to select Standalone vs Augment behavior or that
-  drives a rollback adapter from `adapter.kind`/`adapter.target` — that
-  wiring is a separate, future project. Setting these fields today has
-  no effect beyond passing validation.
+- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "kubernetes"` or
+  `"dockerCompose"` drives a real rollback adapter kickoff from
+  `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` on every webhook. `mode: "augment"`
+  (or no `mode` at all) just persists and stops — `GET /v1/threshold` serves the result
+  separately.
 
 A malformed or schema-invalid `.carf.yml` (bad YAML, unknown field,
 invalid enum value) causes the loader (`src/config/carfConfig.ts`) to
 throw — this is deliberate "fail closed" behavior, not a bug: an invalid
 config must never be silently ignored in favor of defaults.
+
+### Hot-reload
+
+`.carf.yml` is watched for changes at runtime (`src/config/carfConfigWatcher.ts`) — edits
+are picked up without restarting the process, debounced (~200ms) since editors often fire
+several filesystem events per save. A malformed edit is **not** applied: the reload is
+rejected, logged, and the process keeps serving whatever config it already had (same
+fail-closed contract as the initial load) — it never silently falls back to built-in
+defaults just because a config that used to be valid became invalid mid-edit.
