@@ -1,0 +1,71 @@
+name: "CARF Threshold Check"
+description: >-
+  Fetches CARF's dynamically-computed rollback threshold, evaluation window, and
+  contributing change types for a commit (Augment mode's GET /v1/threshold), so a
+  workflow can gate or annotate a deployment step without hand-wiring the HTTP call.
+author: "CARF"
+
+inputs:
+  api-url:
+    description: >-
+      Base URL of your core-api deployment (e.g. https://your-app.onrender.com), no
+      trailing slash.
+    required: true
+  commit:
+    description: "Commit SHA to fetch the threshold for."
+    required: false
+    default: ${{ github.sha }}
+  fail-on-missing:
+    description: >-
+      Fail the step if core-api hasn't computed a threshold for this commit yet (e.g.
+      the webhook hasn't been delivered/processed, or the commit had no classification
+      signal). Set to "false" to treat a missing threshold as a warning instead.
+    required: false
+    default: "true"
+
+outputs:
+  final-threshold:
+    description: "The computed anomaly threshold (error rate, 0-1) for this commit."
+    value: ${{ steps.fetch.outputs.final-threshold }}
+  final-window:
+    description: "The evaluation window, in seconds."
+    value: ${{ steps.fetch.outputs.final-window }}
+  active-types:
+    description: "JSON array of ChangeType names (e.g. [\"infra\",\"code\"]) that contributed to this threshold."
+    value: ${{ steps.fetch.outputs.active-types }}
+  found:
+    description: "\"true\" if a threshold was found for this commit, \"false\" otherwise."
+    value: ${{ steps.fetch.outputs.found }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: fetch
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        url="${{ inputs.api-url }}/v1/threshold?commit=${{ inputs.commit }}"
+        response="$(curl -sS -w '\n%{http_code}' "$url")"
+        status="$(echo "$response" | tail -n1)"
+        body="$(echo "$response" | sed '$d')"
+
+        if [ "$status" != "200" ]; then
+          echo "found=false" >> "$GITHUB_OUTPUT"
+          if [ "${{ inputs.fail-on-missing }}" = "true" ]; then
+            echo "::error::CARF threshold check failed for commit ${{ inputs.commit }} (HTTP $status): $body"
+            exit 1
+          else
+            echo "::warning::CARF threshold not available for commit ${{ inputs.commit }} (HTTP $status), continuing"
+            exit 0
+          fi
+        fi
+
+        final_threshold="$(echo "$body" | jq -r '.finalThreshold')"
+        final_window="$(echo "$body" | jq -r '.finalWindow')"
+        active_types="$(echo "$body" | jq -c '.activeTypes')"
+
+        echo "found=true" >> "$GITHUB_OUTPUT"
+        echo "final-threshold=$final_threshold" >> "$GITHUB_OUTPUT"
+        echo "final-window=$final_window" >> "$GITHUB_OUTPUT"
+        echo "active-types=$active_types" >> "$GITHUB_OUTPUT"
