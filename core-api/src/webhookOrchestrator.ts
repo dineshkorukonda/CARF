@@ -134,9 +134,14 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  const key = loopKey(target.owner, target.repo, target.headSha);
-  if (activeLoops.has(key)) {
-    deps.logger.info({ key }, "standalone loop already running for this commit, skipping redelivery");
+  const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
+  const ttlMs = deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
+  const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+  const key = `${target.owner}/${target.repo}@${target.headSha}`;
+
+  const acquired = await acquireLock(lockClient, target.owner, target.repo, target.headSha, ttlMs);
+  if (!acquired) {
+    deps.logger.info({ key }, "standalone loop already running for this commit (durable lock held), skipping redelivery");
     return;
   }
 
@@ -148,7 +153,12 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   // stale and gets reclaimed out from under it -- only a holder that stops renewing
   // (crashed, or the process died) leaves a lock that eventually becomes reclaimable.
   const heartbeat = setInterval(() => {
-    void renewLock(lockClient, target.owner, target.repo, target.headSha);
+    renewLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+      // Not fatal to the loop itself -- a missed heartbeat just brings the lock closer to
+      // TTL expiry. Logged so a persistently-failing DB is visible, not silently swallowed
+      // (and, critically, not left as an unhandled rejection that would crash the process).
+      deps.logger.error({ error, key }, "failed to renew standalone loop lock heartbeat");
+    });
   }, heartbeatIntervalMs);
 
   void loopRunner(target.headSha, adapter, result, adapterConfig.target)
@@ -157,6 +167,10 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     })
     .finally(() => {
       clearInterval(heartbeat);
-      void releaseLock(lockClient, target.owner, target.repo, target.headSha);
+      releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+        // Non-fatal: the lock will still expire via TTL and become reclaimable, just not
+        // immediately. Logged for visibility, not left as an unhandled rejection.
+        deps.logger.error({ error, key }, "failed to release standalone loop lock");
+      });
     });
 }
