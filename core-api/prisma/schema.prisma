@@ -11,15 +11,16 @@ datasource db {
 }
 
 model Commit {
-  id             String        @id @default(cuid())
-  owner          String
-  repo           String
-  sha            String
-  baseSha        String
-  installationId String?
-  changeVector   ChangeVector?
-  threshold      Threshold?
-  createdAt      DateTime      @default(now())
+  id              String           @id @default(cuid())
+  owner           String
+  repo            String
+  sha             String
+  baseSha         String
+  installationId  String?
+  changeVector    ChangeVector?
+  threshold       Threshold?
+  rolloutOutcomes RolloutOutcome[]
+  createdAt       DateTime         @default(now())
 
   @@unique([owner, repo, sha])
   @@index([owner, repo])
@@ -69,6 +70,28 @@ model StandaloneLoopLock {
   heartbeatAt DateTime @default(now())
 
   @@unique([owner, repo, sha])
+}
+
+// Records what actually happened during a live Standalone rollback loop for a commit --
+// as opposed to Threshold, which records what CARF *decided* the threshold/window should
+// be. One row per runStandaloneLoop() completion (not unique per commit: a redelivery
+// after a reclaimed lock could in principle run the loop again). Scoped by installationId
+// from day one (issue #65's "don't build telemetry without tenant scoping, or it becomes
+// a data-isolation retrofit" requirement) even though no query endpoint over this table
+// exists yet -- see issue #54's design note on why the query side is deliberately deferred
+// until a real caller-auth mechanism (issue #61) exists.
+model RolloutOutcome {
+  id             String   @id @default(cuid())
+  commit         Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  commitId       String
+  installationId String?
+  rolledBack     Boolean
+  finalErrorRate Float
+  durationMs     Int
+  createdAt      DateTime @default(now())
+
+  @@index([commitId])
+  @@index([installationId])
 }
 
 // Records the outcome of an evaluation run (baseline vs. carf condition) for a given

@@ -32,11 +32,30 @@ describe("runStandaloneLoop", () => {
       sleep,
     });
 
-    expect(result).toEqual({ rolledBack: false });
+    expect(result).toEqual({ rolledBack: false, finalErrorRate: 0.01, durationMs: 30_000 });
     expect(adapter.rollback).not.toHaveBeenCalled();
     // 30s window / 10s interval = 3 polls
     expect(adapter.checkHealth).toHaveBeenCalledTimes(3);
     expect(adapter.checkHealth).toHaveBeenCalledWith("my-service");
+  });
+
+  it("reports the actual accumulated elapsed time as durationMs, not the nominal window, when the window doesn't evenly divide the poll interval", async () => {
+    const adapter = mockAdapter({
+      checkHealth: vi.fn().mockResolvedValue({ errorRate: 0.01, healthy: true }),
+    });
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    // 25s window / 10s interval: checks at elapsedMs 0, 10000, 20000 -- the loop's own
+    // accounting increments elapsedMs to 30000 after the 3rd check before re-testing the
+    // while condition, so the real accumulated value the loop worked with is 30000, not
+    // the configured 25000.
+    const result = await runStandaloneLoop("sha123", adapter, threshold({ finalWindow: 25 }), "my-service", {
+      pollIntervalMs: 10_000,
+      sleep,
+    });
+
+    expect(adapter.checkHealth).toHaveBeenCalledTimes(3);
+    expect(result.durationMs).toBe(30_000);
   });
 
   it("rolls back and exits early as soon as the error rate breaches the threshold", async () => {
@@ -56,7 +75,7 @@ describe("runStandaloneLoop", () => {
       { pollIntervalMs: 10_000, sleep }
     );
 
-    expect(result).toEqual({ rolledBack: true });
+    expect(result).toEqual({ rolledBack: true, finalErrorRate: 0.2, durationMs: 10_000 });
     expect(adapter.rollback).toHaveBeenCalledTimes(1);
     expect(adapter.rollback).toHaveBeenCalledWith("my-service");
     // stopped after the 2nd poll, never reached a 3rd
