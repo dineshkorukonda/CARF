@@ -3,6 +3,7 @@ import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
+import { DockerSwarmAdapter } from "./adapters/dockerSwarm.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
@@ -34,10 +35,10 @@ export interface WebhookOrchestratorDeps {
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
   /**
-   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"` or a
-   * `DockerComposeAdapter` for `kind: "dockerCompose"` (using `baseSha` as the previous
-   * image tag -- see `DockerComposeAdapter`'s doc comment on the `IMAGE_TAG` convention
-   * this assumes).
+   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"`, a
+   * `DockerSwarmAdapter` for `kind: "dockerSwarm"` (neither uses `baseSha` -- both track
+   * their own rollback state), or a `DockerComposeAdapter` for `kind: "dockerCompose"`
+   * (using `baseSha` as the previous image tag -- see its doc comment for why).
    */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
@@ -53,6 +54,11 @@ export interface WebhookOrchestratorDeps {
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
   if (adapterConfig.kind === "kubernetes") {
     return new KubectlAdapter();
+  }
+  if (adapterConfig.kind === "dockerSwarm") {
+    // Swarm tracks the previous spec itself (docker service update --rollback), like
+    // kubectl rollout undo -- no previous-value bookkeeping needed. See issue #53.
+    return new DockerSwarmAdapter();
   }
   // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
   // stale the moment a new commit lands anyway, since "previous" changes every deploy) --

@@ -23,7 +23,7 @@ npm run dev
 `src/adapters/loop.ts` (`runStandaloneLoop`) polls a `RollbackAdapter` at a configurable
 interval for the duration of a commit's `ThresholdResult.finalWindow`, triggering
 `adapter.rollback()` and exiting early the moment `checkHealth()` reports an error rate
-at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
+at or above `finalThreshold`. Adapters implementing `RollbackAdapter`:
 
 - `src/adapters/dockerCompose.ts` — `DockerComposeAdapter`, shells out to the `docker
   compose` CLI. `checkHealth` reads `docker compose ps --format json <target>` and derives
@@ -35,10 +35,17 @@ at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
   reads `kubectl get deployment <target> -o json` and derives `errorRate` from
   `status.unavailableReplicas / spec.replicas`. `rollback` runs
   `kubectl rollout undo deployment/<target>`.
+- `src/adapters/dockerSwarm.ts` — `DockerSwarmAdapter`, shells out to `docker service`.
+  `checkHealth` reads `docker service ps <target> --filter desired-state=running --format
+  json` and derives `errorRate` from the fraction of tasks whose `CurrentState` doesn't
+  start with `"Running"`. `rollback` runs `docker service update --rollback <target>` —
+  Swarm tracks the previous spec itself, like `kubectl rollout undo`, so no explicit
+  previous-version bookkeeping is needed (unlike Docker Compose's gap, see issue #50).
 
-Both adapters take an injectable exec function (defaulting to Node's real
+All three exec-based adapters take an injectable exec function (defaulting to Node's real
 `child_process.exec`, promisified) so unit tests never shell out for real — see
-`test/adapters/dockerCompose.test.ts` and `test/adapters/kubectl.test.ts`.
+`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`, and
+`test/adapters/dockerSwarm.test.ts`.
 
 ### Manual validation against `demo-target-app/`
 

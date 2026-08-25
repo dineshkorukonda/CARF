@@ -25,11 +25,11 @@ CARF/
 | GitHub App webhook receiver (signature auth, diff acquisition) | Implemented |
 | Threshold decay engine + persistence | Implemented |
 | Augment mode: `GET /v1/threshold` webhook API | Implemented |
-| Standalone mode: rollback adapters + health-check loop (Kubernetes, Docker Compose) | Implemented |
+| Standalone mode: rollback adapters + health-check loop (Kubernetes, Docker Compose, Docker Swarm) | Implemented |
 | Synthetic evaluation harness (H1 proof) | Implemented |
 | `.carf.yml` configuration reference (classification rules + threshold/decay tuning; `mode`/`adapter` wired to both Kubernetes and Docker Compose Standalone rollback) | Implemented |
 | First-class CI/CD Action (GitHub Actions, wraps `GET /v1/threshold`) | Implemented |
-| Additional restoration targets (PM2, GitOps, Docker Swarm) | Planned |
+| Additional restoration targets (PM2, GitOps) | Planned |
 | Telemetry/observability ingest API | Planned |
 
 See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.

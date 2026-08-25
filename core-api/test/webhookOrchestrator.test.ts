@@ -184,6 +184,37 @@ describe("handleWebhookCommit", () => {
     );
   });
 
+  it("Standalone + adapter.kind dockerSwarm kicks off the loop runner without awaiting it (no baseSha needed)", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
+    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
+    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "dockerSwarm", target: "web" } },
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "dockerSwarm", target: "web" }, "base123");
+    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
+  });
+
+  it("Standalone + dockerSwarm on a pull_request event still kicks off the loop (unaffected by the baseSha push-only guard)", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "dockerSwarm", target: "web" } },
+      standaloneLoopRunner,
+    });
+
+    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+    await flushMicrotasks();
+
+    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
+    expect(deps.logger.error).not.toHaveBeenCalled();
+  });
+
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {
     const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({ carfConfig: { mode: "standalone" }, standaloneLoopRunner });
