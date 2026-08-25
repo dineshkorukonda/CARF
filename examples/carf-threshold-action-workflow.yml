@@ -1,0 +1,42 @@
+# Example workflow using the CARF Threshold Check Action (.github/actions/carf-threshold)
+# to fetch Augment mode's computed threshold/window for the commit being deployed, and
+# gate a subsequent step on it. This is the first-class alternative to hand-wiring a curl
+# call to GET /v1/threshold, the way examples/argo-rollouts-analysistemplate.yaml and
+# examples/flagger-webhook-metric.yaml do for their respective tools.
+#
+# Prerequisite: core-api must already have processed a webhook for `github.sha` (i.e. the
+# GitHub App is installed and this push already triggered a delivery) before this workflow
+# runs, since the Action only reads a threshold CARF already computed -- it doesn't trigger
+# classification itself.
+name: Deploy with CARF threshold gate
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch CARF threshold for this commit
+        id: carf
+        uses: ./.github/actions/carf-threshold
+        with:
+          api-url: https://your-core-api-host.example.com
+          # commit defaults to github.sha; fail-on-missing defaults to true.
+
+      - name: Show the computed threshold
+        run: |
+          echo "Rollback threshold: ${{ steps.carf.outputs.final-threshold }}"
+          echo "Evaluation window (s): ${{ steps.carf.outputs.final-window }}"
+          echo "Contributing change types: ${{ steps.carf.outputs.active-types }}"
+
+      # Replace with your actual deploy step. A canary/progressive-delivery tool (Argo
+      # Rollouts, Flagger) would typically consume the same GET /v1/threshold data itself
+      # via examples/argo-rollouts-analysistemplate.yaml or examples/flagger-webhook-metric.yaml
+      # rather than a plain GitHub Actions step -- this workflow-level gate suits deploys
+      # driven directly from Actions instead.
+      - name: Deploy
+        run: echo "deploying with threshold ${{ steps.carf.outputs.final-threshold }}"
