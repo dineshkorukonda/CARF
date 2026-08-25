@@ -23,7 +23,7 @@ npm run dev
 `src/adapters/loop.ts` (`runStandaloneLoop`) polls a `RollbackAdapter` at a configurable
 interval for the duration of a commit's `ThresholdResult.finalWindow`, triggering
 `adapter.rollback()` and exiting early the moment `checkHealth()` reports an error rate
-at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
+at or above `finalThreshold`. Adapters implementing `RollbackAdapter`:
 
 - `src/adapters/dockerCompose.ts` — `DockerComposeAdapter`, shells out to the `docker
   compose` CLI. `checkHealth` reads `docker compose ps --format json <target>` and derives

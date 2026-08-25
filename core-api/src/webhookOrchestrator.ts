@@ -3,6 +3,7 @@ import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
+import { GitOpsAdapter } from "./adapters/gitops.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
@@ -16,6 +17,7 @@ import {
   type StandaloneLoopLockPrismaClient,
 } from "./adapters/standaloneLoopLock.js";
 import type { CarfConfig } from "./config/carfConfigSchema.js";
+import { env } from "./config/env.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { prisma as defaultPrisma } from "./db/client.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
