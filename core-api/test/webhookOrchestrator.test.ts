@@ -6,6 +6,7 @@ import type { InstallationTokenClient } from "../src/adapters/github/installatio
 import type { PipelinePrismaClient } from "../src/pipeline.js";
 import type { RollbackAdapter } from "../src/adapters/rollbackAdapter.js";
 import type { StandaloneLoopLockPrismaClient } from "../src/adapters/standaloneLoopLock.js";
+import type { RolloutOutcomePrismaClient } from "../src/adapters/rolloutOutcome.js";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -74,6 +75,16 @@ class FakeLockPrismaClient implements StandaloneLoopLockPrismaClient {
   };
 }
 
+class FakeRolloutOutcomePrismaClient implements RolloutOutcomePrismaClient {
+  created: unknown[] = [];
+
+  rolloutOutcome = {
+    create: vi.fn(async (args: unknown) => {
+      this.created.push(args);
+    }),
+  };
+}
+
 const target: DeployTarget = {
   owner: "acme",
   repo: "widgets",
@@ -91,6 +102,7 @@ function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrch
     logger: { info: vi.fn(), error: vi.fn() },
     prismaClient: new FakePrismaClient(),
     lockPrismaClient: new FakeLockPrismaClient(),
+    rolloutOutcomePrismaClient: new FakeRolloutOutcomePrismaClient(),
     ...overrides,
   };
 }

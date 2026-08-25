@@ -8,6 +8,7 @@ import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
+import { recordRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 import {
   acquireLock,
   DEFAULT_HEARTBEAT_INTERVAL_MS,
@@ -51,6 +52,8 @@ export interface WebhookOrchestratorDeps {
   lockTtlMs?: number;
   /** How often the lock-holding instance renews its heartbeat while the loop runs. */
   heartbeatIntervalMs?: number;
+  /** Testable seam for recording loop outcomes (issue #54); defaults to the real db/client.ts singleton. */
+  rolloutOutcomePrismaClient?: RolloutOutcomePrismaClient;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -170,7 +173,27 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     });
   }, heartbeatIntervalMs);
 
+  const rolloutOutcomeClient =
+    deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
+
   void loopRunner(target.headSha, adapter, result, adapterConfig.target)
+    .then(async (loopResult) => {
+      try {
+        await recordRolloutOutcome(rolloutOutcomeClient, {
+          owner: target.owner,
+          repo: target.repo,
+          sha: target.headSha,
+          installationId: target.installationId,
+          rolledBack: loopResult.rolledBack,
+          finalErrorRate: loopResult.finalErrorRate,
+          durationMs: loopResult.durationMs,
+        });
+      } catch (error) {
+        // Distinct log message from the loop-failure case below -- the loop itself
+        // succeeded, only recording its outcome failed. Not fatal to anything else.
+        deps.logger.error({ error, key }, "failed to record rollout outcome");
+      }
+    })
     .catch((error: unknown) => {
       deps.logger.error({ error, key }, "standalone rollback loop failed");
     })

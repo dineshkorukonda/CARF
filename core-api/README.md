@@ -78,6 +78,21 @@ daemon or Kubernetes cluster:
 5. Repeat with a healthy rollout and confirm the loop runs the full window with no
    rollback.
 
+## Telemetry: rollout outcome history
+
+`runStandaloneLoop`'s return value now includes `finalErrorRate` and `durationMs`
+alongside `rolledBack`. `webhookOrchestrator.ts` persists every successful loop completion
+as a `RolloutOutcome` row (`src/adapters/rolloutOutcome.ts`), scoped by `installationId`
+from day one even though nothing queries it yet — see the model's doc comment in
+`prisma/schema.prisma`.
+
+**Deliberately no query endpoint yet.** `GET /v1/threshold` is unauthenticated by
+documented convention (internal cluster calls only), which is already a known gap once a
+second real tenant onboards (issue #65). Adding a *new* endpoint over per-installation
+rollout history without real caller authentication would compound that exact problem
+rather than fix it, so the read side is deferred until the dashboard's OAuth flow (issue
+#61) gives this API a real caller identity to scope queries against.
+
 ## `.carf.yml` configuration
 
 An optional file at the repo root lets you tune classification and
