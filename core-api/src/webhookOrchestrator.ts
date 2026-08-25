@@ -6,8 +6,17 @@ import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
+import {
+  acquireLock,
+  DEFAULT_HEARTBEAT_INTERVAL_MS,
+  DEFAULT_LOCK_TTL_MS,
+  releaseLock,
+  renewLock,
+  type StandaloneLoopLockPrismaClient,
+} from "./adapters/standaloneLoopLock.js";
 import type { CarfConfig } from "./config/carfConfigSchema.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
+import { prisma as defaultPrisma } from "./db/client.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
@@ -33,6 +42,12 @@ export interface WebhookOrchestratorDeps {
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
   standaloneLoopRunner?: typeof runStandaloneLoop;
+  /** Testable seam for the durable Standalone-loop lock; defaults to the real db/client.ts singleton. */
+  lockPrismaClient?: StandaloneLoopLockPrismaClient;
+  /** How long a lock can go without a heartbeat before another instance may reclaim it. */
+  lockTtlMs?: number;
+  /** How often the lock-holding instance renews its heartbeat while the loop runs. */
+  heartbeatIntervalMs?: number;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -46,16 +61,6 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
   return new DockerComposeAdapter(baseSha);
 }
 
-// Process-local only. Guards against GitHub's webhook redelivery starting a second
-// concurrent Standalone rollback loop for the same commit. Does NOT survive a process
-// restart and does NOT protect against more than one core-api instance running at once
-// -- see docs/superpowers/specs/2026-08-24-composition-root-design.md, section 2
-// ("Explicitly out of scope"). Deferred until there's real multi-instance pressure.
-const activeLoops = new Set<string>();
-
-function loopKey(owner: string, repo: string, sha: string): string {
-  return `${owner}/${repo}@${sha}`;
-}
 
 /**
  * Composition root for a validated webhook DeployTarget: exchanges the installation ID
@@ -134,17 +139,24 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     deps.logger.info({ key }, "standalone loop already running for this commit, skipping redelivery");
     return;
   }
-  activeLoops.add(key);
 
   const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
   const adapter = buildAdapter(adapterConfig, target.baseSha);
   const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;
+
+  // Renewed on an interval for as long as the loop runs, so a live loop's lock never goes
+  // stale and gets reclaimed out from under it -- only a holder that stops renewing
+  // (crashed, or the process died) leaves a lock that eventually becomes reclaimable.
+  const heartbeat = setInterval(() => {
+    void renewLock(lockClient, target.owner, target.repo, target.headSha);
+  }, heartbeatIntervalMs);
 
   void loopRunner(target.headSha, adapter, result, adapterConfig.target)
     .catch((error: unknown) => {
       deps.logger.error({ error, key }, "standalone rollback loop failed");
     })
     .finally(() => {
-      activeLoops.delete(key);
+      clearInterval(heartbeat);
+      void releaseLock(lockClient, target.owner, target.repo, target.headSha);
     });
 }

@@ -59,24 +59,25 @@ loop.
 - Unit tests for every new piece, with `fetch`/`exec`/Prisma all
   injectable — no live network or DB calls in the test suite.
 
-**Explicitly out of scope:**
-- Docker Compose support for the Standalone loop kickoff.
-  `DockerComposeAdapter`'s constructor requires a `previousImageTag: string`
-  that `.carf.yml`'s `AdapterSchema` (`{ kind, target }`) has no field for
-  — `KubectlAdapter` doesn't need this because `kubectl rollout undo`
-  tracks revision history itself, but Docker Compose has no equivalent.
-  Supplying `previousImageTag` requires an actual schema decision (a new
-  `.carf.yml` field, or a documented assumption like "image tag equals
-  base SHA"), which is schema design work, not wiring. `adapter.kind:
-  "dockerCompose"` in Standalone mode logs an "unsupported adapter" error
-  and skips the loop kickoff — `processCommit`'s classify/persist result
-  still succeeds. A follow-up issue tracks extending the schema.
-- Durable/multi-instance idempotency for the Standalone loop guard. The
-  in-memory `Set<string>` guard (see §6) is process-local and silently
-  stops protecting against double-kickoff the moment core-api runs as
-  more than one instance. This is a known, written-down limitation (see
-  §6), not an oversight — deferred until there's real multi-instance
-  pressure.
+**Explicitly out of scope (at the time this project was written):**
+- ~~Docker Compose support for the Standalone loop kickoff.~~ **Resolved
+  by issue #50**: `webhookOrchestrator.ts` now builds a `DockerComposeAdapter`
+  for `adapter.kind: "dockerCompose"` the same way it builds a
+  `KubectlAdapter` for `"kubernetes"`, deriving `previousImageTag` from
+  the webhook's `baseSha` (documented assumption: the deployment
+  pipeline tags images by commit SHA) rather than adding a `.carf.yml`
+  field that would go stale every deploy. Restricted to `push` events
+  only — a `pull_request`'s `baseSha` is the PR's base branch tip, not
+  necessarily anything ever actually deployed, so it isn't safe to treat
+  as a rollback target.
+- ~~Durable/multi-instance idempotency for the Standalone loop guard.~~
+  **Resolved by issue #56**: the in-memory `Set<string>` guard described
+  in §6 below has been replaced by a `StandaloneLoopLock` Postgres table
+  (`@@unique([owner, repo, sha])`), acquired via `create()` (unique
+  constraint = contention) with a heartbeat/TTL so a crashed lock holder
+  doesn't block that commit's redeliveries forever. See
+  `core-api/src/adapters/standaloneLoopLock.ts`. §6 below still describes
+  the original in-memory version for historical context.
 - Retry/backoff logic beyond GitHub's own webhook redelivery.
 - `.carf.yml` hot-reload — still loaded once at process startup.
 - Any change to `.carf.yml`'s schema itself (that's the Docker Compose
