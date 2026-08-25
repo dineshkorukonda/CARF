@@ -184,12 +184,12 @@ describe("handleWebhookCommit", () => {
     );
   });
 
-  it("Standalone + adapter.kind gitops kicks off the loop runner, building the adapter with baseSha as the previous revision", async () => {
+  it("Standalone + adapter.kind pm2 kicks off the loop runner, building the adapter with baseSha as the previous release", async () => {
     const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
     const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
     const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
     const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "gitops", target: "my-app" } },
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
       standaloneLoopRunner,
       rollbackAdapterFactory,
     });
@@ -197,18 +197,18 @@ describe("handleWebhookCommit", () => {
     await handleWebhookCommit(target, deps);
     await flushMicrotasks();
 
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "gitops", target: "my-app" }, "base123");
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "pm2", target: "web" }, "base123");
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
     const call = standaloneLoopRunner.mock.calls[0]!;
     expect(call[0]).toBe("head456"); // sha
     expect(call[1]).toBe(fakeAdapter);
-    expect(call[3]).toBe("my-app"); // target string
+    expect(call[3]).toBe("web"); // target string
   });
 
-  it("Standalone + gitops adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback revision there)", async () => {
+  it("Standalone + pm2 adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback release there)", async () => {
     const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "gitops", target: "my-app" } },
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
       standaloneLoopRunner,
     });
 
@@ -216,7 +216,7 @@ describe("handleWebhookCommit", () => {
 
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
     expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "gitops", target: "my-app" }, event: "pull_request" }),
+      expect.objectContaining({ adapter: { kind: "pm2", target: "web" }, event: "pull_request" }),
       expect.stringContaining("push event")
     );
   });
