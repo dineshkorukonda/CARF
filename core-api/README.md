@@ -23,7 +23,7 @@ npm run dev
 `src/adapters/loop.ts` (`runStandaloneLoop`) polls a `RollbackAdapter` at a configurable
 interval for the duration of a commit's `ThresholdResult.finalWindow`, triggering
 `adapter.rollback()` and exiting early the moment `checkHealth()` reports an error rate
-at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
+at or above `finalThreshold`. Adapters implementing `RollbackAdapter`:
 
 - `src/adapters/dockerCompose.ts` — `DockerComposeAdapter`, shells out to the `docker
   compose` CLI. `checkHealth` reads `docker compose ps --format json <target>` and derives
@@ -35,10 +35,19 @@ at or above `finalThreshold`. Two adapters implement `RollbackAdapter`:
   reads `kubectl get deployment <target> -o json` and derives `errorRate` from
   `status.unavailableReplicas / spec.replicas`. `rollback` runs
   `kubectl rollout undo deployment/<target>`.
+- `src/adapters/gitops.ts` — `GitOpsAdapter`, calls Argo CD's REST API (`ARGOCD_BASE_URL`/
+  `ARGOCD_AUTH_TOKEN` env vars). `checkHealth` reads `GET /api/v1/applications/<target>`;
+  `errorRate` is binary (1 unless `status.health.status === "Healthy"`), since Argo CD's
+  health is already an aggregate signal, not a per-replica count. `rollback` looks up the
+  application's deployment history for the entry matching the previous revision, then
+  calls Argo CD's rollback endpoint with that entry's id — throws if no matching history
+  entry exists rather than silently no-op-ing.
 
-Both adapters take an injectable exec function (defaulting to Node's real
-`child_process.exec`, promisified) so unit tests never shell out for real — see
-`test/adapters/dockerCompose.test.ts` and `test/adapters/kubectl.test.ts`.
+The exec-based adapters take an injectable exec function (defaulting to Node's real
+`child_process.exec`, promisified); `GitOpsAdapter` takes an injectable fetch function.
+Unit tests never shell out or hit the network for real — see
+`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`, and
+`test/adapters/gitops.test.ts`.
 
 ### Manual validation against `demo-target-app/`
 

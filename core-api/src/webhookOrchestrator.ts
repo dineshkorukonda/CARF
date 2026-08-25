@@ -3,6 +3,7 @@ import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
+import { GitOpsAdapter } from "./adapters/gitops.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
@@ -15,6 +16,7 @@ import {
   type StandaloneLoopLockPrismaClient,
 } from "./adapters/standaloneLoopLock.js";
 import type { CarfConfig } from "./config/carfConfigSchema.js";
+import { env } from "./config/env.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { prisma as defaultPrisma } from "./db/client.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
@@ -34,10 +36,10 @@ export interface WebhookOrchestratorDeps {
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
   /**
-   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"` or a
-   * `DockerComposeAdapter` for `kind: "dockerCompose"` (using `baseSha` as the previous
-   * image tag -- see `DockerComposeAdapter`'s doc comment on the `IMAGE_TAG` convention
-   * this assumes).
+   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"`, a
+   * `DockerComposeAdapter` for `kind: "dockerCompose"`, or a `GitOpsAdapter` for
+   * `kind: "gitops"` (the latter two using `baseSha` as the previous image tag / revision
+   * -- see their doc comments for the convention this assumes).
    */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
@@ -53,6 +55,11 @@ export interface WebhookOrchestratorDeps {
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
   if (adapterConfig.kind === "kubernetes") {
     return new KubectlAdapter();
+  }
+  if (adapterConfig.kind === "gitops") {
+    // Same "no static config field for the previous value" reasoning as dockerCompose
+    // below -- baseSha stands in for the previous Argo CD-tracked revision. See issue #52.
+    return new GitOpsAdapter(baseSha, env.argoCdBaseUrl(), env.argoCdAuthToken());
   }
   // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
   // stale the moment a new commit lands anyway, since "previous" changes every deploy) --
@@ -122,14 +129,15 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  // dockerCompose's rollback tag is derived from baseSha (see defaultRollbackAdapterFactory),
-  // which is only safe to treat as "what's currently deployed" for a push event -- a
-  // pull_request's baseSha is the PR's base branch tip, not necessarily anything ever
-  // actually deployed. kubernetes's KubectlAdapter doesn't use baseSha, so it's unaffected.
-  if (adapterConfig.kind === "dockerCompose" && target.event !== "push") {
+  // dockerCompose/gitops's rollback tag/revision is derived from baseSha (see
+  // defaultRollbackAdapterFactory), which is only safe to treat as "what's currently
+  // deployed" for a push event -- a pull_request's baseSha is the PR's base branch tip,
+  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter doesn't
+  // use baseSha, so it's unaffected.
+  if ((adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "gitops") && target.event !== "push") {
     deps.logger.error(
       { adapter: adapterConfig, event: target.event },
-      "dockerCompose adapter requires a push event to safely derive the previous image tag from baseSha"
+      `${adapterConfig.kind} adapter requires a push event to safely derive the previous image tag/revision from baseSha`
     );
     return;
   }
