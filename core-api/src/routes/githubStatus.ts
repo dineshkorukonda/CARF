@@ -58,6 +58,11 @@ export async function registerGithubStatusRoute(app: FastifyInstance, options: G
   const appInfoClient = options.appInfoClient ?? new RealAppInfoClient();
 
   app.get("/v1/github/status", { schema: responseSchema }, async (_request, reply) => {
+    // Public, unauthenticated, cross-origin by design: any adopter's own frontend needs to
+    // call their own core-api instance's status from a different origin (e.g. the CARF
+    // web app checking a URL the visitor pasted in). No other route gets this treatment.
+    reply.header("Access-Control-Allow-Origin", "*");
+
     try {
       const appId = options.appId ?? env.githubAppId();
       const privateKey = options.privateKey ?? env.githubAppPrivateKey();

@@ -87,4 +87,19 @@ describe("GET /v1/github/status", () => {
     if (originalAppId === undefined) delete process.env.GITHUB_APP_ID;
     else process.env.GITHUB_APP_ID = originalAppId;
   });
+
+  it("sets Access-Control-Allow-Origin: * so any adopter's web frontend can call it cross-origin", async () => {
+    app = Fastify();
+    await registerGithubStatusRoute(app, {
+      appId: "12345",
+      privateKey: "fake-pem",
+      jwtSigner: new FakeJwtSigner(),
+      appInfoClient: new FakeAppInfoClient([]),
+    });
+    await app.ready();
+
+    const response = await app.inject({ method: "GET", url: "/v1/github/status" });
+
+    expect(response.headers["access-control-allow-origin"]).toBe("*");
+  });
 });
