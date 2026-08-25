@@ -27,6 +27,7 @@ describe("parseWebhookPayload", () => {
       baseSha: "abc111",
       headSha: "def222",
       installationId: "12345",
+      event: "push",
     });
   });
 
@@ -38,6 +39,7 @@ describe("parseWebhookPayload", () => {
       baseSha: "base111",
       headSha: "head222",
       installationId: "67890",
+      event: "pull_request",
     });
   });
 
