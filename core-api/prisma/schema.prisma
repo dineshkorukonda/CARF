@@ -55,6 +55,22 @@ model Threshold {
   computedAt     DateTime @default(now())
 }
 
+// Durable replacement for webhookOrchestrator.ts's old in-memory `activeLoops` Set (see
+// issue #56): guards against a second core-api instance starting a concurrent Standalone
+// rollback loop for the same commit. `heartbeatAt` is renewed periodically by the
+// lock-holding instance while its loop runs; a lock whose heartbeat has gone stale (holder
+// crashed without releasing) is reclaimable by another instance rather than blocking that
+// commit's redeliveries forever.
+model StandaloneLoopLock {
+  id          String   @id @default(cuid())
+  owner       String
+  repo        String
+  sha         String
+  heartbeatAt DateTime @default(now())
+
+  @@unique([owner, repo, sha])
+}
+
 // Records the outcome of an evaluation run (baseline vs. carf condition) for a given
 // commit SHA. Deliberately not FK-related to Commit — evaluation runs may reference
 // commits from historical/synthetic datasets that don't have a Commit row.
