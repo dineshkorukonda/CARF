@@ -117,6 +117,18 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
+  // dockerCompose's rollback tag is derived from baseSha (see defaultRollbackAdapterFactory),
+  // which is only safe to treat as "what's currently deployed" for a push event -- a
+  // pull_request's baseSha is the PR's base branch tip, not necessarily anything ever
+  // actually deployed. kubernetes's KubectlAdapter doesn't use baseSha, so it's unaffected.
+  if (adapterConfig.kind === "dockerCompose" && target.event !== "push") {
+    deps.logger.error(
+      { adapter: adapterConfig, event: target.event },
+      "dockerCompose adapter requires a push event to safely derive the previous image tag from baseSha"
+    );
+    return;
+  }
+
   const key = loopKey(target.owner, target.repo, target.headSha);
   if (activeLoops.has(key)) {
     deps.logger.info({ key }, "standalone loop already running for this commit, skipping redelivery");
