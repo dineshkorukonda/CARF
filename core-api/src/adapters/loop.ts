@@ -23,24 +23,34 @@ const DEFAULT_POLL_INTERVAL_MS = 5_000;
  * `sha` identifies the commit under evaluation; it isn't passed to the adapter today
  * but is accepted so callers/adapters can log/correlate against it going forward.
  */
+export interface StandaloneLoopResult {
+  rolledBack: boolean;
+  /** The last error rate observed from checkHealth() before the loop returned. */
+  finalErrorRate: number;
+  /** How long the loop actually ran, in milliseconds -- less than the full window if it rolled back early. */
+  durationMs: number;
+}
+
 export async function runStandaloneLoop(
   sha: string,
   adapter: RollbackAdapter,
   threshold: ThresholdResult,
   target: string,
   options: StandaloneLoopOptions = {}
-): Promise<{ rolledBack: boolean }> {
+): Promise<StandaloneLoopResult> {
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const sleep = options.sleep ?? realSleep;
   const windowMs = threshold.finalWindow * 1000;
 
   let elapsedMs = 0;
+  let lastErrorRate = 0;
   while (elapsedMs < windowMs) {
     const health = await adapter.checkHealth(target);
+    lastErrorRate = health.errorRate;
 
     if (health.errorRate >= threshold.finalThreshold) {
       await adapter.rollback(target);
-      return { rolledBack: true };
+      return { rolledBack: true, finalErrorRate: lastErrorRate, durationMs: elapsedMs };
     }
 
     elapsedMs += pollIntervalMs;
@@ -49,5 +59,5 @@ export async function runStandaloneLoop(
     }
   }
 
-  return { rolledBack: false };
+  return { rolledBack: false, finalErrorRate: lastErrorRate, durationMs: windowMs };
 }

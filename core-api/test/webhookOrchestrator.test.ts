@@ -6,6 +6,7 @@ import type { InstallationTokenClient } from "../src/adapters/github/installatio
 import type { PipelinePrismaClient } from "../src/pipeline.js";
 import type { RollbackAdapter } from "../src/adapters/rollbackAdapter.js";
 import type { StandaloneLoopLockPrismaClient } from "../src/adapters/standaloneLoopLock.js";
+import type { RolloutOutcomePrismaClient } from "../src/adapters/rolloutOutcome.js";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -74,6 +75,16 @@ class FakeLockPrismaClient implements StandaloneLoopLockPrismaClient {
   };
 }
 
+class FakeRolloutOutcomePrismaClient implements RolloutOutcomePrismaClient {
+  created: unknown[] = [];
+
+  rolloutOutcome = {
+    create: vi.fn(async (args: unknown) => {
+      this.created.push(args);
+    }),
+  };
+}
+
 const target: DeployTarget = {
   owner: "acme",
   repo: "widgets",
@@ -91,6 +102,7 @@ function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrch
     logger: { info: vi.fn(), error: vi.fn() },
     prismaClient: new FakePrismaClient(),
     lockPrismaClient: new FakeLockPrismaClient(),
+    rolloutOutcomePrismaClient: new FakeRolloutOutcomePrismaClient(),
     ...overrides,
   };
 }
@@ -298,6 +310,56 @@ describe("handleWebhookCommit", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("records a RolloutOutcome after the loop completes successfully", async () => {
+    const standaloneLoopRunner = vi
+      .fn()
+      .mockResolvedValue({ rolledBack: true, finalErrorRate: 0.2, durationMs: 10_000 });
+    const rolloutOutcomePrismaClient = new FakeRolloutOutcomePrismaClient();
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+      standaloneLoopRunner,
+      rolloutOutcomePrismaClient,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(rolloutOutcomePrismaClient.rolloutOutcome.create).toHaveBeenCalledWith({
+      data: {
+        commit: { connect: { owner_repo_sha: { owner: "acme", repo: "widgets", sha: "head456" } } },
+        installationId: "inst-1",
+        rolledBack: true,
+        finalErrorRate: 0.2,
+        durationMs: 10_000,
+      },
+    });
+  });
+
+  it("a failed rollout-outcome recording is caught and logged, distinct from a loop failure", async () => {
+    const standaloneLoopRunner = vi
+      .fn()
+      .mockResolvedValue({ rolledBack: false, finalErrorRate: 0.01, durationMs: 30_000 });
+    const rolloutOutcomePrismaClient = new FakeRolloutOutcomePrismaClient();
+    rolloutOutcomePrismaClient.rolloutOutcome.create = vi.fn().mockRejectedValue(new Error("no Commit row"));
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+      standaloneLoopRunner,
+      rolloutOutcomePrismaClient,
+    });
+
+    await expect(handleWebhookCommit(target, deps)).resolves.toBeUndefined();
+    await flushMicrotasks();
+
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ error: expect.any(Error) }),
+      expect.stringContaining("failed to record rollout outcome")
+    );
+    expect(deps.logger.error).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("standalone rollback loop failed")
+    );
   });
 
   it("a NoSignalError from processCommit is a clean no-op, not a thrown failure, and is logged", async () => {

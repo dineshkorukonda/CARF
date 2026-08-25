@@ -32,7 +32,7 @@ describe("runStandaloneLoop", () => {
       sleep,
     });
 
-    expect(result).toEqual({ rolledBack: false });
+    expect(result).toEqual({ rolledBack: false, finalErrorRate: 0.01, durationMs: 30_000 });
     expect(adapter.rollback).not.toHaveBeenCalled();
     // 30s window / 10s interval = 3 polls
     expect(adapter.checkHealth).toHaveBeenCalledTimes(3);
@@ -56,7 +56,7 @@ describe("runStandaloneLoop", () => {
       { pollIntervalMs: 10_000, sleep }
     );
 
-    expect(result).toEqual({ rolledBack: true });
+    expect(result).toEqual({ rolledBack: true, finalErrorRate: 0.2, durationMs: 10_000 });
     expect(adapter.rollback).toHaveBeenCalledTimes(1);
     expect(adapter.rollback).toHaveBeenCalledWith("my-service");
     // stopped after the 2nd poll, never reached a 3rd

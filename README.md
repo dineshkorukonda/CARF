@@ -30,7 +30,8 @@ CARF/
 | `.carf.yml` configuration reference (classification rules + threshold/decay tuning; `mode`/`adapter` wired to both Kubernetes and Docker Compose Standalone rollback) | Implemented |
 | First-class CI/CD Action (GitHub Actions, wraps `GET /v1/threshold`) | Implemented |
 | Additional restoration targets (PM2, GitOps, Docker Swarm) | Planned |
-| Telemetry/observability ingest API | Planned |
+| Telemetry: rollout outcome persistence (`RolloutOutcome`, tenant-scoped) | Implemented |
+| Telemetry query API (blocked on dashboard OAuth for caller auth, issue #61) | Planned |
 
 See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.
 
