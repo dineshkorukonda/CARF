@@ -28,7 +28,7 @@ CARF/
 | Standalone mode: rollback adapters + health-check loop (Kubernetes, Docker Compose) | Implemented |
 | Synthetic evaluation harness (H1 proof) | Implemented |
 | `.carf.yml` configuration reference (classification rules + threshold/decay tuning; `mode`/`adapter` wired to both Kubernetes and Docker Compose Standalone rollback) | Implemented |
-| First-class CI/CD Action (beyond the GitHub App webhook + example configs below) | Partial |
+| First-class CI/CD Action (GitHub Actions, wraps `GET /v1/threshold`) | Implemented |
 | Additional restoration targets (PM2, GitOps, Docker Swarm) | Planned |
 | Telemetry/observability ingest API | Planned |
 
@@ -52,6 +52,21 @@ Two example configs show how to wire this into common progressive-delivery tools
 - [`examples/flagger-webhook-metric.yaml`](examples/flagger-webhook-metric.yaml) — a Flagger `MetricTemplate` (webhook provider) plus a `Canary` excerpt showing both the metric and a `pre-rollout` webhook check hitting the same endpoint; a `400`/`404` response fails the check closed, blocking promotion.
 
 Both examples reference `core-api.carf.svc.cluster.local` as a placeholder in-cluster address — point them at wherever `core-api` is actually reachable in your environment.
+
+## CI/CD Action
+
+For teams driving deploys directly from GitHub Actions rather than a canary tool like Argo Rollouts/Flagger, [`.github/actions/carf-threshold`](.github/actions/carf-threshold/action.yml) is a composite Action wrapping the same `GET /v1/threshold` call — no hand-written `curl`/`jq` needed:
+
+```yaml
+- uses: ./.github/actions/carf-threshold
+  id: carf
+  with:
+    api-url: https://your-core-api-host.example.com
+    # commit defaults to github.sha; fail-on-missing defaults to true.
+- run: echo "threshold ${{ steps.carf.outputs.final-threshold }}, window ${{ steps.carf.outputs.final-window }}s"
+```
+
+See [`examples/carf-threshold-action-workflow.yml`](examples/carf-threshold-action-workflow.yml) for a full workflow. GitHub-only for now (no GitLab CI/CircleCI equivalents) — the composite-Action approach (a shell script under the hood) was chosen over a JS/TS Action since it needs no build/bundling step and the underlying call is a single authenticated-free GET request.
 
 ## Standalone mode
 
