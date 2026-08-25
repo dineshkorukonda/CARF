@@ -1,13 +1,17 @@
 import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
 import { loadCarfConfig } from "./config/carfConfig.js";
+import { watchCarfConfig } from "./config/carfConfigWatcher.js";
 import { githubApiClient, getInstallationTokenClient } from "./adapters/github/client.js";
 import { handleWebhookCommit } from "./webhookOrchestrator.js";
 
 // Fail closed: an invalid .carf.yml crashes startup rather than silently falling back to
 // defaults -- inherited from src/config/carfConfig.ts's documented contract (see
-// docs/superpowers/specs/2026-08-24-carf-yml-config-design.md).
-const carfConfig = loadCarfConfig();
+// docs/superpowers/specs/2026-08-24-carf-yml-config-design.md). `let`, not `const`: the
+// watcher below reassigns this on a successful hot-reload (issue #57). The onValidWebhook
+// closure reads this binding fresh on every call, so a reassignment here is picked up by
+// the very next webhook without any change to webhookOrchestrator.ts's interface.
+let carfConfig = loadCarfConfig();
 const installationTokenClient = getInstallationTokenClient();
 
 // The onValidWebhook closure below references `app.log` -- it's only ever invoked later,
@@ -24,6 +28,18 @@ const app = buildApp({
         carfConfig,
         logger: app.log,
       }),
+  },
+});
+
+watchCarfConfig({
+  onReload: (reloaded) => {
+    carfConfig = reloaded;
+    app.log.info("carfConfig reloaded from .carf.yml");
+  },
+  onError: (error) => {
+    // Fail closed: `carfConfig` is left untouched, so the last-known-good config keeps
+    // serving webhooks -- matches loadCarfConfig()'s own initial-load contract.
+    app.log.error({ error }, "failed to reload .carf.yml, keeping last-known-good config");
   },
 });
 
