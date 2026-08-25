@@ -4,6 +4,16 @@ export interface DeployTarget {
   baseSha: string;
   headSha: string;
   installationId: string;
+  /**
+   * Which webhook event produced this target. Matters because `baseSha` means different
+   * things per event: for `push`, it's `before` -- the branch's actual previous tip, safe
+   * to assume as "what's currently deployed". For `pull_request`, it's the PR's base
+   * branch tip at open/sync time, which may not reflect what's actually running in
+   * production (the base branch can have moved since the last real deploy). Consumers
+   * that treat `baseSha` as "the previously deployed commit" (e.g. webhookOrchestrator.ts's
+   * DockerComposeAdapter rollback-tag derivation) must check this before doing so.
+   */
+  event: "push" | "pull_request";
 }
 
 interface RepositoryPayload {
@@ -28,7 +38,7 @@ function parsePush(body: Record<string, unknown>): DeployTarget | null {
   const headSha = body.after as string | undefined;
 
   if (!owner || !repo || !installationId || !baseSha || !headSha) return null;
-  return { owner, repo, baseSha, headSha, installationId };
+  return { owner, repo, baseSha, headSha, installationId, event: "push" };
 }
 
 function parsePullRequest(body: Record<string, unknown>): DeployTarget | null {
@@ -39,7 +49,7 @@ function parsePullRequest(body: Record<string, unknown>): DeployTarget | null {
   const headSha = pullRequest?.head?.sha;
 
   if (!owner || !repo || !installationId || !baseSha || !headSha) return null;
-  return { owner, repo, baseSha, headSha, installationId };
+  return { owner, repo, baseSha, headSha, installationId, event: "pull_request" };
 }
 
 /**
