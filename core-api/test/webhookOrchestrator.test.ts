@@ -5,6 +5,7 @@ import type { GitHubApiClient } from "../src/adapters/github/githubApiClient.js"
 import type { InstallationTokenClient } from "../src/adapters/github/installationTokenClient.js";
 import type { PipelinePrismaClient } from "../src/pipeline.js";
 import type { RollbackAdapter } from "../src/adapters/rollbackAdapter.js";
+import type { StandaloneLoopLockPrismaClient } from "../src/adapters/standaloneLoopLock.js";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -40,6 +41,39 @@ class FakePrismaClient implements PipelinePrismaClient {
   threshold = { upsert: vi.fn().mockResolvedValue(undefined) };
 }
 
+// In-memory stand-in for the durable lock's Postgres table -- see
+// test/adapters/standaloneLoopLock.test.ts for the same fake, tested directly there.
+// Shared across a test's calls to handleWebhookCommit (same instance from one baseDeps()
+// call) so acquire/release state carries over the way a real DB row would.
+class FakeLockPrismaClient implements StandaloneLoopLockPrismaClient {
+  rows = new Map<string, { heartbeatAt: Date }>();
+
+  standaloneLoopLock = {
+    create: async (args: { data: { owner: string; repo: string; sha: string } }) => {
+      const k = `${args.data.owner}/${args.data.repo}@${args.data.sha}`;
+      if (this.rows.has(k)) throw { code: "P2002" };
+      this.rows.set(k, { heartbeatAt: new Date() });
+    },
+    deleteMany: async (args: {
+      where: { owner: string; repo: string; sha: string; heartbeatAt?: { lt: Date } };
+    }) => {
+      const k = `${args.where.owner}/${args.where.repo}@${args.where.sha}`;
+      const row = this.rows.get(k);
+      if (!row) return { count: 0 };
+      if (args.where.heartbeatAt && !(row.heartbeatAt < args.where.heartbeatAt.lt)) return { count: 0 };
+      this.rows.delete(k);
+      return { count: 1 };
+    },
+    updateMany: async (args: { where: { owner: string; repo: string; sha: string }; data: { heartbeatAt: Date } }) => {
+      const k = `${args.where.owner}/${args.where.repo}@${args.where.sha}`;
+      const row = this.rows.get(k);
+      if (!row) return { count: 0 };
+      row.heartbeatAt = args.data.heartbeatAt;
+      return { count: 1 };
+    },
+  };
+}
+
 const target: DeployTarget = {
   owner: "acme",
   repo: "widgets",
@@ -55,6 +89,7 @@ function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrch
     carfConfig: undefined,
     logger: { info: vi.fn(), error: vi.fn() },
     prismaClient: new FakePrismaClient(),
+    lockPrismaClient: new FakeLockPrismaClient(),
     ...overrides,
   };
 }
