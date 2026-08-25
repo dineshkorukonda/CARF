@@ -86,14 +86,22 @@ unchanged.
 - `threshold` — overrides `src/threshold/engine.ts`'s `DEFAULT_CONFIG`,
   per field: an omitted field (or omitted type) keeps its built-in
   default.
-- `mode` / `adapter` — validated against the schema, but **not yet
-  wired to any runtime behavior**. There is no composition root today
-  that reads `mode` to select Standalone vs Augment behavior or that
-  drives a rollback adapter from `adapter.kind`/`adapter.target` — that
-  wiring is a separate, future project. Setting these fields today has
-  no effect beyond passing validation.
+- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "kubernetes"` or
+  `"dockerCompose"` drives a real rollback adapter kickoff from
+  `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` on every webhook. `mode: "augment"`
+  (or no `mode` at all) just persists and stops — `GET /v1/threshold` serves the result
+  separately.
 
 A malformed or schema-invalid `.carf.yml` (bad YAML, unknown field,
 invalid enum value) causes the loader (`src/config/carfConfig.ts`) to
 throw — this is deliberate "fail closed" behavior, not a bug: an invalid
 config must never be silently ignored in favor of defaults.
+
+### Hot-reload
+
+`.carf.yml` is watched for changes at runtime (`src/config/carfConfigWatcher.ts`) — edits
+are picked up without restarting the process, debounced (~200ms) since editors often fire
+several filesystem events per save. A malformed edit is **not** applied: the reload is
+rejected, logged, and the process keeps serving whatever config it already had (same
+fail-closed contract as the initial load) — it never silently falls back to built-in
+defaults just because a config that used to be valid became invalid mid-edit.
