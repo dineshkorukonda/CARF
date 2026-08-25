@@ -59,18 +59,17 @@ const ClassificationSchema = z
   .strict();
 
 /**
- * `mode` and `adapter` are validated here but INERT — no code in core-api
- * reads them to change runtime behavior yet. There is no composition root
- * wiring the GitHub webhook route, processCommit(), and
- * runStandaloneLoop() together (see docs/superpowers/specs/
- * 2026-08-24-carf-yml-config-design.md, "Explicitly out of scope"). A
- * user who sets `mode: standalone` today gets a validated file, not a
- * running standalone loop.
+ * `mode: "standalone"` with `adapter.kind: "kubernetes"` or `"dockerCompose"` is wired to
+ * a real `runStandaloneLoop()` kickoff by `src/webhookOrchestrator.ts`'s
+ * `handleWebhookCommit()` (see issues #49, #50). `adapter.target` is the Kubernetes
+ * Deployment name or Docker Compose service name to roll back; for `dockerCompose`, the
+ * previous image tag is derived from the webhook's `baseSha` rather than a config field
+ * (see `webhookOrchestrator.ts`'s `defaultRollbackAdapterFactory` for why).
  *
  * Deliberately no `github.webhookSecret` (or any secret) field — webhook
  * auth is exclusively env-var-sourced (GITHUB_WEBHOOK_SECRET, see
- * config/env.ts), never file-based. See the spec's "Explicitly out of
- * scope" section for why.
+ * config/env.ts), never file-based. See docs/superpowers/specs/
+ * 2026-08-24-carf-yml-config-design.md's "Explicitly out of scope" section for why.
  */
 const AdapterSchema = z
   .object({
@@ -83,9 +82,7 @@ export const CarfConfigSchema = z
   .object({
     classification: ClassificationSchema.optional(),
     threshold: ThresholdSchema.optional(),
-    /** Inert — see AdapterSchema doc comment above. */
     mode: z.enum(["standalone", "augment"]).optional(),
-    /** Inert — see AdapterSchema doc comment above. */
     adapter: AdapterSchema.optional(),
   })
   .strict();
