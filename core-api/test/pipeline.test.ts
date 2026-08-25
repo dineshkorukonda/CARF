@@ -28,6 +28,7 @@ interface FakeCommitRow {
   repo: string;
   sha: string;
   baseSha: string;
+  installationId?: string | undefined;
 }
 
 interface FakeChangeVectorRow {
@@ -57,7 +58,7 @@ class FakePrismaClient implements PipelinePrismaClient {
   commit = {
     upsert: async (args: {
       where: { owner_repo_sha: { owner: string; repo: string; sha: string } };
-      create: { owner: string; repo: string; sha: string; baseSha: string };
+      create: { owner: string; repo: string; sha: string; baseSha: string; installationId?: string | undefined };
       update: Record<string, never>;
     }) => {
       this.commitUpsertCalls += 1;
@@ -211,6 +212,39 @@ describe("processCommit", () => {
 
     expect(result.finalThreshold).toBe(1);
     expect(result.finalWindow).toBe(10);
+  });
+
+  it("persists real baseSha and installationId when provided", async () => {
+    await processCommit("sha-audit", "acme/widgets", [CODE_TS], {
+      prismaClient: fake,
+      baseSha: "base-sha-real",
+      installationId: "inst-999",
+    });
+
+    const commitRow = [...fake.commits.values()][0]!;
+    expect(commitRow.baseSha).toBe("base-sha-real");
+    expect(commitRow.installationId).toBe("inst-999");
+  });
+
+  it("defaults baseSha to \"\" and installationId to undefined when not provided (today's exact behavior)", async () => {
+    await processCommit("sha-default", "acme/widgets", [CODE_TS], { prismaClient: fake });
+
+    const commitRow = [...fake.commits.values()][0]!;
+    expect(commitRow.baseSha).toBe("");
+    expect(commitRow.installationId).toBeUndefined();
+  });
+
+  it("threads classificationRules through to classifyCommit, changing classification outcome", async () => {
+    // README.md alone classifies as "unclassified" under the hardcoded rules -> would
+    // normally throw NoSignalError (see the earlier "throws NoSignalError" test above).
+    // A user rule reclassifying it as "config" gives classifyCommit() real signal.
+    const result = await processCommit("sha-rules", "acme/widgets", [README], {
+      prismaClient: fake,
+      classificationRules: [{ type: "config", patterns: ["README.md"] }],
+    });
+
+    expect(fake.changeVectorUpsertCalls).toBe(1);
+    expect(result.activeTypes).toEqual(["config"]);
   });
 });
 

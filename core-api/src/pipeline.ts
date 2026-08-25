@@ -1,5 +1,6 @@
 import { prisma as defaultPrisma } from "./db/client.js";
 import type { CodeFile } from "./classifier/codeComplexityScorer.js";
+import type { UserPatternRule } from "./classifier/tier1.js";
 import { classifyCommit } from "./classifier/vector.js";
 import { computeThreshold, DEFAULT_CONFIG, type ThresholdConfig, type ThresholdResult } from "./threshold/engine.js";
 
@@ -63,7 +64,7 @@ export interface PipelinePrismaClient {
   commit: {
     upsert(args: {
       where: { owner_repo_sha: { owner: string; repo: string; sha: string } };
-      create: { owner: string; repo: string; sha: string; baseSha: string };
+      create: { owner: string; repo: string; sha: string; baseSha: string; installationId?: string | undefined };
       update: Record<string, never>;
     }): Promise<{ id: string }>;
   };
@@ -98,9 +99,19 @@ export interface PipelinePrismaClient {
 
 export interface ProcessCommitOptions {
   /** Injected Prisma client seam; defaults to the app-wide singleton (src/db/client.ts). */
-  prismaClient?: PipelinePrismaClient;
+  prismaClient?: PipelinePrismaClient | undefined;
   /** Threshold engine tuning; defaults to DEFAULT_CONFIG (src/threshold/engine.ts). */
-  thresholdConfig?: ThresholdConfig;
+  thresholdConfig?: ThresholdConfig | undefined;
+  /** Real base SHA from a webhook payload. Defaults to "" (today's exact prior behavior)
+   *  when not supplied. */
+  baseSha?: string | undefined;
+  /** Real GitHub App installation ID from a webhook payload. Omitted (undefined) by
+   *  default, matching the Commit model's nullable installationId column. */
+  installationId?: string | undefined;
+  /** User classification rules (from .carf.yml), checked before Tier 1's hardcoded
+   *  rules — mirrors the identical option already threaded through
+   *  evaluation/runHarness.ts's RunEvaluationOptions. Defaults to none. */
+  classificationRules?: UserPatternRule[];
 }
 
 function splitRepoSlug(repoSlug: string): { owner: string; repo: string } {
@@ -131,6 +142,10 @@ function splitRepoSlug(repoSlug: string): { owner: string; repo: string } {
  * @param repo "owner/repo" slug, e.g. "acme/widgets". Split into the Commit model's
  *   separate `owner`/`repo` columns — see InvalidRepoSlugError.
  * @param changedFiles Files touched by the commit, each with before/after content.
+ * @param options.baseSha Real base SHA from a webhook payload; defaults to "".
+ * @param options.installationId Real GitHub App installation ID; omitted by default.
+ * @param options.classificationRules .carf.yml classification.rules, checked before
+ *   Tier 1's hardcoded rules; defaults to none.
  * @throws EmptyChangeSetError if changedFiles is empty.
  * @throws InvalidRepoSlugError if repo isn't in "owner/repo" form.
  * @throws NoSignalError if classifyCommit() returns null (see class doc above).
@@ -148,15 +163,11 @@ export async function processCommit(
   const { owner, repo: repoName } = splitRepoSlug(repo);
   const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as PipelinePrismaClient);
 
-  const vector = classifyCommit(changedFiles);
+  const vector = classifyCommit(changedFiles, undefined, options.classificationRules ?? []);
 
-  // baseSha isn't provided by this function's signature (see issue #11) — no upstream
-  // caller currently threads it through. Default to "" rather than making the column
-  // nullable in the shared schema (src/db/client.ts covers both Commit consumers); revisit
-  // if/when a caller supplies a real base SHA.
   const commit = await prismaClient.commit.upsert({
     where: { owner_repo_sha: { owner, repo: repoName, sha } },
-    create: { owner, repo: repoName, sha, baseSha: "" },
+    create: { owner, repo: repoName, sha, baseSha: options.baseSha ?? "", installationId: options.installationId },
     update: {},
   });
 

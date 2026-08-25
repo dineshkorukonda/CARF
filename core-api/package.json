@@ -19,6 +19,7 @@
   "dependencies": {
     "@prisma/client": "^6.2.1",
     "fastify": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "micromatch": "^4.0.8",
     "tree-sitter": "^0.25.1",
     "tree-sitter-go": "^0.25.0",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/micromatch": "^4.0.9",
     "@types/node": "^22.10.5",
     "@vitest/coverage-v8": "^2.1.9",
