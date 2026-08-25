@@ -184,6 +184,43 @@ describe("handleWebhookCommit", () => {
     );
   });
 
+  it("Standalone + adapter.kind pm2 kicks off the loop runner, building the adapter with baseSha as the previous release", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
+    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
+    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "pm2", target: "web" }, "base123");
+    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
+    const call = standaloneLoopRunner.mock.calls[0]!;
+    expect(call[0]).toBe("head456"); // sha
+    expect(call[1]).toBe(fakeAdapter);
+    expect(call[3]).toBe("web"); // target string
+  });
+
+  it("Standalone + pm2 adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback release there)", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      standaloneLoopRunner,
+    });
+
+    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ adapter: { kind: "pm2", target: "web" }, event: "pull_request" }),
+      expect.stringContaining("push event")
+    );
+  });
+
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {
     const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({ carfConfig: { mode: "standalone" }, standaloneLoopRunner });

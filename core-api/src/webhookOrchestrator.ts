@@ -5,6 +5,7 @@ import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
+import { PM2Adapter } from "./adapters/pm2.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import {
   acquireLock,
@@ -34,10 +35,10 @@ export interface WebhookOrchestratorDeps {
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
   /**
-   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"` or a
-   * `DockerComposeAdapter` for `kind: "dockerCompose"` (using `baseSha` as the previous
-   * image tag -- see `DockerComposeAdapter`'s doc comment on the `IMAGE_TAG` convention
-   * this assumes).
+   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"`, a
+   * `DockerComposeAdapter` for `kind: "dockerCompose"`, or a `PM2Adapter` for `kind: "pm2"`
+   * (the latter two using `baseSha` as the previous image tag / release SHA -- see their
+   * doc comments for the convention this assumes).
    */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
@@ -53,6 +54,11 @@ export interface WebhookOrchestratorDeps {
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
   if (adapterConfig.kind === "kubernetes") {
     return new KubectlAdapter();
+  }
+  if (adapterConfig.kind === "pm2") {
+    // Same "no static config field for the previous value" reasoning as dockerCompose
+    // below -- baseSha stands in for the previous release SHA. See issue #51.
+    return new PM2Adapter(baseSha);
   }
   // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
   // stale the moment a new commit lands anyway, since "previous" changes every deploy) --
@@ -122,14 +128,15 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  // dockerCompose's rollback tag is derived from baseSha (see defaultRollbackAdapterFactory),
-  // which is only safe to treat as "what's currently deployed" for a push event -- a
-  // pull_request's baseSha is the PR's base branch tip, not necessarily anything ever
-  // actually deployed. kubernetes's KubectlAdapter doesn't use baseSha, so it's unaffected.
-  if (adapterConfig.kind === "dockerCompose" && target.event !== "push") {
+  // dockerCompose/pm2's rollback tag/release is derived from baseSha (see
+  // defaultRollbackAdapterFactory), which is only safe to treat as "what's currently
+  // deployed" for a push event -- a pull_request's baseSha is the PR's base branch tip,
+  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter doesn't
+  // use baseSha, so it's unaffected.
+  if ((adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "pm2") && target.event !== "push") {
     deps.logger.error(
       { adapter: adapterConfig, event: target.event },
-      "dockerCompose adapter requires a push event to safely derive the previous image tag from baseSha"
+      `${adapterConfig.kind} adapter requires a push event to safely derive the previous image tag/release from baseSha`
     );
     return;
   }
