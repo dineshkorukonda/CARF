@@ -103,12 +103,33 @@ describe("handleWebhookCommit", () => {
     await handleWebhookCommit(target, deps);
     await flushMicrotasks();
 
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith("my-deployment");
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "kubernetes", target: "my-deployment" }, "base123");
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
     const call = standaloneLoopRunner.mock.calls[0]!;
     expect(call[0]).toBe("head456"); // sha
     expect(call[1]).toBe(fakeAdapter);
     expect(call[3]).toBe("my-deployment"); // target string
+  });
+
+  it("Standalone + adapter.kind dockerCompose kicks off the loop runner, building the adapter with baseSha as the previous image tag", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
+    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
+    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "dockerCompose", target: "web" } },
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "dockerCompose", target: "web" }, "base123");
+    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
+    const call = standaloneLoopRunner.mock.calls[0]!;
+    expect(call[0]).toBe("head456"); // sha
+    expect(call[1]).toBe(fakeAdapter);
+    expect(call[3]).toBe("web"); // target string
   });
 
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {
@@ -120,25 +141,9 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
     expect(deps.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ adapter: undefined }),
-      expect.stringContaining("unsupported")
+      expect.stringContaining("no adapter")
     );
     expect((deps.prismaClient as FakePrismaClient).commit.upsert).toHaveBeenCalledTimes(1);
-  });
-
-  it("Standalone + adapter.kind dockerCompose logs an error and does not call the loop runner", async () => {
-    const standaloneLoopRunner = vi.fn();
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "dockerCompose", target: "web" } },
-      standaloneLoopRunner,
-    });
-
-    await handleWebhookCommit(target, deps);
-
-    expect(standaloneLoopRunner).not.toHaveBeenCalled();
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "dockerCompose", target: "web" } }),
-      expect.stringContaining("unsupported")
-    );
   });
 
   it("skips a second loop kickoff for the same commit while the first is still running (idempotency guard)", async () => {
