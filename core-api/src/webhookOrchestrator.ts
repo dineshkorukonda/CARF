@@ -122,14 +122,21 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
-  const ttlMs = deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
-  const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-  const key = `${target.owner}/${target.repo}@${target.headSha}`;
+  // dockerCompose's rollback tag is derived from baseSha (see defaultRollbackAdapterFactory),
+  // which is only safe to treat as "what's currently deployed" for a push event -- a
+  // pull_request's baseSha is the PR's base branch tip, not necessarily anything ever
+  // actually deployed. kubernetes's KubectlAdapter doesn't use baseSha, so it's unaffected.
+  if (adapterConfig.kind === "dockerCompose" && target.event !== "push") {
+    deps.logger.error(
+      { adapter: adapterConfig, event: target.event },
+      "dockerCompose adapter requires a push event to safely derive the previous image tag from baseSha"
+    );
+    return;
+  }
 
-  const acquired = await acquireLock(lockClient, target.owner, target.repo, target.headSha, ttlMs);
-  if (!acquired) {
-    deps.logger.info({ key }, "standalone loop already running for this commit (durable lock held), skipping redelivery");
+  const key = loopKey(target.owner, target.repo, target.headSha);
+  if (activeLoops.has(key)) {
+    deps.logger.info({ key }, "standalone loop already running for this commit, skipping redelivery");
     return;
   }
 
