@@ -76,10 +76,10 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
  * persist + compute threshold), then branches on .carf.yml's `mode`:
  *   - Augment (or no mode / no .carf.yml at all): stops here. GET /v1/threshold
  *     (src/routes/threshold.ts) serves the persisted result separately.
- *   - Standalone with adapter.kind "kubernetes" or "dockerCompose": additionally kicks
- *     off runStandaloneLoop() in the background (not awaited -- the loop can run for the
- *     full threshold window, up to DEFAULT_CONFIG's largest baseWindow, which would hang
- *     the webhook's HTTP response if awaited).
+ *   - Standalone with adapter.kind "kubernetes", "dockerCompose", or "dockerSwarm":
+ *     additionally kicks off runStandaloneLoop() in the background (not awaited -- the
+ *     loop can run for the full threshold window, up to DEFAULT_CONFIG's largest
+ *     baseWindow, which would hang the webhook's HTTP response if awaited).
  *   - Standalone with no adapter configured at all: logs an error and skips the loop.
  *     processCommit()'s result has already persisted successfully -- this is a partial
  *     success, not a failure of the webhook itself.

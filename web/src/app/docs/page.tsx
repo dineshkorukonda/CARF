@@ -491,13 +491,14 @@ adapter:
               <StatusBadge status="Partial" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              Standalone mode (no external progressive-delivery pipeline) polls a <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">RollbackAdapter</code> for the commit&apos;s window and rolls back the moment the error rate breaches <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalThreshold</code> (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/adapters/loop.ts</code>). Kubernetes and Docker Compose adapters are implemented; PM2, GitOps, and Docker Swarm are still planned.
+              Standalone mode (no external progressive-delivery pipeline) polls a <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">RollbackAdapter</code> for the commit&apos;s window and rolls back the moment the error rate breaches <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalThreshold</code> (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/adapters/loop.ts</code>). Kubernetes, Docker Compose, and Docker Swarm adapters are implemented; PM2 and GitOps are still planned.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-['Inter',system-ui,sans-serif]">
               {[
                 { title: "Kubernetes", desc: <>Executes <code className="font-mono text-[#111]">kubectl rollout undo deployment/app</code>, deriving health from <code className="font-mono text-[#111]">unavailableReplicas</code>.</>, status: "Implemented" as const },
                 { title: "Docker Compose", desc: <>Redeploys the previous image tag via <code className="font-mono text-[#111]">docker compose up -d</code>, deriving health from container/health state.</>, status: "Implemented" as const },
+                { title: "Docker Swarm", desc: <>Runs <code className="font-mono text-[#111]">docker service update --rollback</code>, deriving health from task <code className="font-mono text-[#111]">CurrentState</code>.</>, status: "Implemented" as const },
                 { title: "PM2", desc: <>Zero-downtime process reload via IPC <code className="font-mono text-[#111]">pm2 reload app</code>.</>, status: "Planned" as const },
                 { title: "GitOps (ArgoCD / Flux)", desc: "Dispatches automated Git revert commit back to target branch repository.", status: "Planned" as const },
               ].map((r) => (
