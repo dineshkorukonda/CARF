@@ -134,9 +134,14 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  const key = loopKey(target.owner, target.repo, target.headSha);
-  if (activeLoops.has(key)) {
-    deps.logger.info({ key }, "standalone loop already running for this commit, skipping redelivery");
+  const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
+  const ttlMs = deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
+  const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
+  const key = `${target.owner}/${target.repo}@${target.headSha}`;
+
+  const acquired = await acquireLock(lockClient, target.owner, target.repo, target.headSha, ttlMs);
+  if (!acquired) {
+    deps.logger.info({ key }, "standalone loop already running for this commit (durable lock held), skipping redelivery");
     return;
   }
 
