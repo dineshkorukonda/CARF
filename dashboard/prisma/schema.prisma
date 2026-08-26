@@ -35,6 +35,11 @@ model Installation {
   targetLogin          String
   targetType           String
   repositorySelection  String
+  // core-api's per-installation bearer credential (issue #65), fetched lazily on first
+  // use of the status view (#64) via GET /v1/installations/:id/api-key and cached here --
+  // core-api only ever stores a hash, so this is the one place the plaintext lives
+  // long-term. Re-fetched (rotating the old one) if ever lost/cleared.
+  coreApiKey           String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 

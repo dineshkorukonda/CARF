@@ -17,4 +17,6 @@ export const env = {
   githubAppSlug: () => requireEnv("GITHUB_APP_SLUG"),
   githubAppId: () => requireEnv("GITHUB_APP_ID"),
   githubAppPrivateKey: () => requireEnv("GITHUB_APP_PRIVATE_KEY"),
+  /** Base URL of the core-api instance this dashboard reads status data from (issue #64). */
+  coreApiBaseUrl: () => requireEnv("CORE_API_BASE_URL"),
 };

@@ -73,8 +73,48 @@ schema is mirrored (not imported -- see `src/lib/carfConfigSchema.ts`'s doc comm
 offering an adapter that silently no-ops" acceptance criterion -- see issue #50's history
 of exactly that gap.
 
-**Not yet built** (later dashboard issues): classification/threshold config UI (#63, will
-reuse this same commit-to-`.carf.yml` infrastructure), live status/threshold view (#64),
-and the authenticated cross-service call into core-api's dashboard-facing endpoints that
-#65's multi-tenant auth mechanism (now implemented, see `core-api/README.md`) makes
-possible.
+## Classification + threshold configuration (issue #63)
+
+`/dashboard/config/[installationId]/rules` -- a form over `.carf.yml`'s
+`classification.rules` and `threshold` sections, with a live YAML preview and client-side
+validation (mirrors `ClassificationSchema`/`ThresholdSchema` from
+`src/lib/carfConfigSchema.ts`, the same hand-mirrored schema #62 introduced). Reuses #62's
+save infrastructure exactly: mint an installation token, read the repo's current
+`.carf.yml`, merge the patch in with `src/lib/carfConfigWriter.ts`'s
+`applyClassificationThresholdPatch` (leaves `mode`/`adapter` untouched, the reverse of
+#62's function), commit back via the Contents API.
+
+Unlike #62's plain HTML form, this page is a client component (`RulesForm.tsx`) -- the
+rule list is dynamic (add/remove rows) and the live preview has to re-render on every
+keystroke, neither of which a server-rendered form can do. It POSTs JSON to
+`/api/config/save-rules` rather than submitting a form; that route re-validates
+server-side regardless of what the client already checked (client-side validation is a UX
+nicety, never a substitute).
+
+## Live status view (issue #64)
+
+`/dashboard/status/[installationId]` -- the first dashboard screen that calls core-api
+directly rather than only committing to `.carf.yml`. Shows a polling (every 15s) table of
+the installation's recent commits: classification types, computed threshold/window, and
+rollout outcome once available, via core-api's `GET /v1/commits` (see
+`core-api/README.md`'s equivalent section).
+
+**How the dashboard authenticates to core-api:** core-api's `installationId`-scoped data
+is gated by a per-installation API key (#65) that core-api only ever logs once, server-side
+-- the dashboard was never handed it. `src/lib/coreApiAccess.ts`'s `ensureCoreApiKey`
+closes that gap: the first time an installation's status view is loaded, it signs a GitHub
+App JWT (same private key core-api holds -- see `.env.example`) and calls core-api's
+`GET /v1/installations/:installationId/api-key`, which treats a valid App JWT as proof of
+control and hands back a **freshly rotated** key (the old one, if any, stops working). The
+key is cached on the `Installation` row (`prisma/schema.prisma`'s `coreApiKey` field) so
+this round trip only happens once per installation, not on every poll.
+
+The polling itself goes through this dashboard's own `/api/status/[installationId]` route,
+not straight from the browser to core-api -- the cached core-api key never needs to reach
+client-side JavaScript. `StatusTable.tsx` is a small client component (`setInterval` +
+`fetch`); "live push" is explicitly deferred (#64's acceptance criteria call out polling as
+an acceptable first cut).
+
+**Not yet built:** everything past what issues #61-#65 scoped -- e.g. installation-level
+settings beyond mode/adapter/classification/threshold, or acting on rollout outcomes from
+the dashboard itself.
