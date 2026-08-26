@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const installationId = String(form.get("installationId") ?? "").trim();
 
   if (!installationId || !/^\d+$/.test(installationId)) {
-    return NextResponse.redirect(new URL("/dashboard?error=invalid_installation_id", env.baseUrl()));
+    return NextResponse.redirect(new URL("/dashboard/installations?error=invalid_installation_id", env.baseUrl()));
   }
 
   try {
@@ -31,8 +31,8 @@ export async function POST(request: NextRequest) {
     await linkInstallation(prisma, account.id, installation);
   } catch (err) {
     console.error(`manual install-link failed for installationId=${installationId}:`, err);
-    return NextResponse.redirect(new URL("/dashboard?error=install_link_failed", env.baseUrl()));
+    return NextResponse.redirect(new URL("/dashboard/installations?error=install_link_failed", env.baseUrl()));
   }
 
-  return NextResponse.redirect(new URL("/dashboard", env.baseUrl()));
+  return NextResponse.redirect(new URL("/dashboard/installations", env.baseUrl()));
 }

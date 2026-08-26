@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
   const state = request.nextUrl.searchParams.get("state");
   const expectedState = request.cookies.get(GITHUB_APP_INSTALL_STATE_COOKIE)?.value;
 
-  const response = NextResponse.redirect(new URL("/dashboard", env.baseUrl()));
+  const response = NextResponse.redirect(new URL("/dashboard/installations", env.baseUrl()));
 
   if (!installationId || !state || !expectedState || state !== expectedState) {
     response.cookies.delete(GITHUB_APP_INSTALL_STATE_COOKIE);
-    return NextResponse.redirect(new URL("/dashboard?error=invalid_install_state", env.baseUrl()));
+    return NextResponse.redirect(new URL("/dashboard/installations?error=invalid_install_state", env.baseUrl()));
   }
 
   try {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error(`install/callback link failed for installationId=${installationId}:`, err);
     response.cookies.delete(GITHUB_APP_INSTALL_STATE_COOKIE);
-    return NextResponse.redirect(new URL("/dashboard?error=install_link_failed", env.baseUrl()));
+    return NextResponse.redirect(new URL("/dashboard/installations?error=install_link_failed", env.baseUrl()));
   }
 
   response.cookies.delete(GITHUB_APP_INSTALL_STATE_COOKIE);
