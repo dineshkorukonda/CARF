@@ -29,6 +29,7 @@ core-api/
     adapters/
       github/             # webhook receiver, installation token auth, diff acquisition
     routes/                # Fastify route handlers (thin — delegate to classifier/adapters)
+    auth/                  # installation API key issuance/verification (issue #65's multi-tenant scoping)
     prisma/                # schema.prisma, migrations
     config/                # env var loading/validation
   test/
