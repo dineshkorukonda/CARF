@@ -117,8 +117,17 @@ comment for why a fast hash is fine here). `webhookOrchestrator.ts` auto-issues 
 (`src/auth/installationApiKeyService.ts`) the first time a signature-verified webhook
 arrives for a given `installationId` — the earliest point core-api can vouch that
 installation is real — and logs the plaintext key exactly once (`grep` your logs for
-`"issued a new installation API key"` right after a repo's first webhook). There's no
-distribution/rotation UI yet; that's dashboard follow-up work, not this issue's scope.
+`"issued a new installation API key"` right after a repo's first webhook).
+
+**Retrieval (issue #64):** since only a hash is ever stored, that plaintext genuinely can't
+be recovered from the log line alone forever. `GET /v1/installations/:installationId/api-key`
+(`src/routes/installationApiKey.ts`) lets a caller who can prove App-level control — an
+`Authorization: Bearer <GitHub App JWT>` header, verified by handing it straight to
+GitHub's own `GET /app/installations` rather than checking the signature locally —
+**rotate** in a fresh key at any time (the old one stops working the moment a new one is
+issued; see that route's doc comment for why rotation, not read, is the only option here).
+The dashboard is the intended caller: it holds the same App private key core-api does and
+fetches+caches a key the first time an installation's status view (#64) needs one.
 
 **`GET /v1/threshold`'s dual-mode auth:**
 - No `Authorization` header → only returns commits with `installationId: null` (i.e.
@@ -135,6 +144,19 @@ distribution/rotation UI yet; that's dashboard follow-up work, not this issue's 
 See `test/routes/threshold.test.ts`'s "multi-tenant isolation" describe block (plus its
 live-Postgres counterpart) for the two-installations-can't-read-each-other's-data proof
 required by this issue's acceptance criteria.
+
+## `GET /v1/commits` — recent commit status (issue #64)
+
+The list endpoint the dashboard's live status view (#64) polls: up to the 20 most recent
+`Commit` rows for the caller's own `installationId`, each with its classification
+(`activeTypes`), computed threshold (`finalThreshold`/`finalWindow`), and — if a Standalone
+loop ran — the latest `RolloutOutcome` (`rolledBack`/`finalErrorRate`). Always requires
+`Authorization: Bearer <installation API key>` — unlike `GET /v1/threshold`'s dual-mode,
+there's no legitimate unauthenticated caller for "list everything this installation has
+done" (see `src/routes/commits.ts`'s doc comment). `finalThreshold`/`finalWindow`/
+`activeTypes`/`rolledBack`/`finalErrorRate` are `null` for a commit that hasn't finished
+processing yet (no signal, or no Standalone loop configured) rather than the field being
+omitted, so dashboard rendering code doesn't need to distinguish "absent" from "not yet."
 
 ## `.carf.yml` configuration
 

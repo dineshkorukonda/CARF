@@ -63,6 +63,13 @@ export default async function DashboardPage({
                 <Button
                   variant="outline"
                   size="sm"
+                  render={<a href={`/dashboard/status/${installation.installationId}`} />}
+                >
+                  Status
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   render={<a href={`/dashboard/config/${installation.installationId}`} />}
                 >
                   Configure

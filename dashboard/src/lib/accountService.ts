@@ -15,6 +15,7 @@ export interface InstallationRow {
   targetLogin: string;
   targetType: string;
   repositorySelection: string;
+  coreApiKey: string | null;
   createdAt: Date;
 }
 
@@ -46,6 +47,7 @@ export interface DashboardPrismaClient {
       update: { targetLogin: string; targetType: string; repositorySelection: string };
     }): Promise<InstallationRow>;
     findMany(args: { where: { accountId: string }; orderBy: { createdAt: "desc" } }): Promise<InstallationRow[]>;
+    update(args: { where: { installationId: string }; data: { coreApiKey: string } }): Promise<InstallationRow>;
   };
 }
 
@@ -106,4 +108,14 @@ export async function listInstallationsForAccount(
   accountId: string
 ): Promise<InstallationRow[]> {
   return prisma.installation.findMany({ where: { accountId }, orderBy: { createdAt: "desc" } });
+}
+
+/** Caches core-api's per-installation API key once fetched (#64) so it isn't re-minted on
+ *  every status-view load -- see prisma/schema.prisma's `coreApiKey` doc comment. */
+export async function saveCoreApiKey(
+  prisma: DashboardPrismaClient,
+  installationId: string,
+  coreApiKey: string
+): Promise<void> {
+  await prisma.installation.update({ where: { installationId }, data: { coreApiKey } });
 }

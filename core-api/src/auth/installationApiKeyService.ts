@@ -9,6 +9,11 @@ export interface InstallationApiKeyPrismaClient {
   installationApiKey: {
     findUnique(args: { where: { installationId: string } }): Promise<{ id: string } | null>;
     create(args: { data: { installationId: string; keyHash: string } }): Promise<{ id: string }>;
+    upsert(args: {
+      where: { installationId: string };
+      create: { installationId: string; keyHash: string };
+      update: { keyHash: string };
+    }): Promise<{ id: string }>;
   };
 }
 
@@ -39,4 +44,27 @@ export async function ensureApiKeyForInstallation(
   const { plaintext, hash } = generateApiKey();
   await prisma.installationApiKey.create({ data: { installationId, keyHash: hash } });
   return { created: true, plaintextKey: plaintext };
+}
+
+/**
+ * Unconditionally issues a *new* key for an installation, invalidating any previous one --
+ * the counterpart to `ensureApiKeyForInstallation`'s "never overwrite" idempotency. Used
+ * by `GET /v1/installations/:installationId/api-key` (issue #64): since only a hash is
+ * ever stored, the plaintext genuinely cannot be recovered for an already-issued key, so a
+ * caller re-fetching it has no choice but to receive a fresh one. Safe here because the
+ * only long-term holder is the dashboard, which always re-fetches on demand rather than
+ * caching indefinitely -- core-api itself never authenticates *as* an installation using
+ * this key, only validates *callers* presenting one (see routes/threshold.ts).
+ */
+export async function rotateApiKeyForInstallation(
+  prisma: InstallationApiKeyPrismaClient,
+  installationId: string
+): Promise<{ plaintextKey: string }> {
+  const { plaintext, hash } = generateApiKey();
+  await prisma.installationApiKey.upsert({
+    where: { installationId },
+    create: { installationId, keyHash: hash },
+    update: { keyHash: hash },
+  });
+  return { plaintextKey: plaintext };
 }

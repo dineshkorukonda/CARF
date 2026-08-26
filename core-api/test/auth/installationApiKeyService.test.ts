@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "../../src/auth/installationApiKeyService.js";
+import {
+  ensureApiKeyForInstallation,
+  rotateApiKeyForInstallation,
+  type InstallationApiKeyPrismaClient,
+} from "../../src/auth/installationApiKeyService.js";
 import { hashApiKey } from "../../src/auth/apiKey.js";
 
 class FakeInstallationApiKeyPrismaClient implements InstallationApiKeyPrismaClient {
@@ -12,6 +16,21 @@ class FakeInstallationApiKeyPrismaClient implements InstallationApiKeyPrismaClie
     create: async (args: { data: { installationId: string; keyHash: string } }) => {
       const row = { id: `key-${this.nextId++}`, ...args.data };
       this.rows.set(args.data.installationId, row);
+      return row;
+    },
+    upsert: async (args: {
+      where: { installationId: string };
+      create: { installationId: string; keyHash: string };
+      update: { keyHash: string };
+    }) => {
+      const existing = this.rows.get(args.where.installationId);
+      if (existing) {
+        const updated = { ...existing, ...args.update };
+        this.rows.set(args.where.installationId, updated);
+        return updated;
+      }
+      const row = { id: `key-${this.nextId++}`, ...args.create };
+      this.rows.set(args.create.installationId, row);
       return row;
     },
   };
@@ -43,5 +62,25 @@ describe("ensureApiKeyForInstallation", () => {
 
     expect(a.plaintextKey).not.toBe(b.plaintextKey);
     expect(prisma.rows.size).toBe(2);
+  });
+});
+
+describe("rotateApiKeyForInstallation", () => {
+  it("creates a key when none exists yet", async () => {
+    const prisma = new FakeInstallationApiKeyPrismaClient();
+    const { plaintextKey } = await rotateApiKeyForInstallation(prisma, "inst-1");
+
+    expect(prisma.rows.get("inst-1")?.keyHash).toBe(hashApiKey(plaintextKey));
+  });
+
+  it("replaces an existing key -- the old plaintext no longer matches the stored hash", async () => {
+    const prisma = new FakeInstallationApiKeyPrismaClient();
+    const first = await ensureApiKeyForInstallation(prisma, "inst-1");
+    const rotated = await rotateApiKeyForInstallation(prisma, "inst-1");
+
+    expect(rotated.plaintextKey).not.toBe(first.plaintextKey);
+    expect(prisma.rows.get("inst-1")?.keyHash).toBe(hashApiKey(rotated.plaintextKey));
+    expect(prisma.rows.get("inst-1")?.keyHash).not.toBe(hashApiKey(first.plaintextKey!));
+    expect(prisma.rows.size).toBe(1);
   });
 });

@@ -1,9 +1,10 @@
 # dashboard/CLAUDE.md
 
-The CARF dashboard: GitHub OAuth login, GitHub App install flow, and (in later issues)
-mode/adapter configuration, classification/threshold config, and live status views.
-Governed by the repo-wide rules in `.agents/rules/coding.md` and
-`.agents/rules/workflow.md` -- this file adds dashboard-specific conventions on top.
+The CARF dashboard: GitHub OAuth login, GitHub App install flow, mode/adapter and
+classification/threshold config (committed to `.carf.yml` via the GitHub API), and a
+live status view backed by core-api's `GET /v1/commits`. Governed by the repo-wide rules
+in `.agents/rules/coding.md` and `.agents/rules/workflow.md` -- this file adds
+dashboard-specific conventions on top.
 
 ## Stack
 - Language: TypeScript, strict mode on
@@ -26,7 +27,8 @@ workspace, same pattern `core-api/` and `web/` already use.
 dashboard/
   src/
     adapters/github/     # GitHub OAuth + App JWT/install-lookup/repos/contents clients -- pure, injectable fetch, no cookies/DB
-    lib/                 # session signing, account/installation persistence, .carf.yml read/write, Prisma singleton
+    adapters/coreApi/    # core-api's GET /v1/commits + GET /v1/installations/:id/api-key clients -- same convention
+    lib/                 # session signing, account/installation persistence, .carf.yml read/write, core-api key caching, Prisma singleton
     config/               # env var loading
     app/                 # App Router pages + route handlers
   prisma/                # schema.prisma, migrations
@@ -46,9 +48,13 @@ dashboard/
 - The dashboard never talks to a repo's GitHub API on behalf of a user with anything but
   the GitHub App's own credentials (App JWT for install lookups) -- no bare PAT, matching
   core-api's own rule.
-- Cross-service auth between this dashboard and core-api's dashboard-facing endpoints
-  (issue #65, now implemented as per-installation API keys -- see `core-api/README.md`)
-  is not yet wired up from this side; nothing here calls core-api today.
+- Cross-service auth to core-api (issue #65's per-installation API keys) is wired up via
+  `src/lib/coreApiAccess.ts`'s `ensureCoreApiKey` (issue #64): the dashboard proves App-level
+  control with its own GitHub App JWT against core-api's `GET /v1/installations/:id/
+  api-key`, which rotates in a fresh key (the plaintext can't be read back any other way --
+  only a hash is ever stored on core-api's side) and caches it on the `Installation` row.
+  Never send that cached key to the browser -- `/api/status/[installationId]` proxies core-
+  api calls so it stays server-side.
 - Config edits (#62's mode/adapter, #63's classification/threshold) never touch a
   dashboard-owned database -- they commit directly to the target repo's `.carf.yml` via
   the GitHub Contents API, authenticated with a freshly-minted installation access token

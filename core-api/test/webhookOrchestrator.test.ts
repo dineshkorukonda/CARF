@@ -96,6 +96,23 @@ class FakeInstallationApiKeyPrismaClient implements InstallationApiKeyPrismaClie
       this.rows.set(args.data.installationId, row);
       return row;
     }),
+    upsert: vi.fn(
+      async (args: {
+        where: { installationId: string };
+        create: { installationId: string; keyHash: string };
+        update: { keyHash: string };
+      }) => {
+        const existing = this.rows.get(args.where.installationId);
+        if (existing) {
+          const updated = { ...existing, ...args.update };
+          this.rows.set(args.where.installationId, updated);
+          return updated;
+        }
+        const row = { id: `key-${this.rows.size + 1}`, ...args.create };
+        this.rows.set(args.create.installationId, row);
+        return row;
+      }
+    ),
   };
 }
 
