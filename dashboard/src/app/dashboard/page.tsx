@@ -75,19 +75,25 @@ export default async function DashboardPage({
               <Boxes className="size-4.5" />
             </span>
             <div>
-              <CardDescription className="text-background/70">Installations</CardDescription>
-              <CardTitle className="text-2xl font-semibold text-background">{installations.length}</CardTitle>
+              <CardDescription className="font-mono text-xs tracking-wide text-background/70 uppercase">
+                Installations
+              </CardDescription>
+              <CardTitle className="font-mono text-2xl font-semibold text-background">
+                {installations.length}
+              </CardTitle>
             </div>
           </CardHeader>
         </Card>
         <Card className="shadow-sm">
           <CardHeader className="gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
               <GitPullRequestArrow className="size-4.5" />
             </span>
             <div>
-              <CardDescription>Installed on all repos</CardDescription>
-              <CardTitle className="text-2xl font-semibold">
+              <CardDescription className="font-mono text-xs tracking-wide uppercase">
+                Installed on all repos
+              </CardDescription>
+              <CardTitle className="font-mono text-2xl font-semibold">
                 {installations.filter((i) => i.repositorySelection === "all").length}
               </CardTitle>
             </div>
