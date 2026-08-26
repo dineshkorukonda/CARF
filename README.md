@@ -2,6 +2,7 @@
 
 [![core-api CI](https://github.com/dineshkorukonda/CARF/actions/workflows/core-api.yml/badge.svg)](https://github.com/dineshkorukonda/CARF/actions/workflows/core-api.yml)
 [![web CI](https://github.com/dineshkorukonda/CARF/actions/workflows/web.yml/badge.svg)](https://github.com/dineshkorukonda/CARF/actions/workflows/web.yml)
+[![dashboard CI](https://github.com/dineshkorukonda/CARF/actions/workflows/dashboard.yml/badge.svg)](https://github.com/dineshkorukonda/CARF/actions/workflows/dashboard.yml)
 
 CARF (Change-Aware Rollback Framework) is a framework-agnostic decision layer and sidecar protocol for progressive delivery pipelines (such as Argo Rollouts, Flagger, and standalone deployment scripts) that replaces static rollback thresholds with dynamic, risk-calibrated error tolerances computed from commit diffs via deterministic file-path classification and Tree-sitter AST structural complexity parsing.
 
@@ -11,11 +12,12 @@ CARF (Change-Aware Rollback Framework) is a framework-agnostic decision layer an
 CARF/
   core-api/    CARF's classification + decision engine (Fastify, TypeScript, Prisma). See core-api/README.md
   web/         Marketing/docs site — landing page, /docs, /paper (Next.js). See web/README.md
+  dashboard/   Team dashboard — GitHub OAuth login + App install flow (Next.js, Prisma). See dashboard/README.md
   examples/    Argo Rollouts / Flagger augment-mode configs
   docs/        Full design spec (CARF_PROPOSED_IMPLEMENTATION.md)
 ```
 
-`core-api` and `web` are standalone packages (own lockfile each) — no root workspace.
+`core-api`, `web`, and `dashboard` are standalone packages (own lockfile each) — no root workspace.
 
 ## Status
 
@@ -27,10 +29,12 @@ CARF/
 | Augment mode: `GET /v1/threshold` webhook API | Implemented |
 | Standalone mode: rollback adapters + health-check loop (Kubernetes, Docker Compose, PM2) | Implemented |
 | Synthetic evaluation harness (H1 proof) | Implemented |
-| `.carf.yml` configuration reference (classification rules + threshold/decay tuning; `mode`/`adapter` wired to both Kubernetes and Docker Compose Standalone rollback) | Implemented |
+| `.carf.yml` configuration reference (classification rules + threshold/decay tuning; `mode`/`adapter` wired to Kubernetes, Docker Compose, PM2, GitOps, and Docker Swarm Standalone rollback) | Implemented |
 | First-class CI/CD Action (GitHub Actions, wraps `GET /v1/threshold`) | Implemented |
-| Additional restoration targets (GitOps, Docker Swarm) | Planned |
-| Telemetry/observability ingest API | Planned |
+| Standalone rollout outcome telemetry (persisted, tenant-scoped) | Implemented |
+| Dashboard: GitHub OAuth + App install flow | Implemented |
+| Dashboard: mode/adapter selection, classification/threshold config, live status view | Planned |
+| Multi-tenant data isolation (authenticated, `installationId`-scoped queries) | Planned |
 
 See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.
 
@@ -72,9 +76,14 @@ See [`examples/carf-threshold-action-workflow.yml`](examples/carf-threshold-acti
 
 Where there's no existing progressive-delivery pipeline to augment, `core-api` can drive the rollback itself: `runStandaloneLoop` polls a `RollbackAdapter` for the commit's `finalWindow` and rolls back the moment observed error rate breaches `finalThreshold`. Kubernetes (`kubectl rollout undo`), Docker Compose, PM2, GitOps (Argo CD), and Docker Swarm adapters are implemented today — see [`core-api/README.md`](core-api/README.md#standalone-mode-rollback-adapters--health-check-loop).
 
+## Dashboard
+
+[`dashboard/`](dashboard/README.md) is the team-facing onboarding surface: sign in with GitHub, install the CARF GitHub App on a repo, and (in later issues) configure mode/adapter and classification/threshold rules, plus view live rollback status. Its GitHub OAuth login and App install flow persist the resulting `installation_id` — core-api's tenancy key — against the logged-in account; see [`dashboard/README.md`](dashboard/README.md#github-oauth--app-install-flow-issue-61) for the full flow.
+
 ## CI
 
-Two independent GitHub Actions workflows gate changes per package (path-filtered, so a `web/`-only change doesn't run `core-api`'s suite and vice versa):
+Three independent GitHub Actions workflows gate changes per package (path-filtered, so a `web/`-only change doesn't run `core-api`'s suite and vice versa):
 
 - [`.github/workflows/core-api.yml`](.github/workflows/core-api.yml) — lint, typecheck, Vitest (against a real Postgres service container; Prisma-backed tests are skipped automatically when `DATABASE_URL` isn't set), and a production build.
 - [`.github/workflows/web.yml`](.github/workflows/web.yml) — lint, typecheck, and a production Next.js build.
+- [`.github/workflows/dashboard.yml`](.github/workflows/dashboard.yml) — lint, typecheck, Vitest, and a production Next.js build.
