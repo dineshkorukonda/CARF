@@ -54,9 +54,14 @@ describe("CarfConfigSchema", () => {
 
   it("rejects an invalid adapter.kind value", () => {
     const result = CarfConfigSchema.safeParse({
-      adapter: { kind: "dockerSwarm", target: "x" },
+      adapter: { kind: "chaos-monkey", target: "x" },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts adapter.kind 'gitops' and 'dockerSwarm'", () => {
+    expect(CarfConfigSchema.safeParse({ adapter: { kind: "gitops", target: "my-app" } }).success).toBe(true);
+    expect(CarfConfigSchema.safeParse({ adapter: { kind: "dockerSwarm", target: "web" } }).success).toBe(true);
   });
 
   it("requires patterns to be a non-empty array on a classification rule", () => {

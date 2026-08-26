@@ -59,13 +59,15 @@ const ClassificationSchema = z
   .strict();
 
 /**
- * `mode: "standalone"` with `adapter.kind: "kubernetes"`, `"dockerCompose"`, or `"pm2"` is
- * wired to a real `runStandaloneLoop()` kickoff by `src/webhookOrchestrator.ts`'s
- * `handleWebhookCommit()` (see issues #49, #50, #51). `adapter.target` is the Kubernetes
- * Deployment name, Docker Compose service name, or PM2 process name to roll back; for
- * `dockerCompose`/`pm2`, the previous image tag / release SHA is derived from the
- * webhook's `baseSha` rather than a config field, and both are restricted to `push` events
- * only (see `webhookOrchestrator.ts`'s `defaultRollbackAdapterFactory` for why).
+ * `mode: "standalone"` with `adapter.kind: "kubernetes"`, `"dockerCompose"`, `"pm2"`,
+ * `"gitops"`, or `"dockerSwarm"` is wired to a real `runStandaloneLoop()` kickoff by
+ * `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` (see issues #49, #50, #51, #52,
+ * #53). `adapter.target` is the Kubernetes Deployment name, Docker Compose service name,
+ * PM2 process name, Argo CD Application name, or Docker Swarm service name to roll back;
+ * for `dockerCompose`/`pm2`/`gitops`, the previous image tag / release SHA / revision is
+ * derived from the webhook's `baseSha` rather than a config field, and all three are
+ * restricted to `push` events only (see `webhookOrchestrator.ts`'s
+ * `defaultRollbackAdapterFactory` for why).
  *
  * Deliberately no `github.webhookSecret` (or any secret) field — webhook
  * auth is exclusively env-var-sourced (GITHUB_WEBHOOK_SECRET, see
@@ -74,7 +76,7 @@ const ClassificationSchema = z
  */
 const AdapterSchema = z
   .object({
-    kind: z.enum(["kubernetes", "dockerCompose", "pm2"]),
+    kind: z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm"]),
     target: z.string().min(1),
   })
   .strict();
