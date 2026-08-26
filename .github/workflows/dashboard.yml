@@ -1,0 +1,89 @@
+name: dashboard CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/**"
+      - ".github/workflows/dashboard.yml"
+  pull_request:
+    paths:
+      - "dashboard/**"
+      - ".github/workflows/dashboard.yml"
+
+defaults:
+  run:
+    working-directory: dashboard
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Ephemeral service-container credentials, scoped to this job's network
+          # namespace only -- not a real secret, nothing to rotate. Same convention as
+          # core-api.yml's test job.
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: carf_dashboard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ci:ci-local-only@localhost:5432/carf_dashboard_test?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      # No test today touches a real DB (accountService is exercised against an in-memory
+      # fake) -- this just proves the committed migrations actually apply cleanly.
+      - run: npx prisma migrate deploy
+      - run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test]
+    env:
+      DASHBOARD_BASE_URL: https://dashboard.example.invalid
+      SESSION_SECRET: ci-build-only-not-a-real-secret
+      DATABASE_URL: postgresql://ci:ci-local-only@localhost:5432/carf_dashboard_ci?schema=public
+      GITHUB_OAUTH_CLIENT_ID: ci-build-only
+      GITHUB_OAUTH_CLIENT_SECRET: ci-build-only
+      GITHUB_APP_SLUG: ci-build-only
+      GITHUB_APP_ID: ci-build-only
+      GITHUB_APP_PRIVATE_KEY: ci-build-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run build

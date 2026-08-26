@@ -1,0 +1,42 @@
+// Dashboard's own tenancy tables -- distinct from core-api's schema.prisma but able to
+// share the same Postgres instance (model names Account/Installation don't collide with
+// core-api's Commit/ChangeVector/Threshold/etc.). See issue #61.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A logged-in GitHub user. One row per GitHub account that has signed into the dashboard,
+// keyed by GitHub's own numeric user id (immutable, unlike login which can be renamed).
+model Account {
+  id            String         @id @default(cuid())
+  githubUserId  String         @unique
+  githubLogin   String
+  avatarUrl     String?
+  installations Installation[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+// A GitHub App installation, linked back to the Account that installed it. `installationId`
+// is the tenancy key core-api's Commit/ChangeVector/Threshold/RolloutOutcome rows are (or
+// will be, per issue #65) scoped by -- this table is where that id first gets minted a
+// real owner.
+model Installation {
+  id                   String   @id @default(cuid())
+  installationId       String   @unique
+  account              Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId            String
+  targetLogin          String
+  targetType           String
+  repositorySelection  String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([accountId])
+}
