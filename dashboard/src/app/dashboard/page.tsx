@@ -26,8 +26,8 @@ export default async function DashboardPage({
   const installations = await listInstallationsForAccount(prisma, account.id);
 
   return (
-    <main className="max-w-[720px] mx-auto px-6 py-16 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+    <main className="mx-auto flex max-w-[720px] flex-col gap-6 px-6 py-16">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Welcome, {account.email}</h1>
           <p className="text-sm text-muted-foreground">Manage which repos CARF can roll back for you.</p>
@@ -39,7 +39,11 @@ export default async function DashboardPage({
         </form>
       </div>
 
-      {error && <p className="text-sm text-destructive">{ERROR_MESSAGES[error] ?? "Something went wrong."}</p>}
+      {error && (
+        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {ERROR_MESSAGES[error] ?? "Something went wrong."}
+        </p>
+      )}
 
       <Card>
         <CardHeader>
@@ -48,10 +52,15 @@ export default async function DashboardPage({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {installations.length === 0 && (
-            <p className="text-sm text-muted-foreground">No installations yet.</p>
+            <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+              No installations yet. Install the CARF GitHub App on a repo to get started.
+            </p>
           )}
           {installations.map((installation) => (
-            <div key={installation.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+            <div
+              key={installation.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
+            >
               <div>
                 <p className="text-sm font-medium">{installation.targetLogin}</p>
                 <p className="text-xs text-muted-foreground">
