@@ -33,8 +33,8 @@ CARF/
 | First-class CI/CD Action (GitHub Actions, wraps `GET /v1/threshold`) | Implemented |
 | Standalone rollout outcome telemetry (persisted, tenant-scoped) | Implemented |
 | Dashboard: GitHub OAuth + App install flow | Implemented |
-| Dashboard: mode/adapter + classification/threshold config UI (commits `.carf.yml` via GitHub API) | Implemented |
-| Dashboard: live status/threshold view | Planned |
+| Dashboard: mode/adapter selection UI (commits `.carf.yml` via GitHub API) | Implemented |
+| Dashboard: classification/threshold config UI, live status view | Planned |
 | Multi-tenant data isolation (per-installation API keys, `installationId`-scoped queries) | Implemented |
 
 See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.

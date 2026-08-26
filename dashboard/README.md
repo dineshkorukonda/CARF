@@ -73,24 +73,8 @@ schema is mirrored (not imported -- see `src/lib/carfConfigSchema.ts`'s doc comm
 offering an adapter that silently no-ops" acceptance criterion -- see issue #50's history
 of exactly that gap.
 
-## Classification + threshold configuration (issue #63)
-
-`/dashboard/config/[installationId]/rules` -- a form over `.carf.yml`'s
-`classification.rules` and `threshold` sections, with a live YAML preview and client-side
-validation (mirrors `ClassificationSchema`/`ThresholdSchema` from
-`src/lib/carfConfigSchema.ts`, the same hand-mirrored schema #62 introduced). Reuses #62's
-save infrastructure exactly: mint an installation token, read the repo's current
-`.carf.yml`, merge the patch in with `src/lib/carfConfigWriter.ts`'s
-`applyClassificationThresholdPatch` (leaves `mode`/`adapter` untouched, the reverse of
-#62's function), commit back via the Contents API.
-
-Unlike #62's plain HTML form, this page is a client component (`RulesForm.tsx`) -- the
-rule list is dynamic (add/remove rows) and the live preview has to re-render on every
-keystroke, neither of which a server-rendered form can do. It POSTs JSON to
-`/api/config/save-rules` rather than submitting a form; that route re-validates
-server-side regardless of what the client already checked (client-side validation is a UX
-nicety, never a substitute).
-
-**Not yet built** (later dashboard issues): live status/threshold view (#64), and the
-authenticated cross-service call into core-api's dashboard-facing endpoints that #65's
-multi-tenant auth mechanism (now implemented, see `core-api/README.md`) makes possible.
+**Not yet built** (later dashboard issues): classification/threshold config UI (#63, will
+reuse this same commit-to-`.carf.yml` infrastructure), live status/threshold view (#64),
+and the authenticated cross-service call into core-api's dashboard-facing endpoints that
+#65's multi-tenant auth mechanism (now implemented, see `core-api/README.md`) makes
+possible.

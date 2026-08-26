@@ -72,19 +72,11 @@ export default async function ConfigPage({
 
   return (
     <main className="max-w-[560px] mx-auto px-6 py-16 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Mode &amp; adapter</h1>
-          <p className="text-sm text-muted-foreground">
-            {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
-          </p>
-        </div>
-        <a
-          href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(selectedFullName)}`}
-          className="text-sm underline underline-offset-4"
-        >
-          Classification &amp; threshold →
-        </a>
+      <div>
+        <h1 className="text-xl font-semibold">Mode &amp; adapter</h1>
+        <p className="text-sm text-muted-foreground">
+          {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
+        </p>
       </div>
 
       {error && <p className="text-sm text-destructive">{ERROR_MESSAGES[error] ?? "Something went wrong."}</p>}
