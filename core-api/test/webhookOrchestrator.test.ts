@@ -7,6 +7,7 @@ import type { PipelinePrismaClient } from "../src/pipeline.js";
 import type { RollbackAdapter } from "../src/adapters/rollbackAdapter.js";
 import type { StandaloneLoopLockPrismaClient } from "../src/adapters/standaloneLoopLock.js";
 import type { RolloutOutcomePrismaClient } from "../src/adapters/rolloutOutcome.js";
+import type { InstallationApiKeyPrismaClient } from "../src/auth/installationApiKeyService.js";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -85,6 +86,19 @@ class FakeRolloutOutcomePrismaClient implements RolloutOutcomePrismaClient {
   };
 }
 
+class FakeInstallationApiKeyPrismaClient implements InstallationApiKeyPrismaClient {
+  rows = new Map<string, { id: string; installationId: string; keyHash: string }>();
+
+  installationApiKey = {
+    findUnique: vi.fn(async (args: { where: { installationId: string } }) => this.rows.get(args.where.installationId) ?? null),
+    create: vi.fn(async (args: { data: { installationId: string; keyHash: string } }) => {
+      const row = { id: `key-${this.rows.size + 1}`, ...args.data };
+      this.rows.set(args.data.installationId, row);
+      return row;
+    }),
+  };
+}
+
 const target: DeployTarget = {
   owner: "acme",
   repo: "widgets",
@@ -103,6 +117,7 @@ function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrch
     prismaClient: new FakePrismaClient(),
     lockPrismaClient: new FakeLockPrismaClient(),
     rolloutOutcomePrismaClient: new FakeRolloutOutcomePrismaClient(),
+    apiKeyPrismaClient: new FakeInstallationApiKeyPrismaClient(),
     ...overrides,
   };
 }
@@ -122,6 +137,34 @@ describe("handleWebhookCommit", () => {
     const deps = baseDeps({ carfConfig: undefined });
     await handleWebhookCommit(target, deps);
     expect((deps.prismaClient as FakePrismaClient).commit.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("issues an installation API key on first webhook for a new installationId, and logs it once (issue #65)", async () => {
+    const apiKeyPrismaClient = new FakeInstallationApiKeyPrismaClient();
+    const deps = baseDeps({ apiKeyPrismaClient });
+
+    await handleWebhookCommit(target, deps);
+
+    expect(apiKeyPrismaClient.rows.has("inst-1")).toBe(true);
+    expect(deps.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ installationId: "inst-1", apiKey: expect.stringMatching(/^carf_/) }),
+      expect.stringContaining("issued a new installation API key")
+    );
+  });
+
+  it("does not re-issue or re-log a key on a second webhook for an installation that already has one", async () => {
+    const apiKeyPrismaClient = new FakeInstallationApiKeyPrismaClient();
+    const deps = baseDeps({ apiKeyPrismaClient });
+
+    await handleWebhookCommit(target, deps);
+    (deps.logger.info as ReturnType<typeof vi.fn>).mockClear();
+    await handleWebhookCommit(target, deps);
+
+    expect(apiKeyPrismaClient.installationApiKey.create).toHaveBeenCalledTimes(1);
+    expect(deps.logger.info).not.toHaveBeenCalledWith(
+      expect.objectContaining({ installationId: "inst-1" }),
+      expect.stringContaining("issued a new installation API key")
+    );
   });
 
   it("Augment mode (explicit) persists and stops -- never calls the loop runner", async () => {

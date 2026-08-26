@@ -34,7 +34,7 @@ CARF/
 | Standalone rollout outcome telemetry (persisted, tenant-scoped) | Implemented |
 | Dashboard: GitHub OAuth + App install flow | Implemented |
 | Dashboard: mode/adapter selection, classification/threshold config, live status view | Planned |
-| Multi-tenant data isolation (authenticated, `installationId`-scoped queries) | Planned |
+| Multi-tenant data isolation (per-installation API keys, `installationId`-scoped queries) | Implemented |
 
 See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.
 
@@ -48,7 +48,10 @@ GET /v1/threshold?commit=<sha>
 
 - `200 { finalThreshold: number, finalWindow: number, activeTypes: string[] }` — the risk-calibrated threshold, evaluation window (seconds), and which change categories (`infra`, `dependency`, `config`, `code`) contributed to them, as computed by the threshold engine (`core-api/src/threshold/engine.ts`) for that commit.
 - `400 { error: "missing commit query param" }` — the `commit` query param was omitted.
-- `404 { error: "commit not found" }` — no `Threshold` row exists yet for that SHA (the commit hasn't been classified via the GitHub webhook pipeline, or the SHA is unknown).
+- `401 { error: "invalid or unrecognized API key" }` — an `Authorization: Bearer <key>` header was sent but the key isn't recognized.
+- `404 { error: "commit not found" }` — no `Threshold` row is visible to this caller for that SHA (not yet classified, unknown, or — indistinguishably — belongs to a different GitHub App installation than the caller's).
+
+Commits tied to a real GitHub App installation require `Authorization: Bearer <installation API key>` to read back (issue #65's multi-tenant isolation — see [`core-api/README.md`](core-api/README.md#multi-tenant-auth-installation-api-keys-issue-65) for how the key is issued). Commits with no installation at all (self-hosted/local/dev use) remain readable unauthenticated, unchanged from before.
 
 Two example configs show how to wire this into common progressive-delivery tools, both under [`examples/`](examples/):
 
