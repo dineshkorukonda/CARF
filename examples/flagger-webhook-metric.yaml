@@ -10,6 +10,8 @@
 # Usage: reference this metric from a Canary resource's `spec.analysis.metrics`, and
 # substitute `commit-sha` with the SHA CARF classified for the release under test (e.g.
 # injected via a Flagger `metadata` field or a templating step in your pipeline).
+# Issue #60: real end-to-end webhook test — see docs/superpowers/specs for context.
+# Issue #60: second probe -- retest push webhook delivery after the earlier 404.
 apiVersion: flagger.app/v1beta1
 kind: MetricTemplate
 metadata:
