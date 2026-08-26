@@ -29,7 +29,8 @@ export async function POST(request: NextRequest) {
     const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
     const installation = await fetchInstallation(installationId, appJwt);
     await linkInstallation(prisma, account.id, installation);
-  } catch {
+  } catch (err) {
+    console.error(`manual install-link failed for installationId=${installationId}:`, err);
     return NextResponse.redirect(new URL("/dashboard?error=install_link_failed", env.baseUrl()));
   }
 
