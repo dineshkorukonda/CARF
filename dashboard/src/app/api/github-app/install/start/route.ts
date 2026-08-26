@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { env } from "../../../../../config/env";
 import { getCurrentAccount } from "../../../../../lib/auth";
-import { generateOAuthState, GITHUB_APP_INSTALL_STATE_COOKIE } from "../../../../../lib/oauthState";
+import { generateInstallState, GITHUB_APP_INSTALL_STATE_COOKIE } from "../../../../../lib/installState";
 
 export async function GET() {
   const account = await getCurrentAccount();
@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.redirect(new URL("/login", env.baseUrl()));
   }
 
-  const state = generateOAuthState();
+  const state = generateInstallState();
   const installUrl = new URL(`https://github.com/apps/${env.githubAppSlug()}/installations/new`);
   installUrl.searchParams.set("state", state);
 

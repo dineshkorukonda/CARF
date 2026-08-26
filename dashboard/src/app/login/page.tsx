@@ -2,8 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../..
 import { Button } from "../../components/ui/button";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  invalid_state: "Login request expired or was tampered with. Please try again.",
-  oauth_failed: "GitHub sign-in failed. Please try again.",
+  invalid_credentials: "Incorrect email or password.",
 };
 
 export default async function LoginPage({
@@ -18,11 +17,30 @@ export default async function LoginPage({
       <Card>
         <CardHeader>
           <CardTitle>Sign in to CARF</CardTitle>
-          <CardDescription>Connect your GitHub account to manage rollback configuration.</CardDescription>
+          <CardDescription>Manage rollback configuration for your repos.</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {error && <p className="text-sm text-destructive">{ERROR_MESSAGES[error] ?? "Something went wrong."}</p>}
-          <Button render={<a href="/api/auth/github/start" />}>Sign in with GitHub</Button>
+        <CardContent>
+          {error && <p className="text-sm text-destructive mb-4">{ERROR_MESSAGES[error] ?? "Something went wrong."}</p>}
+          <form action="/api/auth/login" method="POST" className="flex flex-col gap-3">
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              required
+              className="border rounded-md px-3 py-2 text-sm"
+            />
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              required
+              className="border rounded-md px-3 py-2 text-sm"
+            />
+            <Button type="submit">Sign in</Button>
+          </form>
+          <p className="text-sm text-muted-foreground mt-4">
+            No account yet? <a href="/signup" className="underline">Sign up</a>
+          </p>
         </CardContent>
       </Card>
     </main>

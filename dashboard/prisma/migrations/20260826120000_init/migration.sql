@@ -4,9 +4,8 @@ CREATE SCHEMA IF NOT EXISTS "public";
 -- CreateTable
 CREATE TABLE "Account" (
     "id" TEXT NOT NULL,
-    "githubUserId" TEXT NOT NULL,
-    "githubLogin" TEXT NOT NULL,
-    "avatarUrl" TEXT,
+    "email" TEXT NOT NULL,
+    "passwordHash" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -28,7 +27,7 @@ CREATE TABLE "Installation" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Account_githubUserId_key" ON "Account"("githubUserId");
+CREATE UNIQUE INDEX "Account_email_key" ON "Account"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Installation_installationId_key" ON "Installation"("installationId");

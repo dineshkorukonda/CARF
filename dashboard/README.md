@@ -1,6 +1,6 @@
 # CARF Dashboard
 
-Team-facing dashboard for onboarding onto CARF: sign in with GitHub, install the CARF
+Team-facing dashboard for onboarding onto CARF: sign up/sign in, install the CARF
 GitHub App on your repo(s), and (in later issues) configure mode/adapter, classification
 and threshold rules, and view live rollback status.
 
@@ -19,34 +19,32 @@ npm run dev
 - `npm run typecheck` — `tsc --noEmit`
 - `npm run lint` — ESLint
 - `npm run build` / `npm start` — compile and run the production build
+- `npm run db:migrate:deploy` — apply migrations against a prod database (no prompts,
+  unlike `db:migrate:dev`) -- run this once after setting `DATABASE_URL` on first deploy
 
-## GitHub OAuth + App install flow (issue #61)
+## Login + App install flow (issue #61)
 
-Two separate GitHub concepts, both required:
+Dashboard login is fully separate from the CARF GitHub App -- an `Account` is just an
+email/password pair in this package's own database, not tied to any GitHub identity. The
+GitHub App is the only thing that needs GitHub configuration:
 
-1. **GitHub OAuth App** — establishes who's logged into the dashboard. Register one under
-   your GitHub account/org's Developer settings, with an Authorization callback URL of
-   `$DASHBOARD_BASE_URL/api/auth/github/callback`. Client ID/secret go in
-   `GITHUB_OAUTH_CLIENT_ID`/`GITHUB_OAUTH_CLIENT_SECRET`.
-2. **The CARF GitHub App** — the same App `core-api` already uses for webhooks and
-   installation tokens (see `core-api/README.md`/`core-api/.env.example`). Its "Setup URL
-   (optional)" must point at `$DASHBOARD_BASE_URL/api/github-app/install/callback` (with
-   "Redirect on update" enabled) so a fresh install lands back in the dashboard with an
-   `installation_id`. `GITHUB_APP_SLUG`/`GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` go in env.
+- **The CARF GitHub App** — the same App `core-api` already uses for webhooks and
+  installation tokens (see `core-api/README.md`/`core-api/.env.example`). Its "Setup URL
+  (optional)" must point at `$DASHBOARD_BASE_URL/api/github-app/install/callback` (with
+  "Redirect on update" enabled) so a fresh install lands back in the dashboard with an
+  `installation_id`. `GITHUB_APP_SLUG`/`GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` go in env.
 
 Flow, end to end:
 
-- `GET /login` → "Sign in with GitHub" → `GET /api/auth/github/start` redirects to
-  GitHub's OAuth authorize page (state nonce stashed in a short-lived cookie for CSRF
-  protection) → GitHub redirects back to `GET /api/auth/github/callback`, which exchanges
-  the `code` for an access token, fetches the GitHub user, upserts an `Account` row, and
-  sets a signed session cookie.
+- `GET /signup` / `GET /login` → `POST /api/auth/signup` or `POST /api/auth/login` create
+  or verify an `Account` row (password hashed with bcrypt) and set a signed session cookie.
 - `GET /dashboard` (session-protected) → "Install the CARF GitHub App" →
   `GET /api/github-app/install/start` redirects to
-  `https://github.com/apps/<slug>/installations/new` (same state-nonce CSRF pattern) →
-  GitHub redirects back to `GET /api/github-app/install/callback` with the new
-  `installation_id`, which the route looks up via the GitHub App's own JWT (no installation
-  token needed for this call) and links to the logged-in `Account` as an `Installation` row.
+  `https://github.com/apps/<slug>/installations/new` (state-nonce cookie for CSRF
+  protection) → GitHub redirects back to `GET /api/github-app/install/callback` with the
+  new `installation_id`, which the route looks up via the GitHub App's own JWT (no
+  installation token needed for this call) and links to the logged-in `Account` as an
+  `Installation` row.
 
 `prisma/schema.prisma`'s `Account`/`Installation` models are this package's own tables
 (sharable Postgres instance with `core-api`, no table-name collisions) -- see

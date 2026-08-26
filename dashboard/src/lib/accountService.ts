@@ -1,11 +1,12 @@
-import type { GithubOAuthUser } from "../adapters/github/oauthClient";
+import bcrypt from "bcryptjs";
 import type { GithubInstallation } from "../adapters/github/appInstallClient";
+
+const BCRYPT_SALT_ROUNDS = 12;
 
 export interface AccountRow {
   id: string;
-  githubUserId: string;
-  githubLogin: string;
-  avatarUrl: string | null;
+  email: string;
+  passwordHash: string;
 }
 
 export interface InstallationRow {
@@ -27,11 +28,8 @@ export interface InstallationRow {
  */
 export interface DashboardPrismaClient {
   account: {
-    upsert(args: {
-      where: { githubUserId: string };
-      create: { githubUserId: string; githubLogin: string; avatarUrl: string | null };
-      update: { githubLogin: string; avatarUrl: string | null };
-    }): Promise<AccountRow>;
+    create(args: { data: { email: string; passwordHash: string } }): Promise<AccountRow>;
+    findUnique(args: { where: { email: string } }): Promise<AccountRow | null>;
   };
   installation: {
     findFirst(args: { where: { accountId: string; installationId: string } }): Promise<InstallationRow | null>;
@@ -51,16 +49,41 @@ export interface DashboardPrismaClient {
   };
 }
 
-/** Upserts by GitHub's numeric user id (stable across logins) on every sign-in. */
-export async function upsertAccountFromGithubUser(
+export class EmailAlreadyRegisteredError extends Error {
+  constructor(email: string) {
+    super(`An account already exists for ${email}`);
+    this.name = "EmailAlreadyRegisteredError";
+  }
+}
+
+/** Creates a new Account with a bcrypt-hashed password. Checked (not relying on a DB
+ *  unique-constraint error) so the fake Prisma client in tests behaves identically to the
+ *  real one. */
+export async function createAccount(
   prisma: DashboardPrismaClient,
-  user: GithubOAuthUser
+  email: string,
+  password: string
 ): Promise<AccountRow> {
-  return prisma.account.upsert({
-    where: { githubUserId: String(user.id) },
-    create: { githubUserId: String(user.id), githubLogin: user.login, avatarUrl: user.avatar_url },
-    update: { githubLogin: user.login, avatarUrl: user.avatar_url },
-  });
+  const existing = await prisma.account.findUnique({ where: { email } });
+  if (existing) throw new EmailAlreadyRegisteredError(email);
+
+  const passwordHash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+  return prisma.account.create({ data: { email, passwordHash } });
+}
+
+/** Looks up an Account by email and verifies the password against its stored hash. Returns
+ *  null on either a missing account or a wrong password -- callers must not distinguish the
+ *  two in user-facing error messages (avoids leaking which emails are registered). */
+export async function verifyCredentials(
+  prisma: DashboardPrismaClient,
+  email: string,
+  password: string
+): Promise<AccountRow | null> {
+  const account = await prisma.account.findUnique({ where: { email } });
+  if (!account) return null;
+
+  const valid = await bcrypt.compare(password, account.passwordHash);
+  return valid ? account : null;
 }
 
 /**

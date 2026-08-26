@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  createAccount,
+  EmailAlreadyRegisteredError,
   getInstallationForAccount,
   linkInstallation,
   listInstallationsForAccount,
   saveCoreApiKey,
-  upsertAccountFromGithubUser,
+  verifyCredentials,
   type AccountRow,
   type DashboardPrismaClient,
   type InstallationRow,
 } from "../../src/lib/accountService";
-import type { GithubOAuthUser } from "../../src/adapters/github/oauthClient";
 import type { GithubInstallation } from "../../src/adapters/github/appInstallClient";
 
 class FakeDashboardPrismaClient implements DashboardPrismaClient {
@@ -18,21 +19,13 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
   private nextId = 1;
 
   account = {
-    upsert: async (args: {
-      where: { githubUserId: string };
-      create: { githubUserId: string; githubLogin: string; avatarUrl: string | null };
-      update: { githubLogin: string; avatarUrl: string | null };
-    }) => {
-      const existing = [...this.accounts.values()].find((a) => a.githubUserId === args.where.githubUserId);
-      if (existing) {
-        const updated = { ...existing, ...args.update };
-        this.accounts.set(existing.id, updated);
-        return updated;
-      }
-      const row: AccountRow = { id: `account-${this.nextId++}`, ...args.create };
+    create: async (args: { data: { email: string; passwordHash: string } }) => {
+      const row: AccountRow = { id: `account-${this.nextId++}`, ...args.data };
       this.accounts.set(row.id, row);
       return row;
     },
+    findUnique: async (args: { where: { email: string } }) =>
+      [...this.accounts.values()].find((a) => a.email === args.where.email) ?? null,
   };
 
   installation = {
@@ -78,23 +71,38 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
   };
 }
 
-const githubUser: GithubOAuthUser = { id: 42, login: "octocat", avatar_url: "https://example.com/a.png" };
-
-describe("upsertAccountFromGithubUser", () => {
-  it("creates a new Account on first login", async () => {
+describe("createAccount / verifyCredentials", () => {
+  it("creates a new Account with a hashed (not plaintext) password", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
-    expect(account).toMatchObject({ githubUserId: "42", githubLogin: "octocat" });
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
+    expect(account.email).toBe("person@example.com");
+    expect(account.passwordHash).not.toBe("correct horse battery");
   });
 
-  it("updates the same Account (not a duplicate) on a subsequent login with a changed login/avatar", async () => {
+  it("rejects signup with an email that's already registered", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const first = await upsertAccountFromGithubUser(prisma, githubUser);
-    const second = await upsertAccountFromGithubUser(prisma, { ...githubUser, login: "octocat-renamed" });
+    await createAccount(prisma, "person@example.com", "correct horse battery");
+    await expect(createAccount(prisma, "person@example.com", "another password")).rejects.toBeInstanceOf(
+      EmailAlreadyRegisteredError
+    );
+  });
 
-    expect(second.id).toBe(first.id);
-    expect(second.githubLogin).toBe("octocat-renamed");
-    expect(prisma.accounts.size).toBe(1);
+  it("verifies correct credentials and returns the account", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const created = await createAccount(prisma, "person@example.com", "correct horse battery");
+    const verified = await verifyCredentials(prisma, "person@example.com", "correct horse battery");
+    expect(verified?.id).toBe(created.id);
+  });
+
+  it("returns null for a wrong password", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    await createAccount(prisma, "person@example.com", "correct horse battery");
+    expect(await verifyCredentials(prisma, "person@example.com", "wrong password")).toBeNull();
+  });
+
+  it("returns null for an unknown email", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    expect(await verifyCredentials(prisma, "nobody@example.com", "whatever")).toBeNull();
   });
 });
 
@@ -107,7 +115,7 @@ describe("linkInstallation / listInstallationsForAccount", () => {
 
   it("links a new installation to the account", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
 
     await linkInstallation(prisma, account.id, installation);
     const installations = await listInstallationsForAccount(prisma, account.id);
@@ -124,7 +132,7 @@ describe("linkInstallation / listInstallationsForAccount", () => {
 
   it("re-linking the same installationId updates the existing row instead of duplicating it", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
 
     await linkInstallation(prisma, account.id, installation);
     await linkInstallation(prisma, account.id, { ...installation, repository_selection: "selected" });
@@ -136,7 +144,7 @@ describe("linkInstallation / listInstallationsForAccount", () => {
 
   it("falls back to 'unknown' when GitHub reports no installation account (rare, e.g. a deleted org)", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
 
     await linkInstallation(prisma, account.id, { ...installation, account: null });
     const installations = await listInstallationsForAccount(prisma, account.id);
@@ -154,7 +162,7 @@ describe("getInstallationForAccount", () => {
 
   it("returns the installation when it belongs to the given account", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
     await linkInstallation(prisma, account.id, installation);
 
     const found = await getInstallationForAccount(prisma, account.id, "999");
@@ -163,8 +171,8 @@ describe("getInstallationForAccount", () => {
 
   it("returns null when the installation belongs to a different account", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const ownerAccount = await upsertAccountFromGithubUser(prisma, githubUser);
-    const otherAccount = await upsertAccountFromGithubUser(prisma, { ...githubUser, id: 43, login: "someone-else" });
+    const ownerAccount = await createAccount(prisma, "person@example.com", "correct horse battery");
+    const otherAccount = await createAccount(prisma, "someone-else@example.com", "another password");
     await linkInstallation(prisma, ownerAccount.id, installation);
 
     expect(await getInstallationForAccount(prisma, otherAccount.id, "999")).toBeNull();
@@ -172,7 +180,7 @@ describe("getInstallationForAccount", () => {
 
   it("returns null for an unknown installationId", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
     expect(await getInstallationForAccount(prisma, account.id, "does-not-exist")).toBeNull();
   });
 });
@@ -180,7 +188,7 @@ describe("getInstallationForAccount", () => {
 describe("saveCoreApiKey", () => {
   it("persists the key on the installation row", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
     await linkInstallation(prisma, account.id, {
       id: 999,
       account: { login: "acme", type: "Organization" },
