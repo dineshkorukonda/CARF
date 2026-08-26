@@ -73,7 +73,7 @@ export default async function RulesPage({
             <a
               key={r.id}
               href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(r.full_name)}`}
-              className="rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
+              className="rounded-sm border border-border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
             >
               {r.full_name}
             </a>

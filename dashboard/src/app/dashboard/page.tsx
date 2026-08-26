@@ -1,5 +1,3 @@
-import { CheckCircle2, Circle } from "lucide-react";
-import { Button } from "../../components/ui/button";
 import { getCurrentAccount } from "../../lib/auth";
 import { listInstallationsForAccount } from "../../lib/accountService";
 import { prisma } from "../../lib/prisma";
@@ -27,23 +25,21 @@ function SetupStep({
   action?: { label: string; href: string };
 }) {
   return (
-    <div className="flex items-start gap-3 py-3">
-      {done ? (
-        <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" />
-      ) : (
-        <Circle className="mt-0.5 size-5 shrink-0 text-muted-foreground/40" />
-      )}
-      <div className="flex flex-1 flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-        {!done && action && (
-          <Button size="sm" variant="outline" render={<a href={action.href} />}>
-            {action.label}
-          </Button>
-        )}
+    <div className="grid grid-cols-[24px_1fr_auto] items-center gap-4 border-b border-border py-3.5 last:border-0">
+      <div className={"font-mono text-xs " + (done ? "text-primary" : "text-muted-foreground/50")}>
+        {done ? "✓" : "·"}
       </div>
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      {!done && action ? (
+        <a href={action.href} className="text-xs font-semibold text-foreground underline decoration-primary decoration-2 underline-offset-4">
+          {action.label.toUpperCase()} →
+        </a>
+      ) : (
+        <div />
+      )}
     </div>
   );
 }
@@ -62,35 +58,35 @@ export default async function DashboardPage({
   const allRepoInstallations = installations.filter((i) => i.repositorySelection === "all").length;
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-10 p-8">
       <div>
-        <h1 className="text-xl font-semibold">
-          {greeting()}, <span className="text-muted-foreground">{account.email.split("@")[0]}</span>
+        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Home</p>
+        <h1 className="mt-1 text-2xl font-semibold">
+          {greeting()}, {account.email.split("@")[0]}
         </h1>
-        <p className="text-sm text-muted-foreground">Here&apos;s an overview of what CARF is watching for you.</p>
       </div>
 
       {error && (
-        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {ERROR_MESSAGES[error] ?? "Something went wrong."}
         </p>
       )}
 
-      <div className="flex divide-x rounded-lg border">
-        <div className="flex-1 px-6 py-4">
-          <p className="text-2xl font-semibold">{installations.length}</p>
-          <p className="text-sm text-muted-foreground">Installations</p>
+      <div className="grid grid-cols-2 gap-px border border-border bg-border">
+        <div className="bg-background px-6 py-5">
+          <div className="font-mono text-3xl font-medium">{String(installations.length).padStart(2, "0")}</div>
+          <div className="mt-1.5 text-xs text-muted-foreground">Installation{installations.length === 1 ? "" : "s"}</div>
         </div>
-        <div className="flex-1 px-6 py-4">
-          <p className="text-2xl font-semibold">{allRepoInstallations}</p>
-          <p className="text-sm text-muted-foreground">Installed on all repos</p>
+        <div className="bg-background px-6 py-5">
+          <div className="font-mono text-3xl font-medium">{String(allRepoInstallations).padStart(2, "0")}</div>
+          <div className="mt-1.5 text-xs text-muted-foreground">On all repos</div>
         </div>
       </div>
 
       <div>
-        <h2 className="text-base font-semibold">Get CARF running</h2>
-        <p className="text-sm text-muted-foreground">The steps to go from signed up to actively monitored.</p>
-        <div className="mt-3 flex flex-col divide-y">
+        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Get CARF running</p>
+        <p className="mt-1 text-sm text-muted-foreground">The steps to go from signed up to actively monitored.</p>
+        <div className="mt-4 border-t border-border">
           <SetupStep done title="Create your account" description="You're signed in." />
           <SetupStep
             done={hasInstallation}

@@ -170,7 +170,7 @@ export function RulesForm({
         </p>
         <div className="mt-3 flex flex-col gap-3">
           {state.rules.map((rule, index) => (
-            <div key={index} className="flex items-start gap-2 rounded-lg border p-2">
+            <div key={index} className="flex items-start gap-2 rounded-sm border border-border p-2">
               <Select
                 value={rule.type}
                 onValueChange={(value) => updateRule(index, { type: value as ClassificationChangeType })}
@@ -204,7 +204,7 @@ export function RulesForm({
         </div>
       </div>
 
-      <div className="border-t pt-6">
+      <div className="border-t border-border pt-6">
         <h2 className="text-base font-semibold">Threshold / decay</h2>
         <p className="text-sm text-muted-foreground">
           Overrides for DEFAULT_CONFIG -- leave a field blank to keep the built-in default.
@@ -228,7 +228,7 @@ export function RulesForm({
           </div>
 
           {THRESHOLD_TYPES.map((t) => (
-            <div key={t} className="flex flex-wrap items-end gap-4 rounded-lg border p-2">
+            <div key={t} className="flex flex-wrap items-end gap-4 rounded-sm border border-border p-2">
               <span className="w-24 text-sm font-medium">{t}</span>
               <div className="flex flex-1 flex-col gap-1.5">
                 <Label>baseThreshold</Label>
@@ -258,7 +258,7 @@ export function RulesForm({
       )}
 
       {preview && (
-        <div className="border-t pt-6">
+        <div className="border-t border-border pt-6">
           <h2 className="text-base font-semibold">Live preview</h2>
           <p className="text-sm text-muted-foreground">
             What will be merged into {owner}/{repo}&apos;s .carf.yml.
