@@ -10,6 +10,7 @@ import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import { recordRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
+import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
 import {
   acquireLock,
   DEFAULT_HEARTBEAT_INTERVAL_MS,
@@ -56,6 +57,8 @@ export interface WebhookOrchestratorDeps {
   heartbeatIntervalMs?: number;
   /** Testable seam for recording loop outcomes (issue #54); defaults to the real db/client.ts singleton. */
   rolloutOutcomePrismaClient?: RolloutOutcomePrismaClient;
+  /** Testable seam for issuing installation API keys (issue #65); defaults to the real db/client.ts singleton. */
+  apiKeyPrismaClient?: InstallationApiKeyPrismaClient;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -99,6 +102,25 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
  *     success, not a failure of the webhook itself.
  */
 export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrchestratorDeps): Promise<void> {
+  // Issue #65: the earliest point core-api can vouch this installationId is real (it came
+  // straight from a signature-verified GitHub webhook) -- ensure it has an auth key for
+  // scoped reads (GET /v1/threshold etc.). Non-fatal: a hiccup here shouldn't drop an
+  // otherwise-valid webhook, it just means the key gets minted on a later redelivery/push.
+  try {
+    const apiKeyClient = deps.apiKeyPrismaClient ?? (defaultPrisma as unknown as InstallationApiKeyPrismaClient);
+    const result = await ensureApiKeyForInstallation(apiKeyClient, target.installationId);
+    if (result.created) {
+      // Only time this plaintext key ever exists outside the hash stored in the DB --
+      // shown once, here, deliberately (see InstallationApiKey's schema doc comment).
+      deps.logger.info(
+        { installationId: target.installationId, apiKey: result.plaintextKey },
+        "issued a new installation API key -- store it now, it cannot be recovered later"
+      );
+    }
+  } catch (error) {
+    deps.logger.error({ error, installationId: target.installationId }, "failed to ensure installation API key");
+  }
+
   const token = await deps.installationTokenClient.getInstallationToken(target.installationId);
   const changedFiles = await acquireDiff(
     deps.githubApiClient,

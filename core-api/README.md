@@ -99,12 +99,42 @@ as a `RolloutOutcome` row (`src/adapters/rolloutOutcome.ts`), scoped by `install
 from day one even though nothing queries it yet — see the model's doc comment in
 `prisma/schema.prisma`.
 
-**Deliberately no query endpoint yet.** `GET /v1/threshold` is unauthenticated by
-documented convention (internal cluster calls only), which is already a known gap once a
-second real tenant onboards (issue #65). Adding a *new* endpoint over per-installation
-rollout history without real caller authentication would compound that exact problem
-rather than fix it, so the read side is deferred until the dashboard's OAuth flow (issue
-#61) gives this API a real caller identity to scope queries against.
+**Still no query endpoint over this table.** Now that issue #65 has landed a real
+per-installation auth mechanism (see below), a `RolloutOutcome` list endpoint is a
+reasonable follow-up — it just hasn't been built yet.
+
+## Multi-tenant auth: installation API keys (issue #65)
+
+`Commit`/`Threshold` rows carry an `installationId` (nullable — see PR #49), but until
+this issue nothing enforced it on the read side: `GET /v1/threshold?commit=<sha>` looked
+up a `Threshold` purely by SHA. Since a commit SHA isn't secret (visible in any git log,
+PR, or CI output), one tenant could read another tenant's threshold data by guessing or
+observing a SHA the moment more than one real installation shared a core-api deployment.
+
+**Decided mechanism:** an opaque, per-installation bearer API key (`InstallationApiKey` in
+`prisma/schema.prisma`, hashed at rest with SHA-256 — see `src/auth/apiKey.ts`'s doc
+comment for why a fast hash is fine here). `webhookOrchestrator.ts` auto-issues one
+(`src/auth/installationApiKeyService.ts`) the first time a signature-verified webhook
+arrives for a given `installationId` — the earliest point core-api can vouch that
+installation is real — and logs the plaintext key exactly once (`grep` your logs for
+`"issued a new installation API key"` right after a repo's first webhook). There's no
+distribution/rotation UI yet; that's dashboard follow-up work, not this issue's scope.
+
+**`GET /v1/threshold`'s dual-mode auth:**
+- No `Authorization` header → only returns commits with `installationId: null` (i.e.
+  self-hosted/local/dev setups that never wired up a real GitHub App installation — there's
+  no tenant to leak across, so today's unauthenticated behavior is preserved exactly).
+- `Authorization: Bearer <installation API key>` → scopes the lookup to that key's own
+  `installationId`. A SHA belonging to a *different* installation (or no installation at
+  all) 404s — indistinguishable from an unknown SHA, so a guess can't even confirm another
+  tenant's commit exists.
+- An `Authorization` header with an unrecognized key → `401`, distinct from the two cases
+  above (a caller who tried to authenticate and got it wrong isn't the same as one who
+  didn't try).
+
+See `test/routes/threshold.test.ts`'s "multi-tenant isolation" describe block (plus its
+live-Postgres counterpart) for the two-installations-can't-read-each-other's-data proof
+required by this issue's acceptance criteria.
 
 ## `.carf.yml` configuration
 

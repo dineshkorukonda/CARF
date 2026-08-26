@@ -94,6 +94,20 @@ model RolloutOutcome {
   @@index([installationId])
 }
 
+// Bearer credential proving a caller acts on behalf of a given GitHub App installation --
+// issue #65's decided auth mechanism for scoping dashboard-facing/authenticated reads
+// (e.g. GET /v1/threshold) to that installation's own data. One row per installationId
+// (auto-created the first time a webhook arrives for it -- see
+// src/auth/installationApiKeyService.ts); `keyHash` is a SHA-256 digest, never the
+// plaintext key itself, which is shown to the operator exactly once (in the server log)
+// at creation time and cannot be recovered afterward.
+model InstallationApiKey {
+  id             String   @id @default(cuid())
+  installationId String   @unique
+  keyHash        String   @unique
+  createdAt      DateTime @default(now())
+}
+
 // Records the outcome of an evaluation run (baseline vs. carf condition) for a given
 // commit SHA. Deliberately not FK-related to Commit — evaluation runs may reference
 // commits from historical/synthetic datasets that don't have a Commit row.
