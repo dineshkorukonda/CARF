@@ -30,7 +30,7 @@ function NavLink({
       href={href}
       title={collapsed ? String(children) : undefined}
       className={
-        "flex items-center gap-2.5 rounded-md px-3 py-1.5 font-mono text-xs tracking-wide uppercase transition-colors " +
+        "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors " +
         (active ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")
       }
     >
@@ -59,7 +59,7 @@ function SubNavLink({
       href={href}
       title={collapsed ? String(children) : undefined}
       className={
-        "flex items-center gap-2 rounded-md px-3 py-1 font-mono text-[11px] tracking-wide uppercase transition-colors " +
+        "flex items-center gap-2 rounded-md px-3 py-1 text-xs transition-colors " +
         (active ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")
       }
     >
@@ -116,11 +116,11 @@ export function SidebarShell({
         <div className={collapsed ? "flex flex-col items-center gap-3" : "flex items-center justify-between px-1"}>
           <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium tracking-tight">
             {collapsed ? (
-              <span className="flex size-6 items-center justify-center rounded-md bg-white font-mono text-[11px] font-bold text-background">
+              <span className="flex size-6 items-center justify-center rounded-md bg-white text-[11px] font-bold text-background">
                 C
               </span>
             ) : (
-              <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-background">
+              <span className="rounded-md bg-white px-1.5 py-0.5 text-[11px] font-semibold text-background">
                 CARF
               </span>
             )}
@@ -151,7 +151,7 @@ export function SidebarShell({
 
         <div className="flex flex-col gap-0.5">
           {!collapsed && (
-            <p className="px-3 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            <p className="px-3 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               Your repos
             </p>
           )}

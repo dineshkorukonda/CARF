@@ -1,9 +1,7 @@
-import { KeyRound, Radio, Settings2, SlidersHorizontal } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Radio, Settings2 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
 import { Input } from "../../../components/ui/input";
-import { Label } from "../../../components/ui/label";
 import { getCurrentAccount } from "../../../lib/auth";
 import { listInstallationsForAccount } from "../../../lib/accountService";
 import { prisma } from "../../../lib/prisma";
@@ -26,7 +24,7 @@ export default async function InstallationsPage({
   const installations = await listInstallationsForAccount(prisma, account.id);
 
   return (
-    <main className="flex flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-lg font-semibold">Installations</h1>
@@ -43,21 +41,17 @@ export default async function InstallationsPage({
         </p>
       )}
 
-      <Card>
-        <CardContent className="flex flex-col gap-3">
-          {installations.length === 0 && (
-            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-3 py-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No installations yet. Install the CARF GitHub App on a repo to get started.
-              </p>
-              <Button render={<a href="/api/github-app/install/start" />}>Install the CARF GitHub App</Button>
-            </div>
-          )}
+      {installations.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-3 py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            No installations yet. Install the CARF GitHub App on a repo to get started.
+          </p>
+          <Button render={<a href="/api/github-app/install/start" />}>Install the CARF GitHub App</Button>
+        </div>
+      ) : (
+        <div className="flex flex-col divide-y rounded-lg border">
           {installations.map((installation) => (
-            <div
-              key={installation.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
-            >
+            <div key={installation.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div className="flex items-center gap-2.5">
                 <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
                 <div>
@@ -88,33 +82,27 @@ export default async function InstallationsPage({
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
-          <span className="mb-1 flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-            <KeyRound className="size-4.5" />
-          </span>
-          <CardTitle>Already installed, but not showing up?</CardTitle>
-          <CardDescription>
-            If GitHub didn&apos;t redirect back here after install, paste the installation id from the
-            app&apos;s GitHub page (or the URL after installing) to link it manually.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action="/api/github-app/install/manual" method="POST" className="flex items-end gap-3">
-            <div className="flex flex-1 max-w-xs flex-col gap-1.5">
-              <Label htmlFor="installationId">Installation id</Label>
-              <Input id="installationId" name="installationId" placeholder="e.g. 156767738" inputMode="numeric" />
-            </div>
-            <Button type="submit" variant="outline">
-              <SlidersHorizontal className="size-3.5" />
-              Link installation
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <div className="border-t pt-4">
+        <p className="text-sm font-medium">Already installed, but not showing up?</p>
+        <p className="text-xs text-muted-foreground">
+          If GitHub didn&apos;t redirect back here after install, paste the installation id from the app&apos;s
+          GitHub page (or the URL after installing) to link it manually.
+        </p>
+        <form action="/api/github-app/install/manual" method="POST" className="mt-3 flex items-center gap-2">
+          <Input
+            name="installationId"
+            placeholder="e.g. 156767738"
+            inputMode="numeric"
+            className="max-w-56"
+          />
+          <Button type="submit" variant="outline" size="sm">
+            Link installation
+          </Button>
+        </form>
+      </div>
     </main>
   );
 }

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "../../../../../components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../../../components/ui/card";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../../components/ui/select";
@@ -163,13 +162,13 @@ export function RulesForm({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Classification rules</CardTitle>
-          <CardDescription>Path-glob rules checked before the built-in Tier 1 rules (first match wins).</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+    <div className="flex flex-col gap-8">
+      <div>
+        <h2 className="text-base font-semibold">Classification rules</h2>
+        <p className="text-sm text-muted-foreground">
+          Path-glob rules checked before the built-in Tier 1 rules (first match wins).
+        </p>
+        <div className="mt-3 flex flex-col gap-3">
           {state.rules.map((rule, index) => (
             <div key={index} className="flex items-start gap-2 rounded-lg border p-2">
               <Select
@@ -202,15 +201,15 @@ export function RulesForm({
           <Button variant="outline" size="sm" type="button" onClick={addRule} className="self-start">
             Add rule
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Threshold / decay</CardTitle>
-          <CardDescription>Overrides for DEFAULT_CONFIG -- leave a field blank to keep the built-in default.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+      <div className="border-t pt-6">
+        <h2 className="text-base font-semibold">Threshold / decay</h2>
+        <p className="text-sm text-muted-foreground">
+          Overrides for DEFAULT_CONFIG -- leave a field blank to keep the built-in default.
+        </p>
+        <div className="mt-3 flex flex-col gap-4">
           <div className="flex gap-4">
             <div className="flex flex-1 flex-col gap-1.5">
               <Label>decay (0-1)</Label>
@@ -247,8 +246,8 @@ export function RulesForm({
               </div>
             </div>
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {validation.length > 0 && (
         <ul className="text-sm text-destructive list-disc pl-5">
@@ -259,15 +258,13 @@ export function RulesForm({
       )}
 
       {preview && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Live preview</CardTitle>
-            <CardDescription>What will be merged into {owner}/{repo}&apos;s .carf.yml.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <pre className="rounded-md bg-muted p-3 text-xs overflow-auto">{preview}</pre>
-          </CardContent>
-        </Card>
+        <div className="border-t pt-6">
+          <h2 className="text-base font-semibold">Live preview</h2>
+          <p className="text-sm text-muted-foreground">
+            What will be merged into {owner}/{repo}&apos;s .carf.yml.
+          </p>
+          <pre className="mt-3 overflow-auto rounded-md bg-muted p-3 text-xs">{preview}</pre>
+        </div>
       )}
 
       {submitError && <p className="text-sm text-destructive">{submitError}</p>}
