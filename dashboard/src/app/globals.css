@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -78,11 +78,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --radius-md: var(--radius);
-  --font-sans: 'Poppins', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
   /* CardTitle's "font-heading" utility referenced this without it ever being defined --
-     harmless (just inherited body's Poppins), but defining it removes the dead reference. */
-  --font-heading: 'Poppins', system-ui, sans-serif;
+     harmless (just inherited body's font), but defining it removes the dead reference. */
+  --font-heading: 'Inter', system-ui, sans-serif;
 }
 
 html {

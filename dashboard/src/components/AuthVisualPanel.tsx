@@ -30,7 +30,7 @@ export function AuthVisualPanel() {
         <circle cx="360" cy="30" r="5" fill="currentColor" stroke="none" />
       </svg>
       <div className="absolute bottom-10 left-10 max-w-xs">
-        <p className="font-mono text-xs tracking-wide text-white/50 uppercase">Threshold</p>
+        <p className="text-xs font-medium text-white/50">Threshold</p>
         <p className="mt-1 text-lg font-medium text-white/90">
           CARF watches every commit and rolls back the risky ones before they page anyone.
         </p>

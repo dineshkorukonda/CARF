@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
@@ -78,7 +77,7 @@ export default async function ConfigPage({
   const existing = (file ? (load(file.content) as ExistingModeAdapter | undefined) : undefined) ?? {};
 
   return (
-    <main className="mx-auto flex max-w-[560px] flex-col gap-6 px-6 py-16">
+    <main className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Mode &amp; adapter</h1>
@@ -105,59 +104,57 @@ export default async function ConfigPage({
         </p>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Standalone rollback</CardTitle>
-          <CardDescription>Augment mode leaves rollback to your own pipeline; Standalone has CARF drive it.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action="/api/config/save" method="POST" className="flex flex-col gap-5">
-            <input type="hidden" name="installationId" value={installationId} />
-            <input type="hidden" name="owner" value={owner} />
-            <input type="hidden" name="repo" value={repoName} />
+      <div>
+        <h2 className="text-base font-semibold">Standalone rollback</h2>
+        <p className="text-sm text-muted-foreground">
+          Augment mode leaves rollback to your own pipeline; Standalone has CARF drive it.
+        </p>
+        <form action="/api/config/save" method="POST" className="mt-4 flex flex-col gap-5">
+          <input type="hidden" name="installationId" value={installationId} />
+          <input type="hidden" name="owner" value={owner} />
+          <input type="hidden" name="repo" value={repoName} />
 
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1 text-sm font-medium">Mode</legend>
-              <RadioGroup name="mode" defaultValue={existing.mode === "standalone" ? "standalone" : "augment"}>
-                <Label className="flex items-center gap-2 font-normal">
-                  <RadioGroupItem value="augment" />
-                  Augment
-                </Label>
-                <Label className="flex items-center gap-2 font-normal">
-                  <RadioGroupItem value="standalone" />
-                  Standalone
-                </Label>
-              </RadioGroup>
-            </fieldset>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-sm font-medium">Mode</legend>
+            <RadioGroup name="mode" defaultValue={existing.mode === "standalone" ? "standalone" : "augment"}>
+              <Label className="flex items-center gap-2 font-normal">
+                <RadioGroupItem value="augment" />
+                Augment
+              </Label>
+              <Label className="flex items-center gap-2 font-normal">
+                <RadioGroupItem value="standalone" />
+                Standalone
+              </Label>
+            </RadioGroup>
+          </fieldset>
 
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1 text-sm font-medium">Adapter (Standalone only)</legend>
-              <Select name="adapterKind" defaultValue={existing.adapter?.kind ?? LIVE_ADAPTER_KINDS[0]}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LIVE_ADAPTER_KINDS.map((kind: AdapterKind) => (
-                    <SelectItem key={kind} value={kind}>
-                      {kind}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                type="text"
-                name="adapterTarget"
-                placeholder="e.g. my-deployment"
-                defaultValue={existing.adapter?.target ?? ""}
-              />
-            </fieldset>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-sm font-medium">Adapter (Standalone only)</legend>
+            <Select name="adapterKind" defaultValue={existing.adapter?.kind ?? LIVE_ADAPTER_KINDS[0]}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LIVE_ADAPTER_KINDS.map((kind: AdapterKind) => (
+                  <SelectItem key={kind} value={kind}>
+                    {kind}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="text"
+              name="adapterTarget"
+              placeholder="e.g. my-deployment"
+              defaultValue={existing.adapter?.target ?? ""}
+            />
+          </fieldset>
 
-            <Button type="submit" className="self-start">
-              Save
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <Button type="submit" className="self-start">
+            Save
+          </Button>
+        </form>
+      </div>
     </main>
   );
 }
