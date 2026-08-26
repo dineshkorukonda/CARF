@@ -70,7 +70,7 @@ See [`examples/carf-threshold-action-workflow.yml`](examples/carf-threshold-acti
 
 ## Standalone mode
 
-Where there's no existing progressive-delivery pipeline to augment, `core-api` can drive the rollback itself: `runStandaloneLoop` polls a `RollbackAdapter` for the commit's `finalWindow` and rolls back the moment observed error rate breaches `finalThreshold`. Kubernetes (`kubectl rollout undo`) and Docker Compose adapters are implemented today — see [`core-api/README.md`](core-api/README.md#standalone-mode-rollback-adapters--health-check-loop).
+Where there's no existing progressive-delivery pipeline to augment, `core-api` can drive the rollback itself: `runStandaloneLoop` polls a `RollbackAdapter` for the commit's `finalWindow` and rolls back the moment observed error rate breaches `finalThreshold`. Kubernetes (`kubectl rollout undo`), Docker Compose, PM2, GitOps (Argo CD), and Docker Swarm adapters are implemented today — see [`core-api/README.md`](core-api/README.md#standalone-mode-rollback-adapters--health-check-loop).
 
 ## CI
 

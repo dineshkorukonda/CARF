@@ -25,13 +25,7 @@ threshold:
     # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG
     # value entirely.
 
-# --- The two fields below are validated but NOT YET WIRED. Setting them
-# --- has NO EFFECT on core-api's runtime behavior today — there is no
-# --- code path that reads mode/adapter to actually select Standalone vs
-# --- Augment mode or drive a rollback adapter. This will change in a
-# --- future project. Until then, treat these as a schema preview, not a
-# --- working switch.
 mode: standalone   # standalone | augment
 adapter:
-  kind: kubernetes  # kubernetes | dockerCompose
+  kind: kubernetes  # kubernetes | dockerCompose | pm2 | gitops | dockerSwarm
   target: "my-deployment"

@@ -41,11 +41,24 @@ at or above `finalThreshold`. Adapters implementing `RollbackAdapter`:
   Capistrano-style release layout (`${releasesRoot}/${sha}`, default `/var/www/releases`)
   reached through a `currentSymlink` (default `/var/www/current`): it repoints the symlink
   at the previous release and runs `pm2 reload <target>`.
+- `src/adapters/gitops.ts` — `GitOpsAdapter`, backed by Argo CD's REST API (requires
+  `ARGOCD_BASE_URL`/`ARGOCD_AUTH_TOKEN`, see `.env.example`). `checkHealth` reads
+  `GET /api/v1/applications/<target>`; `errorRate` is binary (1 unless
+  `status.health.status === "Healthy"`). `rollback` looks up the target's deployment
+  history for the entry matching the previous revision and calls Argo CD's rollback
+  endpoint with that entry's id.
+- `src/adapters/dockerSwarm.ts` — `DockerSwarmAdapter`, shells out to `docker service`.
+  `checkHealth` reads `docker service ps <target> --filter desired-state=running --format
+  json` and derives `errorRate` from the fraction of tasks whose `CurrentState` doesn't
+  start with `"Running"`. `rollback` runs `docker service update --rollback <target>` —
+  Swarm tracks the previous spec itself, no previous-version bookkeeping needed.
 
-All three adapters take an injectable exec function (defaulting to Node's real
-`child_process.exec`, promisified) so unit tests never shell out for real — see
-`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`, and
-`test/adapters/pm2.test.ts`.
+All exec-based adapters take an injectable exec function (defaulting to Node's real
+`child_process.exec`, promisified), and `GitOpsAdapter` takes an injectable fetch
+function, so unit tests never shell out or hit the network for real — see
+`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`,
+`test/adapters/pm2.test.ts`, `test/adapters/gitops.test.ts`, and
+`test/adapters/dockerSwarm.test.ts`.
 
 ### Manual validation against `demo-target-app/`
 
@@ -108,9 +121,10 @@ unchanged.
 - `threshold` — overrides `src/threshold/engine.ts`'s `DEFAULT_CONFIG`,
   per field: an omitted field (or omitted type) keeps its built-in
   default.
-- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "kubernetes"` or
-  `"dockerCompose"` drives a real rollback adapter kickoff from
-  `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` on every webhook. `mode: "augment"`
+- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "kubernetes"`,
+  `"dockerCompose"`, `"pm2"`, `"gitops"`, or `"dockerSwarm"` drives a real rollback adapter
+  kickoff from `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` on every webhook.
+  `mode: "augment"`
   (or no `mode` at all) just persists and stops — `GET /v1/threshold` serves the result
   separately.
 

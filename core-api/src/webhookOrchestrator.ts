@@ -3,6 +3,7 @@ import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
+import { DockerSwarmAdapter } from "./adapters/dockerSwarm.js";
 import { GitOpsAdapter } from "./adapters/gitops.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
@@ -39,9 +40,10 @@ export interface WebhookOrchestratorDeps {
   prismaClient?: PipelinePrismaClient;
   /**
    * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"`, a
-   * `DockerComposeAdapter` for `kind: "dockerCompose"`, or a `PM2Adapter` for `kind: "pm2"`
-   * (the latter two using `baseSha` as the previous image tag / release SHA -- see their
-   * doc comments for the convention this assumes).
+   * `DockerComposeAdapter` for `kind: "dockerCompose"`, a `PM2Adapter` for `kind: "pm2"`, a
+   * `GitOpsAdapter` for `kind: "gitops"`, or a `DockerSwarmAdapter` for `kind:
+   * "dockerSwarm"` (the first three of those using `baseSha` as the previous image tag /
+   * release SHA / revision -- see their doc comments for the convention this assumes).
    */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
@@ -65,6 +67,15 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
     // below -- baseSha stands in for the previous release SHA. See issue #51.
     return new PM2Adapter(baseSha);
   }
+  if (adapterConfig.kind === "gitops") {
+    // Same "no static config field for the previous value" reasoning as dockerCompose/pm2
+    // -- baseSha stands in for the previous Argo CD deployment revision. See issue #52.
+    return new GitOpsAdapter(baseSha, env.argoCdBaseUrl(), env.argoCdAuthToken());
+  }
+  if (adapterConfig.kind === "dockerSwarm") {
+    // Swarm tracks the previous spec itself, like kubectl -- no baseSha needed. See issue #53.
+    return new DockerSwarmAdapter();
+  }
   // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
   // stale the moment a new commit lands anyway, since "previous" changes every deploy) --
   // baseSha (the commit before this push) is used instead, on the documented assumption
@@ -79,10 +90,10 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
  * persist + compute threshold), then branches on .carf.yml's `mode`:
  *   - Augment (or no mode / no .carf.yml at all): stops here. GET /v1/threshold
  *     (src/routes/threshold.ts) serves the persisted result separately.
- *   - Standalone with adapter.kind "kubernetes", "dockerCompose", or "dockerSwarm":
- *     additionally kicks off runStandaloneLoop() in the background (not awaited -- the
- *     loop can run for the full threshold window, up to DEFAULT_CONFIG's largest
- *     baseWindow, which would hang the webhook's HTTP response if awaited).
+ *   - Standalone with adapter.kind "kubernetes", "dockerCompose", "pm2", "gitops", or
+ *     "dockerSwarm": additionally kicks off runStandaloneLoop() in the background (not
+ *     awaited -- the loop can run for the full threshold window, up to DEFAULT_CONFIG's
+ *     largest baseWindow, which would hang the webhook's HTTP response if awaited).
  *   - Standalone with no adapter configured at all: logs an error and skips the loop.
  *     processCommit()'s result has already persisted successfully -- this is a partial
  *     success, not a failure of the webhook itself.
@@ -133,12 +144,15 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  // dockerCompose/pm2's rollback tag/release is derived from baseSha (see
+  // dockerCompose/pm2/gitops's rollback tag/release/revision is derived from baseSha (see
   // defaultRollbackAdapterFactory), which is only safe to treat as "what's currently
   // deployed" for a push event -- a pull_request's baseSha is the PR's base branch tip,
-  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter doesn't
-  // use baseSha, so it's unaffected.
-  if ((adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "pm2") && target.event !== "push") {
+  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter and
+  // dockerSwarm's DockerSwarmAdapter don't use baseSha, so they're unaffected.
+  if (
+    (adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "pm2" || adapterConfig.kind === "gitops") &&
+    target.event !== "push"
+  ) {
     deps.logger.error(
       { adapter: adapterConfig, event: target.event },
       `${adapterConfig.kind} adapter requires a push event to safely derive the previous image tag/release from baseSha`
