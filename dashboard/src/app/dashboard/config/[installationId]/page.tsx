@@ -50,7 +50,7 @@ export default async function ConfigPage({
 
   if (!selectedFullName) {
     return (
-      <main className="mx-auto flex max-w-[560px] flex-col gap-6 px-6 py-16">
+      <main className="flex max-w-xl flex-col gap-6 p-8">
         <div>
           <h1 className="text-xl font-semibold">Choose a repository</h1>
           <p className="text-sm text-muted-foreground">

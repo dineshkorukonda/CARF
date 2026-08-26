@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -17,26 +16,16 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const account = await getCurrentAccount();
-  if (!account) {
-    redirect("/login");
-  }
-
+  // layout.tsx already redirects to /login if there's no session.
+  const account = (await getCurrentAccount())!;
   const { error } = await searchParams;
   const installations = await listInstallationsForAccount(prisma, account.id);
 
   return (
-    <main className="mx-auto flex max-w-[720px] flex-col gap-6 px-6 py-16">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Welcome, {account.email}</h1>
-          <p className="text-sm text-muted-foreground">Manage which repos CARF can roll back for you.</p>
-        </div>
-        <form action="/api/auth/logout" method="POST">
-          <Button variant="outline" size="sm" type="submit">
-            Sign out
-          </Button>
-        </form>
+    <main className="flex flex-col gap-6 p-8">
+      <div>
+        <h1 className="text-lg font-semibold">Overview</h1>
+        <p className="text-sm text-muted-foreground">Repos CARF is watching for you.</p>
       </div>
 
       {error && (
@@ -44,6 +33,29 @@ export default async function DashboardPage({
           {ERROR_MESSAGES[error] ?? "Something went wrong."}
         </p>
       )}
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="gap-1">
+            <CardDescription>Installations</CardDescription>
+            <CardTitle className="text-2xl font-semibold">{installations.length}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="gap-1">
+            <CardDescription>Standalone-managed repos</CardDescription>
+            <CardTitle className="text-2xl font-semibold">
+              {installations.filter((i) => i.repositorySelection === "all").length}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="gap-1">
+            <CardDescription>Signed in as</CardDescription>
+            <CardTitle className="truncate text-base font-medium">{account.email}</CardTitle>
+          </CardHeader>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
@@ -61,11 +73,14 @@ export default async function DashboardPage({
               key={installation.id}
               className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2.5"
             >
-              <div>
-                <p className="text-sm font-medium">{installation.targetLogin}</p>
-                <p className="text-xs text-muted-foreground">
-                  installation {installation.installationId} · {installation.repositorySelection} repos
-                </p>
+              <div className="flex items-center gap-2.5">
+                <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+                <div>
+                  <p className="text-sm font-medium">{installation.targetLogin}</p>
+                  <p className="text-xs text-muted-foreground">
+                    installation {installation.installationId} · {installation.repositorySelection} repos
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="secondary">{installation.targetType}</Badge>

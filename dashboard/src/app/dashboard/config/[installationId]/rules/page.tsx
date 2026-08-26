@@ -66,7 +66,7 @@ export default async function RulesPage({
 
   if (!selectedFullName) {
     return (
-      <main className="mx-auto flex max-w-[560px] flex-col gap-6 px-6 py-16">
+      <main className="flex max-w-xl flex-col gap-6 p-8">
         <h1 className="text-xl font-semibold">Choose a repository</h1>
         <div className="flex flex-col gap-2">
           {repos.map((r) => (
@@ -88,7 +88,7 @@ export default async function RulesPage({
   const existing = (file ? (load(file.content) as ExistingClassificationThreshold | undefined) : undefined) ?? {};
 
   return (
-    <main className="mx-auto flex max-w-[720px] flex-col gap-6 px-6 py-16">
+    <main className="flex max-w-3xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-xl font-semibold">Classification &amp; threshold</h1>
         <p className="text-sm text-muted-foreground">

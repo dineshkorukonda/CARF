@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { getCurrentAccount } from "../lib/auth";
-import { Button } from "../components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { getCurrentAccount } from "../../lib/auth";
+import { Button } from "../../components/ui/button";
+import { Card, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 
 export default async function HomePage() {
   const account = await getCurrentAccount();

@@ -26,7 +26,7 @@ export default async function StatusPage({ params }: { params: Promise<{ install
   }
 
   return (
-    <main className="mx-auto flex max-w-[860px] flex-col gap-6 px-6 py-16">
+    <main className="flex max-w-5xl flex-col gap-6 p-8">
       <div>
         <h1 className="text-xl font-semibold">Live status</h1>
         <p className="text-sm text-muted-foreground">Recent classified commits for {installation.targetLogin}.</p>
