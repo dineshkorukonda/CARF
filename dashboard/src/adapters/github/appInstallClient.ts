@@ -37,7 +37,8 @@ export async function fetchInstallation(
     headers: { Authorization: `Bearer ${appJwt}`, Accept: "application/vnd.github+json" },
   });
   if (!response.ok) {
-    throw new Error(`GitHub installation fetch failed (status ${response.status})`);
+    const body = await response.text().catch(() => "");
+    throw new Error(`GitHub installation fetch failed (status ${response.status}): ${body}`);
   }
   return (await response.json()) as GithubInstallation;
 }

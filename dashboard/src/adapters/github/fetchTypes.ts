@@ -9,6 +9,7 @@ export interface MinimalFetchResponse {
   ok: boolean;
   status: number;
   json(): Promise<unknown>;
+  text(): Promise<string>;
 }
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<MinimalFetchResponse>;

@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
     const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
     const installation = await fetchInstallation(installationId, appJwt);
     await linkInstallation(prisma, account.id, installation);
-  } catch {
+  } catch (err) {
+    console.error(`install/callback link failed for installationId=${installationId}:`, err);
     response.cookies.delete(GITHUB_APP_INSTALL_STATE_COOKIE);
     return NextResponse.redirect(new URL("/dashboard?error=install_link_failed", env.baseUrl()));
   }

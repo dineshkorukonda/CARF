@@ -43,7 +43,9 @@ describe("fetchInstallation", () => {
   });
 
   it("throws when the HTTP response isn't ok", async () => {
-    const fetchFn: FetchFn = vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({}) });
+    const fetchFn: FetchFn = vi
+      .fn()
+      .mockResolvedValue({ ok: false, status: 404, json: async () => ({}), text: async () => "Not Found" });
     await expect(fetchInstallation("999", "app-jwt", fetchFn)).rejects.toThrow(/status 404/);
   });
 });
