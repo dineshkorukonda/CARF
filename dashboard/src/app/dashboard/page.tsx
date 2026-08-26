@@ -69,7 +69,7 @@ export default async function DashboardPage({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-transparent bg-foreground text-background shadow-sm">
+        <Card className="border-transparent bg-foreground text-background">
           <CardHeader className="gap-3">
             <span className="flex size-9 items-center justify-center rounded-lg bg-background/15">
               <Boxes className="size-4.5" />
@@ -84,7 +84,7 @@ export default async function DashboardPage({
             </div>
           </CardHeader>
         </Card>
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader className="gap-3">
             <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
               <GitPullRequestArrow className="size-4.5" />
@@ -101,7 +101,7 @@ export default async function DashboardPage({
         </Card>
       </div>
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Get CARF running</CardTitle>
           <CardDescription>The steps to go from signed up to actively monitored.</CardDescription>
@@ -147,7 +147,7 @@ export default async function DashboardPage({
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle>Connected repositories</CardTitle>
           <CardDescription>Installations of the CARF GitHub App tied to your account.</CardDescription>
@@ -204,7 +204,7 @@ export default async function DashboardPage({
         </CardContent>
       </Card>
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader>
           <span className="mb-1 flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             <KeyRound className="size-4.5" />

@@ -18,24 +18,24 @@
  * :root keeps every existing bg-card/text-foreground/etc. class finally doing something.
  */
 :root {
-  --background: oklch(0.16 0.006 260);
+  --background: #000000;
   --foreground: oklch(0.94 0.004 260);
-  --card: oklch(0.20 0.006 260);
+  --card: #000000;
   --card-foreground: oklch(0.94 0.004 260);
-  --popover: oklch(0.22 0.006 260);
+  --popover: oklch(0.14 0.006 260);
   --popover-foreground: oklch(0.94 0.004 260);
   --primary: oklch(0.94 0.004 260);
-  --primary-foreground: oklch(0.16 0.006 260);
-  --secondary: oklch(0.27 0.006 260);
+  --primary-foreground: #000000;
+  --secondary: oklch(0.20 0.006 260);
   --secondary-foreground: oklch(0.94 0.004 260);
-  --muted: oklch(0.24 0.006 260);
+  --muted: oklch(0.16 0.006 260);
   --muted-foreground: oklch(0.66 0.006 260);
-  --accent: oklch(0.27 0.006 260);
+  --accent: oklch(0.20 0.006 260);
   --accent-foreground: oklch(0.94 0.004 260);
   --destructive: oklch(0.62 0.21 25);
   --destructive-foreground: oklch(0.97 0.01 25);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 12%);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.6 0.02 260);
   --radius: 0.5rem;
 }
