@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { InstallationTabs } from "../../../../components/InstallationTabs";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
@@ -48,8 +47,6 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
           Based on the last {RECENT_COMMITS_LIMIT} commits CARF has classified.
         </p>
       </div>
-
-      <InstallationTabs installationId={installationId} active="analytics" />
 
       {loadError ? (
         <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">{loadError}</p>
