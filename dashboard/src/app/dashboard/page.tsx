@@ -9,6 +9,7 @@ import { prisma } from "../../lib/prisma";
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_install_state: "GitHub App install request expired or was tampered with. Please try again.",
   install_link_failed: "Couldn't confirm the new installation with GitHub. Please try again.",
+  not_authorized: "That installation isn't linked to your account.",
 };
 
 export default async function DashboardPage({
@@ -57,7 +58,16 @@ export default async function DashboardPage({
                   installation {installation.installationId} · {installation.repositorySelection} repos
                 </p>
               </div>
-              <Badge variant="secondary">{installation.targetType}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{installation.targetType}</Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  render={<a href={`/dashboard/config/${installation.installationId}`} />}
+                >
+                  Configure
+                </Button>
+              </div>
             </div>
           ))}
           <Button render={<a href="/api/github-app/install/start" />} className="self-start">

@@ -33,6 +33,7 @@ export interface DashboardPrismaClient {
     }): Promise<AccountRow>;
   };
   installation: {
+    findFirst(args: { where: { accountId: string; installationId: string } }): Promise<InstallationRow | null>;
     upsert(args: {
       where: { installationId: string };
       create: {
@@ -84,6 +85,20 @@ export async function linkInstallation(
     },
     update: { targetLogin, targetType, repositorySelection: installation.repository_selection },
   });
+}
+
+/**
+ * Ownership check for the config UI (#62/#63): confirms the logged-in account actually
+ * has this installationId linked before minting an installation token / touching a repo's
+ * `.carf.yml` on its behalf -- an installationId in a URL is guessable, this isn't a
+ * capability token.
+ */
+export async function getInstallationForAccount(
+  prisma: DashboardPrismaClient,
+  accountId: string,
+  installationId: string
+): Promise<InstallationRow | null> {
+  return prisma.installation.findFirst({ where: { accountId, installationId } });
 }
 
 export async function listInstallationsForAccount(

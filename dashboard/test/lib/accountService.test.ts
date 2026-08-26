@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getInstallationForAccount,
   linkInstallation,
   listInstallationsForAccount,
   upsertAccountFromGithubUser,
@@ -34,6 +35,10 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
   };
 
   installation = {
+    findFirst: async (args: { where: { accountId: string; installationId: string } }) =>
+      [...this.installations.values()].find(
+        (i) => i.accountId === args.where.accountId && i.installationId === args.where.installationId
+      ) ?? null,
     upsert: async (args: {
       where: { installationId: string };
       create: {
@@ -124,5 +129,37 @@ describe("linkInstallation / listInstallationsForAccount", () => {
     const installations = await listInstallationsForAccount(prisma, account.id);
 
     expect(installations[0]).toMatchObject({ targetLogin: "unknown", targetType: "unknown" });
+  });
+});
+
+describe("getInstallationForAccount", () => {
+  const installation: GithubInstallation = {
+    id: 999,
+    account: { login: "acme", type: "Organization" },
+    repository_selection: "all",
+  };
+
+  it("returns the installation when it belongs to the given account", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    await linkInstallation(prisma, account.id, installation);
+
+    const found = await getInstallationForAccount(prisma, account.id, "999");
+    expect(found).toMatchObject({ installationId: "999", accountId: account.id });
+  });
+
+  it("returns null when the installation belongs to a different account", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const ownerAccount = await upsertAccountFromGithubUser(prisma, githubUser);
+    const otherAccount = await upsertAccountFromGithubUser(prisma, { ...githubUser, id: 43, login: "someone-else" });
+    await linkInstallation(prisma, ownerAccount.id, installation);
+
+    expect(await getInstallationForAccount(prisma, otherAccount.id, "999")).toBeNull();
+  });
+
+  it("returns null for an unknown installationId", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    expect(await getInstallationForAccount(prisma, account.id, "does-not-exist")).toBeNull();
   });
 });

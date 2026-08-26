@@ -25,8 +25,8 @@ workspace, same pattern `core-api/` and `web/` already use.
 ```
 dashboard/
   src/
-    adapters/github/     # GitHub OAuth + App JWT/install-lookup clients -- pure, injectable fetch, no cookies/DB
-    lib/                 # session signing, account/installation persistence, Prisma singleton
+    adapters/github/     # GitHub OAuth + App JWT/install-lookup/repos/contents clients -- pure, injectable fetch, no cookies/DB
+    lib/                 # session signing, account/installation persistence, .carf.yml read/write, Prisma singleton
     config/               # env var loading
     app/                 # App Router pages + route handlers
   prisma/                # schema.prisma, migrations
@@ -47,8 +47,15 @@ dashboard/
   the GitHub App's own credentials (App JWT for install lookups) -- no bare PAT, matching
   core-api's own rule.
 - Cross-service auth between this dashboard and core-api's dashboard-facing endpoints
-  (issue #65) is explicitly out of scope for issue #61 -- this package only owns
-  login/install and persisting `installationId` against an `Account`.
+  (issue #65, now implemented as per-installation API keys -- see `core-api/README.md`)
+  is not yet wired up from this side; nothing here calls core-api today.
+- Config edits (#62's mode/adapter, #63's classification/threshold) never touch a
+  dashboard-owned database -- they commit directly to the target repo's `.carf.yml` via
+  the GitHub Contents API, authenticated with a freshly-minted installation access token
+  (never a user PAT). `src/lib/carfConfigWriter.ts` owns the merge-in-place logic; `src/
+  lib/carfConfigSchema.ts` is a hand-mirrored (not imported) subset of core-api's
+  `carfConfigSchema.ts` -- see that file's doc comment for why staying byte-for-byte in
+  sync isn't required for correctness.
 
 ## Testing
 - Vitest, colocated under `dashboard/test/`, mirroring `src/`.

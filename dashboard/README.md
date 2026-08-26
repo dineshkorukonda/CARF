@@ -53,7 +53,28 @@ Flow, end to end:
 `src/lib/accountService.ts` for the persistence logic and `src/adapters/github/` for the
 GitHub API clients (both unit-tested against fakes, no real network/DB in tests).
 
-**Not yet built** (later dashboard issues): mode/adapter selection UI (#62),
-classification/threshold config UI (#63), live status/threshold view (#64), and the
-authenticated cross-service call into core-api's dashboard-facing endpoints that #65's
-multi-tenant auth mechanism will define.
+## Mode + adapter configuration (issue #62)
+
+`/dashboard/config/[installationId]` -- a form for Augment/Standalone mode and, for
+Standalone, an adapter kind + target. Saving doesn't write to any dashboard-owned
+database: it mints a fresh installation access token (the App's own JWT, same pattern as
+the install-flow callback), reads the target repo's current `.carf.yml` via GitHub's
+Contents API (if any), merges the mode/adapter patch in with
+`src/lib/carfConfigWriter.ts` (every other section -- `classification`, `threshold` --
+passes through untouched), and commits the result back via the same Contents API. The
+commit is authored as the CARF GitHub App itself, not the logged-in user -- there's no
+user PAT anywhere in this flow.
+
+An installation covering more than one repo shows a picker first (`GET
+/installation/repositories`, installation-token auth) before the form. `.carf.yml`'s
+schema is mirrored (not imported -- see `src/lib/carfConfigSchema.ts`'s doc comment) in
+`AdapterConfigSchema`/`ModeSchema`; `LIVE_ADAPTER_KINDS` is deliberately kept in sync with
+`webhookOrchestrator.ts`'s actual wiring, not just its schema validation, per #62's "avoid
+offering an adapter that silently no-ops" acceptance criterion -- see issue #50's history
+of exactly that gap.
+
+**Not yet built** (later dashboard issues): classification/threshold config UI (#63, will
+reuse this same commit-to-`.carf.yml` infrastructure), live status/threshold view (#64),
+and the authenticated cross-service call into core-api's dashboard-facing endpoints that
+#65's multi-tenant auth mechanism (now implemented, see `core-api/README.md`) makes
+possible.
