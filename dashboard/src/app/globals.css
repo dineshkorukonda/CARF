@@ -8,16 +8,34 @@
  * semantic tokens like bg-card/text-muted-foreground/ring-foreground -- Tailwind v4 can only
  * generate those utilities if a matching `--color-*` variable exists under `@theme`. This
  * project never defined them (in either dashboard/ or web/), so every one of those utility
- * classes has been a silent no-op since the components were first added: no card background,
- * no popover background, no primary-button fill. It mostly went unnoticed because the
- * fallback (transparent, inheriting the plain white body) happened to look plausible -- until
- * a floating popup (the mode/adapter Select) needed an actually-opaque background to sit on
- * top of the page, and rendered fully transparent instead, overlapping the form beneath it.
- *
- * Single dark theme (no light/dark toggle) -- this app doesn't need one, and defining just
- * :root keeps every existing bg-card/text-foreground/etc. class finally doing something.
+ * classes was a silent no-op since the components were first added -- see git history on
+ * this file for the fuller story. Fixed by defining both a light (:root) and dark (.dark)
+ * palette below; ThemeToggle.tsx flips the `dark` class on <html> and persists the choice.
  */
 :root {
+  --background: #ffffff;
+  --foreground: oklch(0.16 0.006 260);
+  --card: #ffffff;
+  --card-foreground: oklch(0.16 0.006 260);
+  --popover: #ffffff;
+  --popover-foreground: oklch(0.16 0.006 260);
+  --primary: oklch(0.16 0.006 260);
+  --primary-foreground: #ffffff;
+  --secondary: oklch(0.96 0.003 260);
+  --secondary-foreground: oklch(0.16 0.006 260);
+  --muted: oklch(0.96 0.003 260);
+  --muted-foreground: oklch(0.46 0.006 260);
+  --accent: oklch(0.96 0.003 260);
+  --accent-foreground: oklch(0.16 0.006 260);
+  --destructive: oklch(0.58 0.21 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+  --border: oklch(0 0 0 / 10%);
+  --input: oklch(0 0 0 / 12%);
+  --ring: oklch(0.6 0.02 260);
+  --radius: 0.5rem;
+}
+
+:root.dark {
   --background: #000000;
   --foreground: oklch(0.94 0.004 260);
   --card: #000000;
@@ -37,7 +55,6 @@
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.6 0.02 260);
-  --radius: 0.5rem;
 }
 
 @theme inline {
@@ -69,6 +86,10 @@
 }
 
 html {
+  color-scheme: light;
+}
+
+html.dark {
   color-scheme: dark;
 }
 

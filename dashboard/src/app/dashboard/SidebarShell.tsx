@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronsLeft, ChevronsRight, LayoutDashboard, LogOut, Radio, Settings2 } from "lucide-react";
+import { Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
 
@@ -113,33 +113,46 @@ export function SidebarShell({
       }
     >
       <div className="flex flex-col gap-6 px-3 py-5">
-        <div className="flex items-center justify-between px-1">
+        <div className={collapsed ? "flex flex-col items-center gap-3" : "flex items-center justify-between px-1"}>
           <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium tracking-tight">
-            <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-background">
-              CARF
-            </span>
+            {collapsed ? (
+              <span className="flex size-6 items-center justify-center rounded-md bg-white font-mono text-[11px] font-bold text-background">
+                C
+              </span>
+            ) : (
+              <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-background">
+                CARF
+              </span>
+            )}
             {!collapsed && <span>Dashboard</span>}
           </Link>
           <button
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
           >
             {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
           </button>
         </div>
 
         <nav className="flex flex-col gap-0.5">
-          <NavLink href="/dashboard" exact collapsed={collapsed} icon={<LayoutDashboard className="size-4 shrink-0" />}>
-            Overview
+          <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
+            Home
+          </NavLink>
+          <NavLink
+            href="/dashboard/installations"
+            collapsed={collapsed}
+            icon={<Boxes className="size-4 shrink-0" />}
+          >
+            Installations
           </NavLink>
         </nav>
 
         <div className="flex flex-col gap-0.5">
           {!collapsed && (
             <p className="px-3 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              Installations
+              Your repos
             </p>
           )}
           {installations.length === 0 && !collapsed && (
