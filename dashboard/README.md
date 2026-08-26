@@ -27,11 +27,13 @@ npm run dev
 Set every var from `.env.example` in the platform's project settings (see comments in
 that file for what each one is / where it comes from). Two Vercel-specific things:
 
-- **Migrations run automatically.** `package.json`'s `vercel-build` script runs
-  `prisma migrate deploy` before `next build` -- Vercel prefers that script name over
-  plain `build` automatically, so the `Account`/`Installation` tables get created (or
-  updated) on every deploy with no manual step. `prisma migrate deploy` only applies
-  migrations that haven't run yet, so this is safe to run on every build.
+- **Migrations run automatically, production only.** `package.json`'s `vercel-build`
+  script (`scripts/vercel-build.mjs`) runs `prisma migrate deploy` before `next build`,
+  but only when `VERCEL_ENV === "production"` -- Vercel prefers the `vercel-build` script
+  name over plain `build` automatically. Preview builds (every PR/branch) skip the
+  migration step entirely and don't need `DATABASE_URL` set at all: they neither have,
+  nor should have, access to the production database. `prisma migrate deploy` only
+  applies migrations that haven't run yet, so this is safe on every production build.
 - **If `DATABASE_URL` is marked "Sensitive"** in Vercel's env var settings, its value
   can't be read back via `vercel env pull` or the dashboard UI (this is by design) --
   don't rely on pulling it locally to run migrations by hand. The `vercel-build` step
