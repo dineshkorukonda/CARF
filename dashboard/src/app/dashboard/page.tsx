@@ -1,5 +1,4 @@
-import { Boxes, CheckCircle2, Circle, GitPullRequestArrow } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { CheckCircle2, Circle } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { getCurrentAccount } from "../../lib/auth";
 import { listInstallationsForAccount } from "../../lib/accountService";
@@ -28,7 +27,7 @@ function SetupStep({
   action?: { label: string; href: string };
 }) {
   return (
-    <div className="flex items-start gap-3 py-2.5">
+    <div className="flex items-start gap-3 py-3">
       {done ? (
         <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-500" />
       ) : (
@@ -60,9 +59,10 @@ export default async function DashboardPage({
   const installations = await listInstallationsForAccount(prisma, account.id);
   const primaryInstallation = installations[0];
   const hasInstallation = installations.length > 0;
+  const allRepoInstallations = installations.filter((i) => i.repositorySelection === "all").length;
 
   return (
-    <main className="flex flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-8">
       <div>
         <h1 className="text-xl font-semibold">
           {greeting()}, <span className="text-muted-foreground">{account.email.split("@")[0]}</span>
@@ -76,45 +76,21 @@ export default async function DashboardPage({
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-transparent bg-foreground text-background">
-          <CardHeader className="gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-background/15">
-              <Boxes className="size-4.5" />
-            </span>
-            <div>
-              <CardDescription className="font-mono text-xs tracking-wide text-background/70 uppercase">
-                Installations
-              </CardDescription>
-              <CardTitle className="font-mono text-2xl font-semibold text-background">
-                {installations.length}
-              </CardTitle>
-            </div>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400">
-              <GitPullRequestArrow className="size-4.5" />
-            </span>
-            <div>
-              <CardDescription className="font-mono text-xs tracking-wide uppercase">
-                Installed on all repos
-              </CardDescription>
-              <CardTitle className="font-mono text-2xl font-semibold">
-                {installations.filter((i) => i.repositorySelection === "all").length}
-              </CardTitle>
-            </div>
-          </CardHeader>
-        </Card>
+      <div className="flex divide-x rounded-lg border">
+        <div className="flex-1 px-6 py-4">
+          <p className="text-2xl font-semibold">{installations.length}</p>
+          <p className="text-sm text-muted-foreground">Installations</p>
+        </div>
+        <div className="flex-1 px-6 py-4">
+          <p className="text-2xl font-semibold">{allRepoInstallations}</p>
+          <p className="text-sm text-muted-foreground">Installed on all repos</p>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Get CARF running</CardTitle>
-          <CardDescription>The steps to go from signed up to actively monitored.</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col divide-y">
+      <div>
+        <h2 className="text-base font-semibold">Get CARF running</h2>
+        <p className="text-sm text-muted-foreground">The steps to go from signed up to actively monitored.</p>
+        <div className="mt-3 flex flex-col divide-y">
           <SetupStep done title="Create your account" description="You're signed in." />
           <SetupStep
             done={hasInstallation}
@@ -152,8 +128,8 @@ export default async function DashboardPage({
                 : undefined
             }
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </main>
   );
 }

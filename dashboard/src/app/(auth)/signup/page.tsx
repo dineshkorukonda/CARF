@@ -22,7 +22,7 @@ export default async function SignupPage({
       <div className="flex flex-col px-6 py-8 sm:px-10">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-sm font-medium tracking-tight">
-            <span className="rounded-md bg-foreground px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-background">
+            <span className="rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-semibold text-background">
               CARF
             </span>
           </Link>
