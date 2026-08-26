@@ -43,11 +43,16 @@ dashboard/
 - `src/lib/accountService.ts` takes a `DashboardPrismaClient` interface, not the concrete
   `@prisma/client` type, so tests can supply an in-memory fake (see
   `core-api/src/pipeline.ts`'s `PipelinePrismaClient` for the same pattern).
+- Login is the dashboard's own email/password auth (`src/lib/accountService.ts`'s
+  `createAccount`/`verifyCredentials`, bcrypt-hashed via `bcryptjs`) -- deliberately not
+  tied to GitHub identity. An `Account` is just "someone who signed up," fully separate
+  from which repos a GitHub App installation has been linked to (see `linkInstallation`).
 - Session is a signed (HMAC), not encrypted, cookie -- see `src/lib/session.ts`'s doc
   comment for why that's sufficient here.
 - The dashboard never talks to a repo's GitHub API on behalf of a user with anything but
   the GitHub App's own credentials (App JWT for install lookups) -- no bare PAT, matching
-  core-api's own rule.
+  core-api's own rule. This is unrelated to login: the GitHub App is authorized
+  independently of any dashboard `Account`.
 - Cross-service auth to core-api (issue #65's per-installation API keys) is wired up via
   `src/lib/coreApiAccess.ts`'s `ensureCoreApiKey` (issue #64): the dashboard proves App-level
   control with its own GitHub App JWT against core-api's `GET /v1/installations/:id/

@@ -11,8 +11,6 @@ export const env = {
   baseUrl: () => requireEnv("DASHBOARD_BASE_URL"),
   /** HMAC secret signing the session cookie. Rotating it invalidates every live session. */
   sessionSecret: () => requireEnv("SESSION_SECRET"),
-  githubOAuthClientId: () => requireEnv("GITHUB_OAUTH_CLIENT_ID"),
-  githubOAuthClientSecret: () => requireEnv("GITHUB_OAUTH_CLIENT_SECRET"),
   /** URL slug of the CARF GitHub App, e.g. "carf-rollback" -- used to build the install-flow link. */
   githubAppSlug: () => requireEnv("GITHUB_APP_SLUG"),
   githubAppId: () => requireEnv("GITHUB_APP_ID"),

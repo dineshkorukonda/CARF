@@ -4,7 +4,7 @@ import { fetchInstallation, signGithubAppJwt } from "../../../../../adapters/git
 import { getCurrentAccount } from "../../../../../lib/auth";
 import { linkInstallation } from "../../../../../lib/accountService";
 import { prisma } from "../../../../../lib/prisma";
-import { GITHUB_APP_INSTALL_STATE_COOKIE } from "../../../../../lib/oauthState";
+import { GITHUB_APP_INSTALL_STATE_COOKIE } from "../../../../../lib/installState";
 
 /**
  * GitHub's "Setup URL" target for the App: it redirects here with `installation_id`,
