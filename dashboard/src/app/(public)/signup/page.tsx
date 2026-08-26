@@ -17,7 +17,7 @@ export default async function SignupPage({
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-16">
-      <Card className="w-full max-w-sm shadow-sm">
+      <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Create your CARF account</CardTitle>
           <CardDescription>Manage rollback configuration for your repos.</CardDescription>

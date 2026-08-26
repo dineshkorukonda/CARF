@@ -16,7 +16,7 @@ export default async function LoginPage({
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-muted/30 px-6 py-16">
-      <Card className="w-full max-w-sm shadow-sm">
+      <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Sign in to CARF</CardTitle>
           <CardDescription>Manage rollback configuration for your repos.</CardDescription>
