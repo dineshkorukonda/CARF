@@ -5,6 +5,8 @@ import { watchCarfConfig } from "./config/carfConfigWatcher.js";
 import { githubApiClient, getInstallationTokenClient } from "./adapters/github/client.js";
 import { handleWebhookCommit } from "./webhookOrchestrator.js";
 
+// Issue #60: real end-to-end webhook test commit.
+// Issue #60: second probe -- retest push webhook delivery after the earlier 404.
 // Fail closed: an invalid .carf.yml crashes startup rather than silently falling back to
 // defaults -- inherited from src/config/carfConfig.ts's documented contract (see
 // docs/superpowers/specs/2026-08-24-carf-yml-config-design.md). `let`, not `const`: the
