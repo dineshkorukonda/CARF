@@ -6,6 +6,7 @@ import {
   linkInstallation,
   listInstallationsForAccount,
   saveCoreApiKey,
+  updatePassword,
   verifyCredentials,
   type AccountRow,
   type DashboardPrismaClient,
@@ -20,12 +21,19 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
 
   account = {
     create: async (args: { data: { email: string; passwordHash: string } }) => {
-      const row: AccountRow = { id: `account-${this.nextId++}`, ...args.data };
+      const row: AccountRow = { id: `account-${this.nextId++}`, createdAt: new Date(), ...args.data };
       this.accounts.set(row.id, row);
       return row;
     },
     findUnique: async (args: { where: { email: string } }) =>
       [...this.accounts.values()].find((a) => a.email === args.where.email) ?? null,
+    update: async (args: { where: { id: string }; data: { passwordHash: string } }) => {
+      const existing = this.accounts.get(args.where.id);
+      if (!existing) throw new Error(`no account ${args.where.id}`);
+      const updated = { ...existing, ...args.data };
+      this.accounts.set(existing.id, updated);
+      return updated;
+    },
   };
 
   installation = {
@@ -103,6 +111,20 @@ describe("createAccount / verifyCredentials", () => {
   it("returns null for an unknown email", async () => {
     const prisma = new FakeDashboardPrismaClient();
     expect(await verifyCredentials(prisma, "nobody@example.com", "whatever")).toBeNull();
+  });
+});
+
+describe("updatePassword", () => {
+  it("replaces the stored hash so the new password verifies and the old one no longer does", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
+
+    await updatePassword(prisma, account.id, "new password entirely");
+
+    expect(await verifyCredentials(prisma, "person@example.com", "new password entirely")).toMatchObject({
+      id: account.id,
+    });
+    expect(await verifyCredentials(prisma, "person@example.com", "correct horse battery")).toBeNull();
   });
 });
 
