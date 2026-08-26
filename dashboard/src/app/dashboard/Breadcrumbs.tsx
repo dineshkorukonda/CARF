@@ -9,38 +9,33 @@ interface Crumb {
   href?: string;
 }
 
+/**
+ * Deliberately compact -- one or two segments, not a full Home/Installations/repo chain.
+ * The sidebar already shows which installation and section are active (its own switcher +
+ * highlighted nav item), so repeating that whole hierarchy here would just be noise.
+ */
 function buildCrumbs(pathname: string, installations: InstallationRow[]): Crumb[] {
-  const crumbs: Crumb[] = [{ label: "Home", href: "/dashboard" }];
-
-  if (pathname === "/dashboard") return crumbs;
-
-  if (pathname === "/dashboard/account") {
-    crumbs.push({ label: "Account" });
-    return crumbs;
-  }
-
-  if (pathname === "/dashboard/installations") {
-    crumbs.push({ label: "Installations" });
-    return crumbs;
-  }
+  if (pathname === "/dashboard") return [{ label: "Home" }];
+  if (pathname === "/dashboard/account") return [{ label: "Account" }];
+  if (pathname === "/dashboard/installations") return [{ label: "All installations" }];
 
   const match = pathname.match(/^\/dashboard\/(status|config|analytics)\/([^/]+)(\/rules)?$/);
   if (match) {
     const [, section, installationId, rulesSuffix] = match;
     const installation = installations.find((i) => i.installationId === installationId);
-    crumbs.push({ label: "Installations", href: "/dashboard/installations" });
-    crumbs.push({ label: installation?.targetLogin ?? installationId!, href: `/dashboard/status/${installationId}` });
+    const repoLabel = installation?.targetLogin ?? installationId!;
+    const sectionLabel = rulesSuffix
+      ? "Rules"
+      : section === "status"
+        ? "Status"
+        : section === "config"
+          ? "Configure"
+          : "Analytics";
 
-    if (rulesSuffix) {
-      crumbs.push({ label: "Rules" });
-    } else {
-      const sectionLabel = section === "status" ? "Status" : section === "config" ? "Configure" : "Analytics";
-      crumbs.push({ label: sectionLabel });
-    }
-    return crumbs;
+    return [{ label: repoLabel, href: `/dashboard/status/${installationId}` }, { label: sectionLabel }];
   }
 
-  return crumbs;
+  return [{ label: "Home", href: "/dashboard" }];
 }
 
 export function Breadcrumbs({ installations }: { installations: InstallationRow[] }) {
@@ -48,16 +43,16 @@ export function Breadcrumbs({ installations }: { installations: InstallationRow[
   const crumbs = buildCrumbs(pathname, installations);
 
   return (
-    <nav className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+    <nav className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
       {crumbs.map((crumb, index) => (
         <span key={index} className="flex items-center gap-1.5">
           {index > 0 && <span className="text-muted-foreground/40">/</span>}
           {crumb.href ? (
-            <Link href={crumb.href} className="uppercase tracking-wide hover:text-foreground">
+            <Link href={crumb.href} className="hover:text-foreground">
               {crumb.label}
             </Link>
           ) : (
-            <span className="uppercase tracking-wide text-foreground">{crumb.label}</span>
+            <span className="text-foreground">{crumb.label}</span>
           )}
         </span>
       ))}

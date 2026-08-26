@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { InstallationTabs } from "../../../../components/InstallationTabs";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
@@ -31,8 +30,6 @@ export default async function StatusPage({ params }: { params: Promise<{ install
         <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
         <p className="text-sm text-muted-foreground">Recent classified commits.</p>
       </div>
-
-      <InstallationTabs installationId={installationId} active="status" />
 
       {loadError ? (
         <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{loadError}</p>
