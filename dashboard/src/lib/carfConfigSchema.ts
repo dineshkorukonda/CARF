@@ -35,3 +35,51 @@ export const LIVE_ADAPTER_KINDS: readonly AdapterKind[] = [
   "gitops",
   "dockerSwarm",
 ];
+
+/** Mirrors ClassificationChangeTypeSchema (tier1.ts's ChangeType minus "unclassified"). */
+export const ClassificationChangeTypeSchema = z.enum(["infra", "dependency", "config", "code", "data"]);
+export type ClassificationChangeType = z.infer<typeof ClassificationChangeTypeSchema>;
+
+/** Mirrors ThresholdChangeTypeSchema -- narrower than classification, no "data" category. */
+export const ThresholdChangeTypeSchema = z.enum(["infra", "dependency", "config", "code"]);
+export type ThresholdChangeType = z.infer<typeof ThresholdChangeTypeSchema>;
+
+export const ClassificationRuleSchema = z
+  .object({
+    type: ClassificationChangeTypeSchema,
+    patterns: z.array(z.string().min(1, "pattern can't be empty")).min(1, "at least one pattern is required"),
+  })
+  .strict();
+export type ClassificationRule = z.infer<typeof ClassificationRuleSchema>;
+
+export const ThresholdTypeOverrideSchema = z
+  .object({
+    baseThreshold: z.number().positive().optional(),
+    baseWindow: z.number().positive().optional(),
+  })
+  .strict();
+export type ThresholdTypeOverride = z.infer<typeof ThresholdTypeOverrideSchema>;
+
+export const ThresholdSchema = z
+  .object({
+    decay: z.number().min(0).max(1).optional(),
+    complexityDecay: z.number().min(0).max(1).optional(),
+    types: z
+      .object({
+        infra: ThresholdTypeOverrideSchema.optional(),
+        dependency: ThresholdTypeOverrideSchema.optional(),
+        config: ThresholdTypeOverrideSchema.optional(),
+        code: ThresholdTypeOverrideSchema.optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type ThresholdConfig = z.infer<typeof ThresholdSchema>;
+
+export const ClassificationSchema = z
+  .object({
+    rules: z.array(ClassificationRuleSchema).optional(),
+  })
+  .strict();
+export type ClassificationConfig = z.infer<typeof ClassificationSchema>;
