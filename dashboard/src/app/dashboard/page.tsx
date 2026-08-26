@@ -29,7 +29,7 @@ export default async function DashboardPage({
     <main className="max-w-[720px] mx-auto px-6 py-16 flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Welcome, {account.githubLogin}</h1>
+          <h1 className="text-xl font-semibold">Welcome, {account.email}</h1>
           <p className="text-sm text-muted-foreground">Manage which repos CARF can roll back for you.</p>
         </div>
         <form action="/api/auth/logout" method="POST">
