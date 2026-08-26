@@ -17,6 +17,18 @@ function normalizeGithubAppSlug(value: string): string {
   return match ? match[1]! : value;
 }
 
+/**
+ * PEM keys are multi-line; pasting one into a single-line env var UI (or JSON-encoding it
+ * along the way) commonly turns its real newlines into the two-character sequence "\n",
+ * which crypto's key parser rejects outright ("secretOrPrivateKey must be an asymmetric
+ * key when using RS256" from jsonwebtoken -- that error is really just "this doesn't look
+ * like a PEM key"). Turn literal "\n" back into real newlines; a no-op for a key that
+ * already has real ones, since those don't contain the two-character sequence.
+ */
+function normalizePrivateKey(value: string): string {
+  return value.includes("\\n") ? value.replace(/\\n/g, "\n") : value;
+}
+
 export const env = {
   /** Public origin the dashboard is served from, used to build OAuth/App-install redirect URIs. */
   baseUrl: () => requireEnv("DASHBOARD_BASE_URL"),
@@ -25,7 +37,7 @@ export const env = {
   /** URL slug of the CARF GitHub App, e.g. "carf-rollback" -- used to build the install-flow link. */
   githubAppSlug: () => normalizeGithubAppSlug(requireEnv("GITHUB_APP_SLUG")),
   githubAppId: () => requireEnv("GITHUB_APP_ID"),
-  githubAppPrivateKey: () => requireEnv("GITHUB_APP_PRIVATE_KEY"),
+  githubAppPrivateKey: () => normalizePrivateKey(requireEnv("GITHUB_APP_PRIVATE_KEY")),
   /** Base URL of the core-api instance this dashboard reads status data from (issue #64). */
   coreApiBaseUrl: () => requireEnv("CORE_API_BASE_URL"),
 };
