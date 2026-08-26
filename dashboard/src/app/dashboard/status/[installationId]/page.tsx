@@ -26,7 +26,7 @@ export default async function StatusPage({ params }: { params: Promise<{ install
   }
 
   return (
-    <main className="max-w-[860px] mx-auto px-6 py-16 flex flex-col gap-6">
+    <main className="mx-auto flex max-w-[860px] flex-col gap-6 px-6 py-16">
       <div>
         <h1 className="text-xl font-semibold">Live status</h1>
         <p className="text-sm text-muted-foreground">Recent classified commits for {installation.targetLogin}.</p>
@@ -39,7 +39,7 @@ export default async function StatusPage({ params }: { params: Promise<{ install
         </CardHeader>
         <CardContent>
           {loadError ? (
-            <p className="text-sm text-destructive">{loadError}</p>
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{loadError}</p>
           ) : (
             <StatusTable installationId={installationId} initial={commits} />
           )}

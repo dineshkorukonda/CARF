@@ -2,6 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { Badge } from "../../../../components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../../../components/ui/table";
 import type { RecentCommit } from "../../../../adapters/coreApi/client";
 
 const POLL_INTERVAL_MS = 15_000;
@@ -38,27 +46,31 @@ export function StatusTable({ installationId, initial }: { installationId: strin
         {error && <span className="text-destructive"> {error}</span>}
       </p>
 
-      {commits.length === 0 && <p className="text-sm text-muted-foreground">No classified commits yet.</p>}
+      {commits.length === 0 && (
+        <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+          No classified commits yet.
+        </p>
+      )}
 
       {commits.length > 0 && (
-        <div className="overflow-auto rounded-lg border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50 text-left">
-                <th className="px-3 py-2 font-medium">Commit</th>
-                <th className="px-3 py-2 font-medium">Types</th>
-                <th className="px-3 py-2 font-medium">Threshold</th>
-                <th className="px-3 py-2 font-medium">Window</th>
-                <th className="px-3 py-2 font-medium">Outcome</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead>Commit</TableHead>
+                <TableHead>Types</TableHead>
+                <TableHead>Threshold</TableHead>
+                <TableHead>Window</TableHead>
+                <TableHead>Outcome</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {commits.map((c) => (
-                <tr key={c.sha} className="border-b last:border-0">
-                  <td className="px-3 py-2 font-mono text-xs">
+                <TableRow key={c.sha}>
+                  <TableCell className="font-mono text-xs">
                     {c.owner}/{c.repo}@{c.sha.slice(0, 7)}
-                  </td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {c.activeTypes.length === 0 ? (
                         <span className="text-muted-foreground">--</span>
@@ -70,10 +82,10 @@ export function StatusTable({ installationId, initial }: { installationId: strin
                         ))
                       )}
                     </div>
-                  </td>
-                  <td className="px-3 py-2">{c.finalThreshold ?? "--"}</td>
-                  <td className="px-3 py-2">{c.finalWindow ? `${c.finalWindow}s` : "--"}</td>
-                  <td className="px-3 py-2">
+                  </TableCell>
+                  <TableCell>{c.finalThreshold ?? "--"}</TableCell>
+                  <TableCell>{c.finalWindow ? `${c.finalWindow}s` : "--"}</TableCell>
+                  <TableCell>
                     {c.rolledBack === null ? (
                       <span className="text-muted-foreground">--</span>
                     ) : c.rolledBack ? (
@@ -81,11 +93,11 @@ export function StatusTable({ installationId, initial }: { installationId: strin
                     ) : (
                       <Badge variant="secondary">healthy</Badge>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

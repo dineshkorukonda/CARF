@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { Button } from "../../../../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../../../components/ui/card";
+import { Input } from "../../../../../components/ui/input";
+import { Label } from "../../../../../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../../components/ui/select";
+import { Textarea } from "../../../../../components/ui/textarea";
 import {
   ClassificationSchema,
   ThresholdSchema,
@@ -167,23 +171,27 @@ export function RulesForm({
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {state.rules.map((rule, index) => (
-            <div key={index} className="flex gap-2 items-start rounded-lg border p-2">
-              <select
+            <div key={index} className="flex items-start gap-2 rounded-lg border p-2">
+              <Select
                 value={rule.type}
-                onChange={(e) => updateRule(index, { type: e.target.value as ClassificationChangeType })}
-                className="rounded-md border px-2 py-1.5 text-sm"
+                onValueChange={(value) => updateRule(index, { type: value as ClassificationChangeType })}
               >
-                {CLASSIFICATION_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <textarea
+                <SelectTrigger className="shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CLASSIFICATION_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Textarea
                 value={rule.patternsText}
                 onChange={(e) => updateRule(index, { patternsText: e.target.value })}
                 placeholder={"one glob per line, e.g.\ndeploy/**/*.yaml"}
-                className="flex-1 rounded-md border px-2 py-1.5 text-sm font-mono"
+                className="flex-1 font-mono text-sm"
                 rows={2}
               />
               <Button variant="ghost" size="sm" type="button" onClick={() => removeRule(index)}>
@@ -204,43 +212,39 @@ export function RulesForm({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex gap-4">
-            <label className="flex flex-col gap-1 text-sm">
-              decay (0-1)
-              <input
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label>decay (0-1)</Label>
+              <Input
                 value={state.decay}
                 onChange={(e) => setState((s) => ({ ...s, decay: e.target.value }))}
-                className="rounded-md border px-2 py-1.5 text-sm"
               />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              complexityDecay (0-1)
-              <input
+            </div>
+            <div className="flex flex-1 flex-col gap-1.5">
+              <Label>complexityDecay (0-1)</Label>
+              <Input
                 value={state.complexityDecay}
                 onChange={(e) => setState((s) => ({ ...s, complexityDecay: e.target.value }))}
-                className="rounded-md border px-2 py-1.5 text-sm"
               />
-            </label>
+            </div>
           </div>
 
           {THRESHOLD_TYPES.map((t) => (
-            <div key={t} className="flex items-end gap-4 rounded-lg border p-2">
-              <span className="text-sm font-medium w-24">{t}</span>
-              <label className="flex flex-col gap-1 text-sm">
-                baseThreshold
-                <input
+            <div key={t} className="flex flex-wrap items-end gap-4 rounded-lg border p-2">
+              <span className="w-24 text-sm font-medium">{t}</span>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label>baseThreshold</Label>
+                <Input
                   value={state.types[t].baseThreshold}
                   onChange={(e) => updateTypeField(t, "baseThreshold", e.target.value)}
-                  className="rounded-md border px-2 py-1.5 text-sm"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                baseWindow (seconds)
-                <input
+              </div>
+              <div className="flex flex-1 flex-col gap-1.5">
+                <Label>baseWindow (seconds)</Label>
+                <Input
                   value={state.types[t].baseWindow}
                   onChange={(e) => updateTypeField(t, "baseWindow", e.target.value)}
-                  className="rounded-md border px-2 py-1.5 text-sm"
                 />
-              </label>
+              </div>
             </div>
           ))}
         </CardContent>

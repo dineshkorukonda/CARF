@@ -66,14 +66,14 @@ export default async function RulesPage({
 
   if (!selectedFullName) {
     return (
-      <main className="max-w-[560px] mx-auto px-6 py-16 flex flex-col gap-6">
+      <main className="mx-auto flex max-w-[560px] flex-col gap-6 px-6 py-16">
         <h1 className="text-xl font-semibold">Choose a repository</h1>
         <div className="flex flex-col gap-2">
           {repos.map((r) => (
             <a
               key={r.id}
               href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(r.full_name)}`}
-              className="rounded-lg border px-3 py-2 text-sm hover:bg-muted"
+              className="rounded-lg border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
             >
               {r.full_name}
             </a>
@@ -88,7 +88,7 @@ export default async function RulesPage({
   const existing = (file ? (load(file.content) as ExistingClassificationThreshold | undefined) : undefined) ?? {};
 
   return (
-    <main className="max-w-[720px] mx-auto px-6 py-16 flex flex-col gap-6">
+    <main className="mx-auto flex max-w-[720px] flex-col gap-6 px-6 py-16">
       <div>
         <h1 className="text-xl font-semibold">Classification &amp; threshold</h1>
         <p className="text-sm text-muted-foreground">
@@ -96,7 +96,11 @@ export default async function RulesPage({
         </p>
       </div>
 
-      {saved && <p className="text-sm text-green-700">Saved -- committed to {selectedFullName}.</p>}
+      {saved && (
+        <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
+          Saved -- committed to {selectedFullName}.
+        </p>
+      )}
 
       <RulesForm installationId={installationId} owner={owner!} repo={repoName!} initial={toFormInitial(existing)} />
     </main>
