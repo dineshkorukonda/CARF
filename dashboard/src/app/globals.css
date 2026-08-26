@@ -3,14 +3,79 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/*
+ * shadcn's components (Card, Button, Badge, Select, ...) style themselves entirely through
+ * semantic tokens like bg-card/text-muted-foreground/ring-foreground -- Tailwind v4 can only
+ * generate those utilities if a matching `--color-*` variable exists under `@theme`. This
+ * project never defined them (in either dashboard/ or web/), so every one of those utility
+ * classes has been a silent no-op since the components were first added: no card background,
+ * no popover background, no primary-button fill. It mostly went unnoticed because the
+ * fallback (transparent, inheriting the plain white body) happened to look plausible -- until
+ * a floating popup (the mode/adapter Select) needed an actually-opaque background to sit on
+ * top of the page, and rendered fully transparent instead, overlapping the form beneath it.
+ *
+ * Single dark theme (no light/dark toggle) -- this app doesn't need one, and defining just
+ * :root keeps every existing bg-card/text-foreground/etc. class finally doing something.
+ */
+:root {
+  --background: oklch(0.16 0.006 260);
+  --foreground: oklch(0.94 0.004 260);
+  --card: oklch(0.20 0.006 260);
+  --card-foreground: oklch(0.94 0.004 260);
+  --popover: oklch(0.22 0.006 260);
+  --popover-foreground: oklch(0.94 0.004 260);
+  --primary: oklch(0.94 0.004 260);
+  --primary-foreground: oklch(0.16 0.006 260);
+  --secondary: oklch(0.27 0.006 260);
+  --secondary-foreground: oklch(0.94 0.004 260);
+  --muted: oklch(0.24 0.006 260);
+  --muted-foreground: oklch(0.66 0.006 260);
+  --accent: oklch(0.27 0.006 260);
+  --accent-foreground: oklch(0.94 0.004 260);
+  --destructive: oklch(0.62 0.21 25);
+  --destructive-foreground: oklch(0.97 0.01 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.6 0.02 260);
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-md: var(--radius);
+  --font-sans: 'Poppins', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  /* CardTitle's "font-heading" utility referenced this without it ever being defined --
+     harmless (just inherited body's Poppins), but defining it removes the dead reference. */
+  --font-heading: 'Poppins', system-ui, sans-serif;
+}
+
 html {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
-  background: #ffffff;
-  color: #111111;
-  font-family: 'Poppins', system-ui, sans-serif;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

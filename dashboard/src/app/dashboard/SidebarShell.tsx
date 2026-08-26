@@ -30,8 +30,8 @@ function NavLink({
       href={href}
       title={collapsed ? String(children) : undefined}
       className={
-        "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors " +
-        (active ? "bg-white/10 text-white" : "text-[#a7adba] hover:bg-white/5 hover:text-white")
+        "flex items-center gap-2.5 rounded-md px-3 py-1.5 font-mono text-xs tracking-wide uppercase transition-colors " +
+        (active ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")
       }
     >
       {icon}
@@ -59,8 +59,8 @@ function SubNavLink({
       href={href}
       title={collapsed ? String(children) : undefined}
       className={
-        "flex items-center gap-2 rounded-md px-3 py-1 text-xs transition-colors " +
-        (active ? "bg-white/10 text-white" : "text-[#a7adba] hover:bg-white/5 hover:text-white")
+        "flex items-center gap-2 rounded-md px-3 py-1 font-mono text-[11px] tracking-wide uppercase transition-colors " +
+        (active ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/5 hover:text-foreground")
       }
     >
       {icon}
@@ -108,14 +108,14 @@ export function SidebarShell({
   return (
     <aside
       className={
-        "flex shrink-0 flex-col justify-between bg-[#0b0e14] text-[#e3e6ea] transition-[width] duration-150 " +
+        "flex shrink-0 flex-col justify-between bg-card text-card-foreground transition-[width] duration-150 " +
         (collapsed ? "w-16" : "w-60")
       }
     >
       <div className="flex flex-col gap-6 px-3 py-5">
         <div className="flex items-center justify-between px-1">
-          <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium tracking-tight text-white">
-            <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-[#0b0e14]">
+          <Link href="/dashboard" className="flex items-center gap-2 text-sm font-medium tracking-tight">
+            <span className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] tracking-widest text-background">
               CARF
             </span>
             {!collapsed && <span>Dashboard</span>}
@@ -124,7 +124,7 @@ export function SidebarShell({
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="rounded-md p-1 text-[#5c6270] transition-colors hover:bg-white/5 hover:text-white"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
           >
             {collapsed ? <ChevronsRight className="size-4" /> : <ChevronsLeft className="size-4" />}
           </button>
@@ -138,10 +138,12 @@ export function SidebarShell({
 
         <div className="flex flex-col gap-0.5">
           {!collapsed && (
-            <p className="px-3 text-[11px] font-medium tracking-wide text-[#5c6270] uppercase">Installations</p>
+            <p className="px-3 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              Installations
+            </p>
           )}
           {installations.length === 0 && !collapsed && (
-            <p className="px-3 py-1.5 text-sm text-[#5c6270]">None yet</p>
+            <p className="px-3 py-1.5 text-sm text-muted-foreground">None yet</p>
           )}
           {installations.map((installation) => (
             <div key={installation.id} className="flex flex-col">
@@ -150,7 +152,7 @@ export function SidebarShell({
                 title={collapsed ? installation.targetLogin : undefined}
               >
                 <span className="size-1.5 shrink-0 rounded-full bg-emerald-400" />
-                {!collapsed && <span className="truncate text-sm text-[#e3e6ea]">{installation.targetLogin}</span>}
+                {!collapsed && <span className="truncate text-sm">{installation.targetLogin}</span>}
               </div>
               <div className={collapsed ? "flex flex-col" : "ml-6 flex flex-col"}>
                 <SubNavLink
@@ -173,15 +175,15 @@ export function SidebarShell({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-white/10 px-3 py-4">
-        {!collapsed && <p className="truncate px-1 text-xs text-[#5c6270]">{accountEmail}</p>}
+      <div className="flex flex-col gap-3 border-t border-border px-3 py-4">
+        {!collapsed && <p className="truncate px-1 text-xs text-muted-foreground">{accountEmail}</p>}
         <form action="/api/auth/logout" method="POST">
           <Button
             variant="outline"
             size="sm"
             type="submit"
             title={collapsed ? "Sign out" : undefined}
-            className="w-full justify-center gap-2 border-white/15 bg-transparent text-[#e3e6ea] hover:bg-white/10 hover:text-white"
+            className="w-full justify-center gap-2 bg-transparent hover:bg-white/10"
           >
             <LogOut className="size-4 shrink-0" />
             {!collapsed && "Sign out"}
