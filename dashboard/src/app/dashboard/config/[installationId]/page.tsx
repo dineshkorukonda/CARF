@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { InstallationTabs } from "../../../../components/InstallationTabs";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
@@ -85,8 +84,6 @@ export default async function ConfigPage({
           {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
         </p>
       </div>
-
-      <InstallationTabs installationId={installationId} active="config" />
 
       {error && (
         <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">

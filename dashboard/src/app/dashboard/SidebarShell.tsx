@@ -5,9 +5,15 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, UserRound } from "lucide-react";
 import { Button } from "../../components/ui/button";
+import { InstallationSwitcher } from "./InstallationSwitcher";
 import type { InstallationRow } from "../../lib/accountService";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
+
+function activeInstallationId(pathname: string): string | null {
+  const match = pathname.match(/^\/dashboard\/(?:status|config|analytics)\/([^/]+)/);
+  return match ? match[1]! : null;
+}
 
 function NavLink({
   href,
@@ -42,7 +48,7 @@ function NavLink({
   );
 }
 
-function SubNavLink({
+function ContextNavLink({
   href,
   icon,
   collapsed,
@@ -61,10 +67,10 @@ function SubNavLink({
       href={href}
       title={collapsed ? String(children) : undefined}
       className={
-        "flex items-center gap-2 rounded-sm px-3 py-1 text-xs transition-colors " +
+        "flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors " +
         (active
-          ? "text-sidebar-foreground"
-          : "text-sidebar-foreground/45 hover:text-sidebar-foreground/80")
+          ? "bg-sidebar-foreground/10 text-sidebar-foreground"
+          : "text-sidebar-foreground/55 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
       }
     >
       {icon}
@@ -80,6 +86,7 @@ export function SidebarShell({
   installations: InstallationRow[];
   accountEmail: string;
 }) {
+  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -109,6 +116,9 @@ export function SidebarShell({
     });
   }
 
+  const activeId = activeInstallationId(pathname);
+  const active = activeId ? installations.find((i) => i.installationId === activeId) : undefined;
+
   return (
     <aside
       className={
@@ -116,8 +126,8 @@ export function SidebarShell({
         (collapsed ? "w-16" : "w-60")
       }
     >
-      <div className="flex flex-col gap-7 px-3 py-6">
-        <div className={collapsed ? "flex flex-col items-center gap-3" : "flex items-center justify-between px-1"}>
+      <div className="flex flex-col gap-5 py-6">
+        <div className={collapsed ? "flex flex-col items-center gap-3 px-3" : "flex items-center justify-between px-4"}>
           <Link href="/dashboard" className="flex items-center gap-2 text-sm font-bold tracking-wide">
             {collapsed ? (
               <span className="flex size-6 items-center justify-center text-[13px] font-bold">C</span>
@@ -135,72 +145,94 @@ export function SidebarShell({
           </button>
         </div>
 
-        <nav className="flex flex-col gap-0.5">
-          <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
-            Home
-          </NavLink>
-          <NavLink
-            href="/dashboard/installations"
-            collapsed={collapsed}
-            icon={<Boxes className="size-4 shrink-0" />}
-          >
-            Installations
-          </NavLink>
-        </nav>
-
-        <div className="flex flex-col gap-1">
-          {!collapsed && (
-            <p className="px-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/40 uppercase">
-              Your repos
-            </p>
-          )}
-          {installations.length === 0 && !collapsed && (
-            <p className="px-3 py-1.5 text-sm text-sidebar-foreground/45">None yet</p>
-          )}
-          {installations.map((installation) => (
-            <div key={installation.id} className="flex flex-col">
-              <div
-                className="flex items-center gap-2 px-3 py-1.5"
-                title={collapsed ? installation.targetLogin : undefined}
+        {active ? (
+          <>
+            <InstallationSwitcher installations={installations} active={active} collapsed={collapsed} />
+            <nav className="flex flex-col gap-0.5 px-3">
+              <ContextNavLink
+                href={`/dashboard/status/${active.installationId}`}
+                collapsed={collapsed}
+                icon={<Radio className="size-4 shrink-0" />}
               >
-                <span className="size-1.5 shrink-0 rounded-full bg-[#5b6cff]" />
-                {!collapsed && <span className="truncate text-sm font-medium">{installation.targetLogin}</span>}
-              </div>
-              <div className={collapsed ? "flex flex-col" : "ml-6 flex flex-col"}>
-                <SubNavLink
+                Status
+              </ContextNavLink>
+              <ContextNavLink
+                href={`/dashboard/config/${active.installationId}`}
+                collapsed={collapsed}
+                icon={<Settings2 className="size-4 shrink-0" />}
+              >
+                Configure
+              </ContextNavLink>
+              <ContextNavLink
+                href={`/dashboard/config/${active.installationId}/rules`}
+                collapsed={collapsed}
+                icon={<Settings2 className="size-4 shrink-0" />}
+              >
+                Rules
+              </ContextNavLink>
+              <ContextNavLink
+                href={`/dashboard/analytics/${active.installationId}`}
+                collapsed={collapsed}
+                icon={<BarChart3 className="size-4 shrink-0" />}
+              >
+                Analytics
+              </ContextNavLink>
+            </nav>
+
+            <div className="mx-4 border-t border-sidebar-foreground/10" />
+
+            <nav className="flex flex-col gap-0.5 px-3">
+              <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
+                Home
+              </NavLink>
+              <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
+                All installations
+              </NavLink>
+            </nav>
+          </>
+        ) : (
+          <>
+            <nav className="flex flex-col gap-0.5 px-3">
+              <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
+                Home
+              </NavLink>
+              <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
+                All installations
+              </NavLink>
+            </nav>
+
+            <div className="mx-4 border-t border-sidebar-foreground/10" />
+
+            <div className="flex flex-col gap-1 px-3">
+              {!collapsed && (
+                <p className="px-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/40 uppercase">
+                  Jump to a repo
+                </p>
+              )}
+              {installations.length === 0 && !collapsed && (
+                <p className="px-3 py-1.5 text-sm text-sidebar-foreground/45">None yet</p>
+              )}
+              {installations.map((installation) => (
+                <Link
+                  key={installation.id}
                   href={`/dashboard/status/${installation.installationId}`}
-                  collapsed={collapsed}
-                  icon={<Radio className="size-3.5 shrink-0" />}
+                  title={collapsed ? installation.targetLogin : undefined}
+                  className="flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
                 >
-                  Status
-                </SubNavLink>
-                <SubNavLink
-                  href={`/dashboard/config/${installation.installationId}`}
-                  collapsed={collapsed}
-                  icon={<Settings2 className="size-3.5 shrink-0" />}
-                >
-                  Configure
-                </SubNavLink>
-                <SubNavLink
-                  href={`/dashboard/analytics/${installation.installationId}`}
-                  collapsed={collapsed}
-                  icon={<BarChart3 className="size-3.5 shrink-0" />}
-                >
-                  Analytics
-                </SubNavLink>
-              </div>
+                  <span className="size-1.5 shrink-0 rounded-full bg-[#5b6cff]" />
+                  {!collapsed && <span className="truncate">{installation.targetLogin}</span>}
+                </Link>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
 
       <div className="flex flex-col gap-1 border-t border-sidebar-foreground/10 px-3 py-4">
         <NavLink href="/dashboard/account" collapsed={collapsed} icon={<UserRound className="size-4 shrink-0" />}>
           Account
         </NavLink>
-        {!collapsed && (
-          <p className="truncate px-3 pt-2 text-xs text-sidebar-foreground/45">{accountEmail}</p>
-        )}
+        {!collapsed && <p className="truncate px-3 pt-2 text-xs text-sidebar-foreground/45">{accountEmail}</p>}
         <form action="/api/auth/logout" method="POST" className="mt-1">
           <Button
             variant="outline"

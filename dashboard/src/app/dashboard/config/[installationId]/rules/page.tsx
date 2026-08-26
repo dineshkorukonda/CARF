@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { load } from "js-yaml";
-import { InstallationTabs } from "../../../../../components/InstallationTabs";
 import { getCurrentAccount } from "../../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../../lib/accountService";
 import { prisma } from "../../../../../lib/prisma";
@@ -96,8 +95,6 @@ export default async function RulesPage({
           {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
         </p>
       </div>
-
-      <InstallationTabs installationId={installationId} active="rules" />
 
       {saved && (
         <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
