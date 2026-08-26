@@ -47,13 +47,13 @@ export function StatusTable({ installationId, initial }: { installationId: strin
       </p>
 
       {commits.length === 0 && (
-        <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-sm border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
           No classified commits yet.
         </p>
       )}
 
       {commits.length > 0 && (
-        <div className="rounded-lg border">
+        <div className="rounded-sm border border-border">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50 hover:bg-muted/50">

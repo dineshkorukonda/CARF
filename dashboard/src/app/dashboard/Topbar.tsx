@@ -17,8 +17,8 @@ export function Topbar({ accountEmail }: { accountEmail: string }) {
   const initial = accountEmail.charAt(0).toUpperCase();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-6">
-      <h1 className="text-sm font-semibold">{pageTitle(pathname)}</h1>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6">
+      <h1 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{pageTitle(pathname)}</h1>
       <div className="flex items-center gap-2.5">
         <ThemeToggle />
         <span className="hidden text-sm text-muted-foreground sm:inline">{accountEmail}</span>
