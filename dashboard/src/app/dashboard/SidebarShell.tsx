@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2 } from "lucide-react";
+import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, UserRound } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
 
@@ -181,17 +181,27 @@ export function SidebarShell({
                 >
                   Configure
                 </SubNavLink>
+                <SubNavLink
+                  href={`/dashboard/analytics/${installation.installationId}`}
+                  collapsed={collapsed}
+                  icon={<BarChart3 className="size-3.5 shrink-0" />}
+                >
+                  Analytics
+                </SubNavLink>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-sidebar-foreground/10 px-3 py-4">
+      <div className="flex flex-col gap-1 border-t border-sidebar-foreground/10 px-3 py-4">
+        <NavLink href="/dashboard/account" collapsed={collapsed} icon={<UserRound className="size-4 shrink-0" />}>
+          Account
+        </NavLink>
         {!collapsed && (
-          <p className="truncate px-1 text-xs text-sidebar-foreground/45">{accountEmail}</p>
+          <p className="truncate px-3 pt-2 text-xs text-sidebar-foreground/45">{accountEmail}</p>
         )}
-        <form action="/api/auth/logout" method="POST">
+        <form action="/api/auth/logout" method="POST" className="mt-1">
           <Button
             variant="outline"
             size="sm"

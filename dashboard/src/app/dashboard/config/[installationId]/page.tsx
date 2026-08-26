@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { InstallationTabs } from "../../../../components/InstallationTabs";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
@@ -78,28 +79,22 @@ export default async function ConfigPage({
 
   return (
     <main className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Mode &amp; adapter</h1>
-          <p className="text-sm text-muted-foreground">
-            {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
-          </p>
-        </div>
-        <a
-          href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(selectedFullName)}`}
-          className="shrink-0 text-sm font-medium underline underline-offset-4"
-        >
-          Classification &amp; threshold →
-        </a>
+      <div>
+        <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
+        <p className="text-sm text-muted-foreground">
+          {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
+        </p>
       </div>
 
+      <InstallationTabs installationId={installationId} active="config" />
+
       {error && (
-        <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {ERROR_MESSAGES[error] ?? "Something went wrong."}
         </p>
       )}
       {saved && (
-        <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
+        <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
           Saved -- committed to {selectedFullName}.
         </p>
       )}

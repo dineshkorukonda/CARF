@@ -7,6 +7,7 @@ export interface AccountRow {
   id: string;
   email: string;
   passwordHash: string;
+  createdAt: Date;
 }
 
 export interface InstallationRow {
@@ -30,6 +31,7 @@ export interface DashboardPrismaClient {
   account: {
     create(args: { data: { email: string; passwordHash: string } }): Promise<AccountRow>;
     findUnique(args: { where: { email: string } }): Promise<AccountRow | null>;
+    update(args: { where: { id: string }; data: { passwordHash: string } }): Promise<AccountRow>;
   };
   installation: {
     findFirst(args: { where: { accountId: string; installationId: string } }): Promise<InstallationRow | null>;
@@ -84,6 +86,14 @@ export async function verifyCredentials(
 
   const valid = await bcrypt.compare(password, account.passwordHash);
   return valid ? account : null;
+}
+
+/** Re-hashes and stores a new password for an already-authenticated account (the Account
+ *  settings page's change-password form) -- no current-password check, since the caller
+ *  already has a valid session cookie proving recent authentication. */
+export async function updatePassword(prisma: DashboardPrismaClient, accountId: string, newPassword: string): Promise<void> {
+  const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+  await prisma.account.update({ where: { id: accountId }, data: { passwordHash } });
 }
 
 /**

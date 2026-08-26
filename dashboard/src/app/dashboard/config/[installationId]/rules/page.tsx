@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { load } from "js-yaml";
+import { InstallationTabs } from "../../../../../components/InstallationTabs";
 import { getCurrentAccount } from "../../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../../lib/accountService";
 import { prisma } from "../../../../../lib/prisma";
@@ -88,16 +89,18 @@ export default async function RulesPage({
   const existing = (file ? (load(file.content) as ExistingClassificationThreshold | undefined) : undefined) ?? {};
 
   return (
-    <main className="flex max-w-3xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold">Classification &amp; threshold</h1>
+        <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
         <p className="text-sm text-muted-foreground">
           {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
         </p>
       </div>
 
+      <InstallationTabs installationId={installationId} active="rules" />
+
       {saved && (
-        <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary">
+        <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
           Saved -- committed to {selectedFullName}.
         </p>
       )}

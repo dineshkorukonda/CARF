@@ -15,7 +15,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
     <div className="flex min-h-screen">
       <SidebarShell installations={installations} accountEmail={account.email} />
       <div className="flex min-w-0 flex-1 flex-col bg-muted/30">
-        <Topbar accountEmail={account.email} />
+        <Topbar accountEmail={account.email} installations={installations} />
         <div className="flex-1">{children}</div>
       </div>
     </div>
