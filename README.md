@@ -34,7 +34,7 @@ CARF/
 | Standalone rollout outcome telemetry (persisted, tenant-scoped) | Implemented |
 | Dashboard: GitHub OAuth + App install flow | Implemented |
 | Dashboard: mode/adapter + classification/threshold config UI (commits `.carf.yml` via GitHub API) | Implemented |
-| Dashboard: live status/threshold view | Planned |
+| Dashboard: live status/threshold view (polls `GET /v1/commits`) | Implemented |
 | Multi-tenant data isolation (per-installation API keys, `installationId`-scoped queries) | Implemented |
 
 See [`web/src/app/docs/page.tsx`](web/src/app/docs/page.tsx) (rendered at `/docs`) for the detailed, per-feature breakdown, and [`docs/CARF_PROPOSED_IMPLEMENTATION.md`](docs/CARF_PROPOSED_IMPLEMENTATION.md) for the full design spec.
@@ -82,7 +82,7 @@ Where there's no existing progressive-delivery pipeline to augment, `core-api` c
 
 ## Dashboard
 
-[`dashboard/`](dashboard/README.md) is the team-facing onboarding surface: sign in with GitHub, install the CARF GitHub App on a repo, and (in later issues) configure mode/adapter and classification/threshold rules, plus view live rollback status. Its GitHub OAuth login and App install flow persist the resulting `installation_id` — core-api's tenancy key — against the logged-in account; see [`dashboard/README.md`](dashboard/README.md#github-oauth--app-install-flow-issue-61) for the full flow.
+[`dashboard/`](dashboard/README.md) is the team-facing onboarding surface: sign in with GitHub, install the CARF GitHub App on a repo, configure mode/adapter and classification/threshold rules (both commit straight to the repo's `.carf.yml` via the GitHub API), and watch a polling live status view of recent commits' classification and threshold data. Its GitHub OAuth login and App install flow persist the resulting `installation_id` — core-api's tenancy key — against the logged-in account, and the status view is the first screen to call core-api directly, authenticating with a core-api-issued installation API key it fetches and caches on demand; see [`dashboard/README.md`](dashboard/README.md#github-oauth--app-install-flow-issue-61) for the full flow.
 
 ## CI
 

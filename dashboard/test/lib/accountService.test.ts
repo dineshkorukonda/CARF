@@ -3,6 +3,7 @@ import {
   getInstallationForAccount,
   linkInstallation,
   listInstallationsForAccount,
+  saveCoreApiKey,
   upsertAccountFromGithubUser,
   type AccountRow,
   type DashboardPrismaClient,
@@ -56,12 +57,24 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
         this.installations.set(existing.id, updated);
         return updated;
       }
-      const row: InstallationRow = { id: `installation-${this.nextId++}`, createdAt: new Date(), ...args.create };
+      const row: InstallationRow = {
+        id: `installation-${this.nextId++}`,
+        createdAt: new Date(),
+        coreApiKey: null,
+        ...args.create,
+      };
       this.installations.set(row.id, row);
       return row;
     },
     findMany: async (args: { where: { accountId: string } }) =>
       [...this.installations.values()].filter((i) => i.accountId === args.where.accountId),
+    update: async (args: { where: { installationId: string }; data: { coreApiKey: string } }) => {
+      const existing = [...this.installations.values()].find((i) => i.installationId === args.where.installationId);
+      if (!existing) throw new Error(`no installation ${args.where.installationId}`);
+      const updated = { ...existing, ...args.data };
+      this.installations.set(existing.id, updated);
+      return updated;
+    },
   };
 }
 
@@ -161,5 +174,22 @@ describe("getInstallationForAccount", () => {
     const prisma = new FakeDashboardPrismaClient();
     const account = await upsertAccountFromGithubUser(prisma, githubUser);
     expect(await getInstallationForAccount(prisma, account.id, "does-not-exist")).toBeNull();
+  });
+});
+
+describe("saveCoreApiKey", () => {
+  it("persists the key on the installation row", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const account = await upsertAccountFromGithubUser(prisma, githubUser);
+    await linkInstallation(prisma, account.id, {
+      id: 999,
+      account: { login: "acme", type: "Organization" },
+      repository_selection: "all",
+    });
+
+    await saveCoreApiKey(prisma, "999", "carf_the-key");
+
+    const found = await getInstallationForAccount(prisma, account.id, "999");
+    expect(found?.coreApiKey).toBe("carf_the-key");
   });
 });
