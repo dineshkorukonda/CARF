@@ -42,14 +42,14 @@ export default async function InstallationsPage({
       )}
 
       {installations.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-3 py-10 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-sm border border-dashed border-border px-3 py-10 text-center">
           <p className="text-sm text-muted-foreground">
             No installations yet. Install the CARF GitHub App on a repo to get started.
           </p>
           <Button render={<a href="/api/github-app/install/start" />}>Install the CARF GitHub App</Button>
         </div>
       ) : (
-        <div className="flex flex-col divide-y rounded-lg border">
+        <div className="flex flex-col divide-y divide-border rounded-sm border border-border">
           {installations.map((installation) => (
             <div key={installation.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div className="flex items-center gap-2.5">
@@ -57,7 +57,8 @@ export default async function InstallationsPage({
                 <div>
                   <p className="text-sm font-medium">{installation.targetLogin}</p>
                   <p className="text-xs text-muted-foreground">
-                    installation {installation.installationId} · {installation.repositorySelection} repos
+                    installation <span className="font-mono">{installation.installationId}</span> ·{" "}
+                    {installation.repositorySelection} repos
                   </p>
                 </div>
               </div>
@@ -85,7 +86,7 @@ export default async function InstallationsPage({
         </div>
       )}
 
-      <div className="border-t pt-4">
+      <div className="border-t border-border pt-4">
         <p className="text-sm font-medium">Already installed, but not showing up?</p>
         <p className="text-xs text-muted-foreground">
           If GitHub didn&apos;t redirect back here after install, paste the installation id from the app&apos;s
