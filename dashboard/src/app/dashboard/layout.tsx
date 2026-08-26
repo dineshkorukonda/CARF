@@ -4,6 +4,7 @@ import { getCurrentAccount } from "../../lib/auth";
 import { listInstallationsForAccount } from "../../lib/accountService";
 import { prisma } from "../../lib/prisma";
 import { Button } from "../../components/ui/button";
+import { SidebarNav } from "./SidebarNav";
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const account = await getCurrentAccount();
@@ -22,43 +23,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
             <span>Dashboard</span>
           </Link>
 
-          <nav className="flex flex-col gap-0.5">
-            <Link
-              href="/dashboard"
-              className="rounded-md px-3 py-1.5 text-sm text-[#a7adba] transition-colors hover:bg-white/5 hover:text-white"
-            >
-              Overview
-            </Link>
-          </nav>
-
-          <div className="flex flex-col gap-0.5">
-            <p className="px-3 text-[11px] font-medium tracking-wide text-[#5c6270] uppercase">Installations</p>
-            {installations.length === 0 && (
-              <p className="px-3 py-1.5 text-sm text-[#5c6270]">None yet</p>
-            )}
-            {installations.map((installation) => (
-              <div key={installation.id} className="flex flex-col">
-                <div className="flex items-center gap-2 px-3 py-1.5">
-                  <span className="size-1.5 shrink-0 rounded-full bg-emerald-400" />
-                  <span className="truncate text-sm text-[#e3e6ea]">{installation.targetLogin}</span>
-                </div>
-                <div className="ml-6 flex flex-col">
-                  <Link
-                    href={`/dashboard/status/${installation.installationId}`}
-                    className="rounded-md px-3 py-1 text-xs text-[#a7adba] transition-colors hover:bg-white/5 hover:text-white"
-                  >
-                    Status
-                  </Link>
-                  <Link
-                    href={`/dashboard/config/${installation.installationId}`}
-                    className="rounded-md px-3 py-1 text-xs text-[#a7adba] transition-colors hover:bg-white/5 hover:text-white"
-                  >
-                    Configure
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+          <SidebarNav installations={installations} />
         </div>
 
         <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4">

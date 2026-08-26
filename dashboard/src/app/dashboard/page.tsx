@@ -1,13 +1,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
 import { getCurrentAccount } from "../../lib/auth";
 import { listInstallationsForAccount } from "../../lib/accountService";
 import { prisma } from "../../lib/prisma";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_install_state: "GitHub App install request expired or was tampered with. Please try again.",
-  install_link_failed: "Couldn't confirm the new installation with GitHub. Please try again.",
+  install_link_failed: "Couldn't confirm that installation with GitHub -- check the id and try again.",
+  invalid_installation_id: "That doesn't look like a valid installation id (numbers only).",
   not_authorized: "That installation isn't linked to your account.",
 };
 
@@ -34,14 +37,14 @@ export default async function DashboardPage({
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="shadow-sm">
           <CardHeader className="gap-1">
             <CardDescription>Installations</CardDescription>
             <CardTitle className="text-2xl font-semibold">{installations.length}</CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="gap-1">
             <CardDescription>Standalone-managed repos</CardDescription>
             <CardTitle className="text-2xl font-semibold">
@@ -49,24 +52,21 @@ export default async function DashboardPage({
             </CardTitle>
           </CardHeader>
         </Card>
-        <Card>
-          <CardHeader className="gap-1">
-            <CardDescription>Signed in as</CardDescription>
-            <CardTitle className="truncate text-base font-medium">{account.email}</CardTitle>
-          </CardHeader>
-        </Card>
       </div>
 
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Connected repositories</CardTitle>
           <CardDescription>Installations of the CARF GitHub App tied to your account.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {installations.length === 0 && (
-            <p className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
-              No installations yet. Install the CARF GitHub App on a repo to get started.
-            </p>
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-3 py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                No installations yet. Install the CARF GitHub App on a repo to get started.
+              </p>
+              <Button render={<a href="/api/github-app/install/start" />}>Install the CARF GitHub App</Button>
+            </div>
           )}
           {installations.map((installation) => (
             <div
@@ -101,9 +101,32 @@ export default async function DashboardPage({
               </div>
             </div>
           ))}
-          <Button render={<a href="/api/github-app/install/start" />} className="self-start">
-            Install the CARF GitHub App
-          </Button>
+          {installations.length > 0 && (
+            <Button variant="outline" render={<a href="/api/github-app/install/start" />} className="self-start">
+              Install on another repo
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Already installed, but not showing up?</CardTitle>
+          <CardDescription>
+            If GitHub didn&apos;t redirect back here after install, paste the installation id from the
+            app&apos;s GitHub page (or the URL after installing) to link it manually.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form action="/api/github-app/install/manual" method="POST" className="flex items-end gap-3">
+            <div className="flex flex-1 max-w-xs flex-col gap-1.5">
+              <Label htmlFor="installationId">Installation id</Label>
+              <Input id="installationId" name="installationId" placeholder="e.g. 156767738" inputMode="numeric" />
+            </div>
+            <Button type="submit" variant="outline">
+              Link installation
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </main>
