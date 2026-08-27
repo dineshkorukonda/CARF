@@ -49,8 +49,8 @@ export default function DocsPage() {
     { id: "github-webhook", label: "GitHub Webhook Receiver", status: "Implemented" as const },
     { id: "sensitivity-matrix", label: "Sensitivity & Thresholding", status: "Implemented" as const },
     { id: "config-reference", label: "Configuration Reference (.carf.yml)", status: "Implemented" as const },
-    { id: "ci-integration", label: "CI/CD Integration Guides", status: "Partial" as const },
-    { id: "target-runtimes", label: "Target Runtimes & Execution", status: "Partial" as const },
+    { id: "ci-integration", label: "CI/CD Integration Guides", status: "Implemented" as const },
+    { id: "target-runtimes", label: "Target Runtimes & Execution", status: "Implemented" as const },
     { id: "telemetry", label: "Telemetry & Observability API", status: "Planned" as const },
   ];
 
@@ -193,7 +193,7 @@ export default function DocsPage() {
               <div className="space-y-3 text-xs text-[#333] font-['Inter',system-ui,sans-serif]">
                 <h3 className="text-xs text-[#888] uppercase tracking-wider font-semibold">Abstract</h3>
                 <p className="leading-relaxed bg-white p-4 rounded-[4px] border border-[#eaeaea] font-mono text-[11.5px] text-[#444]">
-                  &quot;Continuous delivery pipelines in cloud-native microservice architectures frequently treat deployment verification as an unconditioned signal evaluation problem. In this paper, we present the Change-Aware Rollback Framework (CARF), an automated decision system that models post-deployment failure probability as a function of the git change vector. By classifying commits into code, configuration, dependency, and infrastructure dimensions via AST inspection, CARF synthesizes adaptive observation windows and error variance ceilings. Empirical validation across 14,000 production deployments demonstrates a 94.2% reduction in false-alarm rollbacks and an average mean-time-to-recovery (MTTR) of 420 milliseconds.&quot;
+                  &quot;Continuous delivery pipelines in cloud-native microservice architectures frequently treat deployment verification as an unconditioned signal evaluation problem. In this paper, we present the Change-Aware Rollback Framework (CARF), an automated decision system that models post-deployment failure probability as a function of the git change vector. By classifying commits into code, configuration, dependency, and infrastructure dimensions via AST inspection, CARF synthesizes adaptive observation windows and error variance ceilings. Evaluation on a synthetic deployment dataset shows CARF&apos;s per-change-type dynamic threshold reducing false-positive rollbacks relative to a single static threshold matching common canary defaults; large-scale production validation is ongoing future work.&quot;
                 </p>
               </div>
 
@@ -389,7 +389,7 @@ Responses:
               <StatusBadge status="Implemented" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              An optional file at the repo root. core-api reads <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">classification</code> and <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">threshold</code> to tune Tier 1 path rules and threshold/decay parameters without a code change. <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">mode</code> and <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">adapter</code> below are schema-validated but not yet wired to runtime behavior — there is no composition root yet that reads them to select Standalone vs Augment mode.
+              An optional file at the repo root. core-api reads <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">classification</code> and <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">threshold</code> to tune Tier 1 path rules and threshold/decay parameters without a code change. <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">mode</code> and <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">adapter</code> are wired to runtime behavior too — they select Standalone vs Augment mode and drive the corresponding rollback adapter (Kubernetes, Docker Compose, Docker Swarm, PM2, or GitOps).
             </p>
 
             <div className="rounded-[4px] border border-[#eaeaea] overflow-hidden">
@@ -398,7 +398,7 @@ Responses:
                 <button
                   onClick={() =>
                     handleCopy(
-                      `# .carf.yml — repo-root configuration for core-api. All top-level keys are\n# optional. No file at all is valid and produces core-api's built-in\n# hardcoded defaults, unchanged.\n\nclassification:\n  rules:\n    # Checked BEFORE core-api's built-in classification rules\n    # (src/classifier/tier1.ts), first-match-wins. Omit this block\n    # entirely to use only the built-in rules.\n    - type: infra\n      patterns:\n        - "deploy/**/*.yaml"\n\nthreshold:\n  # Overrides src/threshold/engine.ts's DEFAULT_CONFIG. Any key, or any\n  # field within a type, that you omit here falls back to the built-in\n  # default for that field.\n  decay: 0.6\n  complexityDecay: 0.3\n  types:\n    infra:\n      baseThreshold: 0.01\n      baseWindow: 60\n    # dependency / config / code accept the same { baseThreshold,\n    # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG\n    # value entirely.\n\n# --- The two fields below are validated but NOT YET WIRED. Setting them\n# --- has NO EFFECT on core-api's runtime behavior today — there is no\n# --- code path that reads mode/adapter to actually select Standalone vs\n# --- Augment mode or drive a rollback adapter. This will change in a\n# --- future project. Until then, treat these as a schema preview, not a\n# --- working switch.\nmode: standalone   # standalone | augment\nadapter:\n  kind: kubernetes  # kubernetes | dockerCompose\n  target: "my-deployment"`,
+                      `# .carf.yml — repo-root configuration for core-api. All top-level keys are\n# optional. No file at all is valid and produces core-api's built-in\n# hardcoded defaults, unchanged.\n\nclassification:\n  rules:\n    # Checked BEFORE core-api's built-in classification rules\n    # (src/classifier/tier1.ts), first-match-wins. Omit this block\n    # entirely to use only the built-in rules.\n    - type: infra\n      patterns:\n        - "deploy/**/*.yaml"\n\nthreshold:\n  # Overrides src/threshold/engine.ts's DEFAULT_CONFIG. Any key, or any\n  # field within a type, that you omit here falls back to the built-in\n  # default for that field.\n  decay: 0.6\n  complexityDecay: 0.3\n  types:\n    infra:\n      baseThreshold: 0.01\n      baseWindow: 60\n    # dependency / config / code accept the same { baseThreshold,\n    # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG\n    # value entirely.\n\n# mode/adapter select Standalone vs Augment mode and drive the matching\n# rollback adapter. mode defaults to augment (no local rollback loop) when\n# omitted.\nmode: standalone   # standalone | augment\nadapter:\n  kind: kubernetes  # kubernetes | dockerCompose | dockerSwarm | pm2 | gitops\n  target: "my-deployment"`,
                       "config-ref"
                     )
                   }
@@ -436,15 +436,12 @@ threshold:
     # baseWindow } shape; each omitted type keeps its DEFAULT_CONFIG
     # value entirely.
 
-# --- The two fields below are validated but NOT YET WIRED. Setting them
-# --- has NO EFFECT on core-api's runtime behavior today — there is no
-# --- code path that reads mode/adapter to actually select Standalone vs
-# --- Augment mode or drive a rollback adapter. This will change in a
-# --- future project. Until then, treat these as a schema preview, not a
-# --- working switch.
+# mode/adapter select Standalone vs Augment mode and drive the matching
+# rollback adapter. mode defaults to augment (no local rollback loop) when
+# omitted.
 mode: standalone   # standalone | augment
 adapter:
-  kind: kubernetes  # kubernetes | dockerCompose
+  kind: kubernetes  # kubernetes | dockerCompose | dockerSwarm | pm2 | gitops
   target: "my-deployment"`}
               </pre>
             </div>
@@ -460,20 +457,21 @@ adapter:
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 CI/CD Integration Guides
               </h2>
-              <StatusBadge status="Partial" />
+              <StatusBadge status="Implemented" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              &quot;Augment mode&quot; example configs ship today for Argo Rollouts (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">examples/argo-rollouts-analysistemplate.yaml</code>) and Flagger (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">examples/flagger-webhook-metric.yaml</code>), both calling <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">GET /v1/threshold</code>. A first-class GitHub Action wrapper is still planned — the snippet below is that target design.
+              &quot;Augment mode&quot; example configs ship today for Argo Rollouts (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">examples/argo-rollouts-analysistemplate.yaml</code>) and Flagger (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">examples/flagger-webhook-metric.yaml</code>), both calling <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">GET /v1/threshold</code>. Teams driving deploys directly from GitHub Actions can use the first-class composite Action below instead — no hand-written <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">curl</code>/<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">jq</code> needed.
             </p>
 
             <div className="space-y-4 text-xs">
               <h3 className="font-['Inter',system-ui,sans-serif] text-sm text-[#111] font-semibold">GitHub Actions Integration</h3>
               <div className="p-4 rounded-[4px] bg-[#1e1e1e] text-[#d4d4d4] font-mono leading-relaxed overflow-x-auto">
-{`- name: CARF Change-Aware Deployment Verification
-  uses: carf-devops/evaluate-action@v1.2
+{`- uses: ./.github/actions/carf-threshold
+  id: carf
   with:
-    api-key: \${{ secrets.CARF_API_KEY }}
-    commit-sha: \${{ github.sha }}`}
+    api-url: https://your-core-api-host.example.com
+    # commit defaults to github.sha; fail-on-missing defaults to true.
+- run: echo "threshold \${{ steps.carf.outputs.final-threshold }}, window \${{ steps.carf.outputs.final-window }}s"`}
               </div>
             </div>
           </section>
@@ -488,10 +486,10 @@ adapter:
               <h2 className="font-['Lora',Georgia,serif] text-2xl font-semibold text-[#0a0a0a]">
                 Target Runtimes & Restoration Mechanisms
               </h2>
-              <StatusBadge status="Partial" />
+              <StatusBadge status="Implemented" />
             </div>
             <p className="font-['Inter',system-ui,sans-serif] text-xs text-[#888]">
-              Standalone mode (no external progressive-delivery pipeline) polls a <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">RollbackAdapter</code> for the commit&apos;s window and rolls back the moment the error rate breaches <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalThreshold</code> (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/adapters/loop.ts</code>). Kubernetes, Docker Compose, and Docker Swarm adapters are implemented; PM2 and GitOps are still planned.
+              Standalone mode (no external progressive-delivery pipeline) polls a <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">RollbackAdapter</code> for the commit&apos;s window and rolls back the moment the error rate breaches <code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">finalThreshold</code> (<code className="font-mono text-[11px] bg-[#f4f4f4] px-1.5 py-0.5 rounded">core-api/src/adapters/loop.ts</code>). Kubernetes, Docker Compose, Docker Swarm, PM2, and GitOps adapters are all implemented today.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-['Inter',system-ui,sans-serif]">
@@ -499,8 +497,8 @@ adapter:
                 { title: "Kubernetes", desc: <>Executes <code className="font-mono text-[#111]">kubectl rollout undo deployment/app</code>, deriving health from <code className="font-mono text-[#111]">unavailableReplicas</code>.</>, status: "Implemented" as const },
                 { title: "Docker Compose", desc: <>Redeploys the previous image tag via <code className="font-mono text-[#111]">docker compose up -d</code>, deriving health from container/health state.</>, status: "Implemented" as const },
                 { title: "Docker Swarm", desc: <>Runs <code className="font-mono text-[#111]">docker service update --rollback</code>, deriving health from task <code className="font-mono text-[#111]">CurrentState</code>.</>, status: "Implemented" as const },
-                { title: "PM2", desc: <>Zero-downtime process reload via IPC <code className="font-mono text-[#111]">pm2 reload app</code>.</>, status: "Planned" as const },
-                { title: "GitOps (ArgoCD / Flux)", desc: "Dispatches automated Git revert commit back to target branch repository.", status: "Planned" as const },
+                { title: "PM2", desc: <>Zero-downtime process reload via IPC <code className="font-mono text-[#111]">pm2 reload app</code>.</>, status: "Implemented" as const },
+                { title: "GitOps (ArgoCD / Flux)", desc: "Dispatches automated Git revert commit back to target branch repository.", status: "Implemented" as const },
               ].map((r) => (
                 <div key={r.title} className="p-4 rounded-[4px] border border-[#eaeaea] bg-[#fafafa] space-y-2">
                   <div className="flex items-center justify-between gap-2">

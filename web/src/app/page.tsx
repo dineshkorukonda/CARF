@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { InteractiveSystemFlow } from "@/components/InteractiveSystemFlow";
 import { ArchitectureFlowDiagram } from "@/components/ArchitectureFlowDiagram";
-import { ProjectStatus } from "@/components/ProjectStatus";
 
 const TOC = [
   { id: "problem-statement", label: "Problem statement" },
@@ -65,19 +64,15 @@ export default function ProposedArchitectureLandingPage() {
           <Link href="/paper" className="text-[#111] font-medium underline underline-offset-2 hover:opacity-60">
             View Conference Paper →
           </Link>
-        </div>
-      </div>
-
-      {/* ── Project Status ── */}
-      <div className="max-w-[720px] mx-auto px-6 pb-10">
-        <ProjectStatus />
-        <div className="mt-3 text-right">
-          <Link
-            href="/integrate"
-            className="font-['Inter',system-ui,sans-serif] text-[12.5px] font-medium text-[#111] underline underline-offset-2 hover:opacity-60"
+          <span className="text-[#ccc]">·</span>
+          <a
+            href="https://dashboard.carf.indevs.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#111] font-medium underline underline-offset-2 hover:opacity-60"
           >
             Connect your own deployment →
-          </Link>
+          </a>
         </div>
       </div>
 

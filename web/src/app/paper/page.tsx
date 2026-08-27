@@ -64,6 +64,14 @@ export default function PaperPage() {
           <span className="text-[#ccc]">·</span>
           <span>Aug 2026</span>
         </div>
+        <a
+          href="https://drive.google.com/file/d/1ysqh2ieadw9oUXr5TnuYMI3ajxRIQz60/view?usp=drive_link"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-flex items-center gap-1.5 font-['Inter',system-ui,sans-serif] text-[13px] font-medium text-[#111] no-underline border-b border-b-[#111] pb-[1px] hover:opacity-50 transition-opacity"
+        >
+          View / Download Full Paper (PDF) →
+        </a>
       </div>
 
       {/* ── Hero diagram: what changed + how it behaves → decision ── */}
@@ -143,11 +151,13 @@ export default function PaperPage() {
               They trigger on the same thresholds regardless of whether a
               deployment was a one-line configuration change or a full
               dependency upgrade—two events with very different failure
-              signatures and risk profiles. This paper proposes CARF, a
+              signatures and risk profiles. This paper presents CARF, a
               change-aware, metric-driven framework that connects{" "}
               <em>what changed</em> in a deployment with{" "}
               <em>how the system behaves afterwards</em> to make rollback
-              decisions automatically and precisely.
+              decisions automatically and precisely. CARF is implemented and
+              open source today—the sections below describe both the design
+              and its current, working state.
             </p>
 
             {/* § Motivation */}
@@ -362,20 +372,46 @@ export default function PaperPage() {
               Current status and future work
             </h2>
             <p className="mb-5">
-              CARF is a <em>proposed framework</em>. The architecture and
-              decision model are fully specified; large-scale production
-              evaluation is ongoing future work.
+              CARF has moved past a proposed architecture into a working
+              implementation. All four pipeline phases described above are
+              built and tested: Tier 1 path/manifest classification plus a
+              Tier 2 Tree-sitter AST diff parser (TypeScript, Go, Python,
+              Rust, Java) in <code className="font-mono text-[0.82em] bg-[#f4f4f4] px-[0.35em] py-[0.1em] rounded-[3px] text-[#333]">core-api/src/classifier</code>;
+              a signature-verified GitHub App webhook receiver; a threshold
+              decay engine exposed to progressive-delivery tools via{" "}
+              <code className="font-mono text-[0.82em] bg-[#f4f4f4] px-[0.35em] py-[0.1em] rounded-[3px] text-[#333]">
+                GET /v1/threshold
+              </code>{" "}
+              (&ldquo;augment mode&rdquo;, with example configs for Argo
+              Rollouts, Flagger, and a first-class GitHub Action); and a
+              standalone rollback executor with Kubernetes, Docker Compose,
+              Docker Swarm, PM2, and GitOps adapters for teams with no
+              existing canary pipeline to augment. A GitHub OAuth dashboard
+              lets teams install the App, edit{" "}
+              <code className="font-mono text-[0.82em] bg-[#f4f4f4] px-[0.35em] py-[0.1em] rounded-[3px] text-[#333]">
+                .carf.yml
+              </code>{" "}
+              classification/threshold rules, and watch live per-commit
+              classification and threshold data, with multi-tenant isolation
+              enforced by per-installation API keys.
             </p>
-            <p className="mb-3">Future directions include:</p>
+            <p className="mb-5">
+              What remains open: results so far come from a synthetic
+              evaluation harness (H1: does CARF&apos;s per-change-type
+              dynamic threshold beat a single static threshold on the same
+              synthetic deployment dataset?), not a production deployment
+              corpus. Future directions include:
+            </p>
             <ul className="mb-5 pl-6 space-y-2 list-disc">
+              <li>
+                <strong>Large-scale production validation.</strong> Replacing
+                the synthetic evaluation harness with results from real,
+                live deployment traffic across multiple organizations.
+              </li>
               <li>
                 <strong>ML-augmented thresholds.</strong> Replacing static
                 per-change-type thresholds with a model that learns optimal
                 sensitivity from historical deployment outcomes.
-              </li>
-              <li>
-                <strong>Real CI/CD validation.</strong> End-to-end testing in
-                live GitLab CI, GitHub Actions, and Argo Rollouts environments.
               </li>
               <li>
                 <strong>Broader change taxonomy.</strong> Extending beyond four
