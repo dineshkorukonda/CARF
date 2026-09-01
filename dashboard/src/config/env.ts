@@ -40,4 +40,12 @@ export const env = {
   githubAppPrivateKey: () => normalizePrivateKey(requireEnv("GITHUB_APP_PRIVATE_KEY")),
   /** Base URL of the core-api instance this dashboard reads status data from (issue #64). */
   coreApiBaseUrl: () => requireEnv("CORE_API_BASE_URL"),
+  /** SMTP creds for outbound mail (currently: password-reset links only). */
+  smtpHost: () => requireEnv("SMTP_HOST"),
+  smtpPort: () => Number(requireEnv("SMTP_PORT")),
+  smtpUser: () => requireEnv("SMTP_USER"),
+  smtpPassword: () => requireEnv("SMTP_PASS"),
+  /** "From" address on outbound mail -- doesn't have to match SMTP_USER (e.g. a shared
+   *  mailbox auth'd by one address sending as another), so it's its own var. */
+  smtpFrom: () => requireEnv("SMTP_FROM"),
 };
