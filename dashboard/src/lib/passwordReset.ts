@@ -12,6 +12,18 @@ export const RESET_REQUEST_WINDOW_MS = 60 * 60 * 1000;
  *  clicks a just-stale link can be told it expired. A day is long past both uses. */
 export const RESET_TOKEN_RETENTION_MS = 24 * 60 * 60 * 1000;
 
+export interface PasswordResetTxClient {
+  account: {
+    update(args: {
+      where: { id: string };
+      data: { passwordHash: string; sessionVersion: { increment: number } };
+    }): Promise<unknown>;
+  };
+  passwordResetToken: {
+    update(args: { where: { id: string }; data: { usedAt: Date } }): Promise<unknown>;
+  };
+}
+
 /**
  * Structural subset of the generated Prisma client this module needs -- same
  * interface-injection pattern as accountService.ts's DashboardPrismaClient, so tests
@@ -35,7 +47,7 @@ export interface PasswordResetPrismaClient {
     count(args: { where: { accountId: string; createdAt: { gte: Date } } }): Promise<number>;
     deleteMany(args: { where: { accountId: string; expiresAt: { lt: Date } } }): Promise<unknown>;
   };
-  $transaction<T>(fn: (tx: any) => Promise<T>): Promise<T>;
+  $transaction<T>(fn: (tx: PasswordResetTxClient) => Promise<T>): Promise<T>;
 }
 
 function hashToken(rawToken: string): string {
