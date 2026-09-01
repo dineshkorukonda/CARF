@@ -15,12 +15,35 @@ datasource db {
 // from the CARF GitHub App installation, which is authorized independently (see
 // Installation below) and isn't tied to a specific human signer-in.
 model Account {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  passwordHash  String
-  installations Installation[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                  String                @id @default(cuid())
+  email               String                @unique
+  passwordHash        String
+  // Bumped on every password change. The signed session cookie carries the value it was
+  // minted with, and getCurrentAccount rejects a cookie whose version is behind this one.
+  // Without it a stolen cookie outlived the password reset meant to revoke it, for the
+  // full 30-day SESSION_TTL_MS. Costs no extra query -- getCurrentAccount already loads
+  // this row.
+  sessionVersion      Int                   @default(0)
+  installations       Installation[]
+  passwordResetTokens PasswordResetToken[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+}
+
+// A "forgot password" request. Only a SHA-256 hash of the token is stored (never the raw
+// value, same reasoning as Account.passwordHash) -- the raw token only ever exists in the
+// emailed link and the requester's memory. `usedAt` makes it single-use even though it's
+// already within `expiresAt`, closing the replay window between send and click.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([accountId])
 }
 
 // A GitHub App installation, linked back to the Account that installed it. `installationId`
