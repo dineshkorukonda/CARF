@@ -18,6 +18,12 @@ model Account {
   id                  String                @id @default(cuid())
   email               String                @unique
   passwordHash        String
+  // Bumped on every password change. The signed session cookie carries the value it was
+  // minted with, and getCurrentAccount rejects a cookie whose version is behind this one.
+  // Without it a stolen cookie outlived the password reset meant to revoke it, for the
+  // full 30-day SESSION_TTL_MS. Costs no extra query -- getCurrentAccount already loads
+  // this row.
+  sessionVersion      Int                   @default(0)
   installations       Installation[]
   passwordResetTokens PasswordResetToken[]
   createdAt           DateTime              @default(now())

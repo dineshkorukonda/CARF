@@ -147,6 +147,24 @@ describe.skipIf(!hasDatabase)("dashboard persistence: Account -> Installation / 
     await prisma.account.delete({ where: { id: account.id } });
   });
 
+  // The session-revocation fix depends on this column defaulting to 0 for existing rows and
+  // on Prisma's atomic increment reaching the database, not just the in-memory fakes.
+  it("defaults sessionVersion to 0 and increments it atomically", async () => {
+    const created = await prisma.account.create({
+      data: { email: email("session-version"), passwordHash: "hash" },
+    });
+
+    expect(created.sessionVersion).toBe(0);
+
+    const bumped = await prisma.account.update({
+      where: { id: created.id },
+      data: { passwordHash: "new-hash", sessionVersion: { increment: 1 } },
+    });
+    expect(bumped.sessionVersion).toBe(1);
+
+    await prisma.account.delete({ where: { id: created.id } });
+  });
+
   it("stores a null coreApiKey until one is cached, then persists it", async () => {
     const account = await prisma.account.create({
       data: { email: email("apikey"), passwordHash: "hash" },

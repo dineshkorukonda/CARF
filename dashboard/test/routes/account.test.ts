@@ -8,6 +8,7 @@ interface FakeAccount {
   id: string;
   email: string;
   passwordHash: string;
+  sessionVersion: number;
   createdAt: Date;
 }
 
@@ -25,10 +26,15 @@ vi.mock("../../src/lib/auth", () => ({
 vi.mock("../../src/lib/prisma", () => ({
   prisma: {
     account: {
-      update: async (args: { where: { id: string }; data: { passwordHash: string } }) => {
+      update: async (args: {
+        where: { id: string };
+        data: { passwordHash: string; sessionVersion?: { increment: number } };
+      }) => {
         const row = accounts.find((a) => a.id === args.where.id);
         if (!row) throw new Error(`no account ${args.where.id}`);
-        Object.assign(row, args.data);
+        const { sessionVersion, ...rest } = args.data;
+        Object.assign(row, rest);
+        if (sessionVersion) row.sessionVersion += sessionVersion.increment;
         return row;
       },
     },
@@ -52,7 +58,7 @@ function location(response: Response): string {
 
 beforeEach(() => {
   accounts = [
-    { id: "account-1", email: "user@example.com", passwordHash: "old-hash", createdAt: new Date() },
+    { id: "account-1", email: "user@example.com", passwordHash: "old-hash", sessionVersion: 0, createdAt: new Date() },
   ];
   getCurrentAccount.mockReset();
 });
@@ -99,7 +105,13 @@ describe("POST /api/account/change-password", () => {
   // The account id comes from the verified session cookie, never from the submitted form,
   // so a caller cannot aim the change at somebody else's account.
   it("changes the signed-in account, ignoring any accountId in the form", async () => {
-    accounts.push({ id: "account-2", email: "other@example.com", passwordHash: "victim-hash", createdAt: new Date() });
+    accounts.push({
+      id: "account-2",
+      email: "other@example.com",
+      passwordHash: "victim-hash",
+      sessionVersion: 0,
+      createdAt: new Date(),
+    });
     getCurrentAccount.mockResolvedValue(accounts[0]);
 
     await changePassword(formRequest({ newPassword: "a-brand-new-password", accountId: "account-2" }));

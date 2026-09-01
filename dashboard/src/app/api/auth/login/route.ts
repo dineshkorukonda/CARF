@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
   }
 
   const response = NextResponse.redirect(new URL("/dashboard", env.baseUrl()));
-  response.cookies.set(SESSION_COOKIE_NAME, createSessionCookieValue(env.sessionSecret(), account.id), {
+  response.cookies.set(SESSION_COOKIE_NAME, createSessionCookieValue(env.sessionSecret(), account.id, account.sessionVersion), {
     httpOnly: true,
     secure: true,
     sameSite: "lax",

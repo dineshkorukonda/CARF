@@ -28,6 +28,7 @@ const ACCOUNT = {
   id: "account-1",
   email: "someone@example.com",
   passwordHash: "$2a$12$hash",
+  sessionVersion: 0,
   createdAt: new Date("2026-01-01T00:00:00Z"),
 };
 
@@ -38,7 +39,7 @@ describe("getCurrentAccount", () => {
   });
 
   it("returns the account for a validly signed, unexpired cookie", async () => {
-    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "account-1") });
+    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "account-1", 0) });
     accountFindUnique.mockResolvedValue(ACCOUNT);
 
     await expect(getCurrentAccount()).resolves.toEqual(ACCOUNT);
@@ -46,7 +47,7 @@ describe("getCurrentAccount", () => {
   });
 
   it("reads the session from the carf_session cookie", async () => {
-    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "account-1") });
+    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "account-1", 0) });
     accountFindUnique.mockResolvedValue(ACCOUNT);
 
     await getCurrentAccount();
@@ -71,9 +72,9 @@ describe("getCurrentAccount", () => {
   });
 
   it("returns null for a tampered accountId, without querying", async () => {
-    const valid = createSessionCookieValue(SECRET, "account-1");
-    const [, expiresAt, signature] = valid.split(".");
-    cookieGet.mockReturnValue({ value: `account-2.${expiresAt}.${signature}` });
+    const valid = createSessionCookieValue(SECRET, "account-1", 0);
+    const [, sessionVersion, expiresAt, signature] = valid.split(".");
+    cookieGet.mockReturnValue({ value: `account-2.${sessionVersion}.${expiresAt}.${signature}` });
 
     await expect(getCurrentAccount()).resolves.toBeNull();
     expect(accountFindUnique).not.toHaveBeenCalled();
@@ -81,7 +82,7 @@ describe("getCurrentAccount", () => {
 
   it("returns null for an expired cookie, without querying", async () => {
     const issuedLongAgo = Date.now() - 31 * 24 * 60 * 60 * 1000;
-    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "account-1", issuedLongAgo) });
+    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "account-1", 0, issuedLongAgo) });
 
     await expect(getCurrentAccount()).resolves.toBeNull();
     expect(accountFindUnique).not.toHaveBeenCalled();

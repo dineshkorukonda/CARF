@@ -16,6 +16,7 @@ interface FakeAccount {
   id: string;
   email: string;
   passwordHash: string;
+  sessionVersion: number;
   createdAt: Date;
 }
 
@@ -39,14 +40,26 @@ class FakePrisma {
           (args.where.id !== undefined && a.id === args.where.id)
       ) ?? null,
     create: async (args: { data: { email: string; passwordHash: string } }) => {
-      const row: FakeAccount = { id: `account-${this.nextId++}`, createdAt: new Date(), ...args.data };
+      const row: FakeAccount = {
+        id: `account-${this.nextId++}`,
+        sessionVersion: 0,
+        createdAt: new Date(),
+        ...args.data,
+      };
       this.accounts.push(row);
       return row;
     },
-    update: async (args: { where: { id: string }; data: { passwordHash: string } }) => {
+    // Mirrors Prisma's `{ increment: n }` atomic update, so updatePassword's session-version
+    // bump behaves here the way it does against a real database.
+    update: async (args: {
+      where: { id: string };
+      data: { passwordHash: string; sessionVersion?: { increment: number } };
+    }) => {
       const row = this.accounts.find((a) => a.id === args.where.id);
       if (!row) throw new Error(`no account ${args.where.id}`);
-      Object.assign(row, args.data);
+      const { sessionVersion, ...rest } = args.data;
+      Object.assign(row, rest);
+      if (sessionVersion) row.sessionVersion += sessionVersion.increment;
       return row;
     },
   };
@@ -125,7 +138,13 @@ beforeEach(() => {
 });
 
 function seedAccount(email = "user@example.com"): FakeAccount {
-  const row: FakeAccount = { id: "account-1", email, passwordHash: knownHash, createdAt: new Date() };
+  const row: FakeAccount = {
+    id: "account-1",
+    email,
+    passwordHash: knownHash,
+    sessionVersion: 0,
+    createdAt: new Date(),
+  };
   db.accounts.push(row);
   return row;
 }
@@ -141,7 +160,10 @@ describe("POST /api/auth/login", () => {
 
     expect(location(response)).toBe("/dashboard");
     const cookie = response.cookies.get(SESSION_COOKIE_NAME)!;
-    expect(verifySessionCookieValue(SESSION_SECRET, cookie.value)).toEqual({ accountId: "account-1" });
+    expect(verifySessionCookieValue(SESSION_SECRET, cookie.value)).toEqual({
+      accountId: "account-1",
+      sessionVersion: 0,
+    });
   });
 
   // Losing any one of these flags is a silent, invisible security regression: the session
@@ -216,7 +238,10 @@ describe("POST /api/auth/signup", () => {
     expect(location(response)).toBe("/dashboard");
     expect(db.accounts).toHaveLength(1);
     const cookie = response.cookies.get(SESSION_COOKIE_NAME)!;
-    expect(verifySessionCookieValue(SESSION_SECRET, cookie.value)).toEqual({ accountId: db.accounts[0]!.id });
+    expect(verifySessionCookieValue(SESSION_SECRET, cookie.value)).toEqual({
+      accountId: db.accounts[0]!.id,
+      sessionVersion: 0,
+    });
   });
 
   it("never stores the password in plaintext", async () => {
