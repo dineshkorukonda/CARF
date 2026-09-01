@@ -200,7 +200,7 @@ describe("POST /api/compat-check", () => {
   });
 
   it("returns 404 for a repo GitHub does not have", async () => {
-    fetchPublicRepoTree.mockRejectedValue(new RepoNotFoundError("acme", "nope"));
+    fetchPublicRepoTree.mockRejectedValue(new RepoNotFoundError("acme/nope not found"));
 
     const response = await compatCheck(jsonRequest({ repoUrl: "acme/nope" }));
 

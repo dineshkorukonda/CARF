@@ -65,7 +65,7 @@ describe("getCurrentAccount", () => {
   // The signature check is the only thing standing between a guessed accountId and a
   // logged-in session, so a forged cookie must never reach the database lookup.
   it("returns null for a cookie signed with a different secret, without querying", async () => {
-    cookieGet.mockReturnValue({ value: createSessionCookieValue("attacker-secret", "account-1") });
+    cookieGet.mockReturnValue({ value: createSessionCookieValue("attacker-secret", "account-1", 0) });
 
     await expect(getCurrentAccount()).resolves.toBeNull();
     expect(accountFindUnique).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe("getCurrentAccount", () => {
   // A cookie can outlive the row it points at (account deleted mid-session). Callers treat
   // null as "not logged in", so this must not throw.
   it("returns null when the signed account no longer exists", async () => {
-    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "deleted-account") });
+    cookieGet.mockReturnValue({ value: createSessionCookieValue(SECRET, "deleted-account", 0) });
     accountFindUnique.mockResolvedValue(null);
 
     await expect(getCurrentAccount()).resolves.toBeNull();

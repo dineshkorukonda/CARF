@@ -35,7 +35,7 @@ export interface PasswordResetPrismaClient {
     count(args: { where: { accountId: string; createdAt: { gte: Date } } }): Promise<number>;
     deleteMany(args: { where: { accountId: string; expiresAt: { lt: Date } } }): Promise<unknown>;
   };
-  $transaction<T>(fn: (tx: PasswordResetPrismaClient) => Promise<T>): Promise<T>;
+  $transaction<T>(fn: (tx: any) => Promise<T>): Promise<T>;
 }
 
 function hashToken(rawToken: string): string {
