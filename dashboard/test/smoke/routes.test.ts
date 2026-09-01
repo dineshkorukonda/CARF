@@ -56,20 +56,20 @@ const LAYOUT_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
 
 describe("every API route module loads and exports its handler", () => {
   it.each(ROUTE_MODULES)("%s exports %s", async (_path, verbs, load) => {
-    const module = (await load()) as Record<string, unknown>;
+    const loaded = (await load()) as Record<string, unknown>;
 
     for (const verb of verbs) {
-      expect(typeof module[verb]).toBe("function");
+      expect(typeof loaded[verb]).toBe("function");
     }
   });
 
   // Next.js infers the allowed methods from the exports. An accidental extra export would
   // quietly open a method nobody meant to serve.
   it.each(ROUTE_MODULES)("%s exports no HTTP verb beyond %s", async (_path, verbs, load) => {
-    const module = (await load()) as Record<string, unknown>;
+    const loaded = (await load()) as Record<string, unknown>;
     const allVerbs = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
-    expect(allVerbs.filter((v) => typeof module[v] === "function").sort()).toEqual([...verbs].sort());
+    expect(allVerbs.filter((v) => typeof loaded[v] === "function").sort()).toEqual([...verbs].sort());
   });
 });
 
@@ -82,9 +82,9 @@ describe("every page module loads and exports a component", () => {
   it.each(PAGE_MODULES)(
     "%s exports a default component",
     async (_path, load) => {
-      const module = (await load()) as { default?: unknown };
+      const loaded = (await load()) as { default?: unknown };
 
-      expect(typeof module.default).toBe("function");
+      expect(typeof loaded.default).toBe("function");
     },
     IMPORT_TIMEOUT_MS
   );
@@ -94,9 +94,9 @@ describe("every layout module loads and exports a component", () => {
   it.each(LAYOUT_MODULES)(
     "%s layout exports a default component",
     async (_path, load) => {
-      const module = (await load()) as { default?: unknown };
+      const loaded = (await load()) as { default?: unknown };
 
-      expect(typeof module.default).toBe("function");
+      expect(typeof loaded.default).toBe("function");
     },
     IMPORT_TIMEOUT_MS
   );

@@ -12,13 +12,13 @@ export async function POST(request: NextRequest) {
     const issued = await createPasswordResetToken(prisma, email);
     if (issued) {
       const resetUrl = new URL(`/reset-password?token=${issued.token}`, env.baseUrl()).toString();
-      // Best-effort: a broken SMTP config shouldn't turn into a 500 that reveals (via its
-      // absence for other emails) whether this address has an account.
-      try {
-        await sendPasswordResetEmail(email, resetUrl);
-      } catch (err) {
+      // Started, deliberately not awaited. Awaiting made the response time depend on the
+      // mail server, so a known address answered measurably slower than an unknown one --
+      // an enumeration side channel that defeated the identical redirect below. The
+      // .catch keeps a broken SMTP config from becoming an unhandled rejection.
+      void sendPasswordResetEmail(email, resetUrl).catch((err) => {
         console.error("Failed to send password reset email", err);
-      }
+      });
     }
   }
 

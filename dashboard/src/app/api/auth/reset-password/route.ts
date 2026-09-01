@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { env } from "../../../../config/env";
-import { redeemPasswordResetToken } from "../../../../lib/passwordReset";
-import { updatePassword } from "../../../../lib/accountService";
+import { resetPasswordWithToken } from "../../../../lib/passwordReset";
 import { prisma } from "../../../../lib/prisma";
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -17,12 +16,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const redeemed = await redeemPasswordResetToken(prisma, token);
-  if (!redeemed) {
+  // Redeeming the token and storing the password happen in one transaction, so a failure
+  // cannot burn the user's only link while leaving the password unchanged.
+  const reset = await resetPasswordWithToken(prisma, token, password);
+  if (!reset) {
     return NextResponse.redirect(new URL("/reset-password?error=invalid_token", env.baseUrl()));
   }
-
-  await updatePassword(prisma, redeemed.accountId, password);
 
   return NextResponse.redirect(new URL("/login?reset=1", env.baseUrl()));
 }

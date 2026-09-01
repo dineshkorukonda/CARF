@@ -26,6 +26,7 @@ interface FakeToken {
   accountId: string;
   expiresAt: Date;
   usedAt: Date | null;
+  createdAt: Date;
 }
 
 class FakePrisma {
@@ -66,7 +67,7 @@ class FakePrisma {
 
   passwordResetToken = {
     create: async (args: { data: { tokenHash: string; accountId: string; expiresAt: Date } }) => {
-      const row: FakeToken = { id: `token-${this.nextId++}`, usedAt: null, ...args.data };
+      const row: FakeToken = { id: `token-${this.nextId++}`, usedAt: null, createdAt: new Date(), ...args.data };
       this.tokens.push(row);
       return row;
     },
@@ -78,11 +79,33 @@ class FakePrisma {
       Object.assign(row, args.data);
       return row;
     },
-    deleteMany: async (args: { where: { accountId: string } }) => {
-      this.tokens = this.tokens.filter((t) => t.accountId !== args.where.accountId);
-      return { count: 0 };
+    updateMany: async (args: { where: { accountId: string; usedAt: null }; data: { usedAt: Date } }) => {
+      let count = 0;
+      for (const t of this.tokens) {
+        if (t.accountId === args.where.accountId && t.usedAt === null) {
+          t.usedAt = args.data.usedAt;
+          count++;
+        }
+      }
+      return { count };
+    },
+    count: async (args: { where: { accountId: string; createdAt: { gte: Date } } }) =>
+      this.tokens.filter(
+        (t) => t.accountId === args.where.accountId && t.createdAt.getTime() >= args.where.createdAt.gte.getTime()
+      ).length,
+    deleteMany: async (args: { where: { accountId: string; expiresAt: { lt: Date } } }) => {
+      const before = this.tokens.length;
+      this.tokens = this.tokens.filter(
+        (t) => !(t.accountId === args.where.accountId && t.expiresAt.getTime() < args.where.expiresAt.lt.getTime())
+      );
+      return { count: before - this.tokens.length };
     },
   };
+
+  // resetPasswordWithToken commits the token and the password together. Running the
+  // callback inline is enough here: the rollback behaviour is proved in
+  // test/regression/passwordReset.test.ts, whose fake really does restore a snapshot.
+  $transaction = async <T>(fn: (tx: FakePrisma) => Promise<T>): Promise<T> => fn(this);
 }
 
 let db = new FakePrisma();

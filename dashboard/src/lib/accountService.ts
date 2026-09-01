@@ -3,6 +3,12 @@ import type { GithubInstallation } from "../adapters/github/appInstallClient";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
+/** Single place the cost factor is applied, so every path that stores a password -- signup,
+ *  the account settings form, and a "forgot password" reset -- hashes it identically. */
+export function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+}
+
 export interface AccountRow {
   id: string;
   email: string;
