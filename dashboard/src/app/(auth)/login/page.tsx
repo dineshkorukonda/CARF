@@ -12,9 +12,9 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, reset } = await searchParams;
 
   return (
     <main className="grid min-h-svh lg:grid-cols-2">
@@ -33,6 +33,12 @@ export default async function LoginPage({
             <h1 className="text-2xl font-semibold">Sign in to CARF</h1>
             <p className="mt-1 text-sm text-muted-foreground">Manage rollback configuration for your repos.</p>
 
+            {reset && (
+              <p className="mt-4 rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
+                Password updated — sign in with your new password.
+              </p>
+            )}
+
             {error && (
               <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {ERROR_MESSAGES[error] ?? "Something went wrong."}
@@ -45,7 +51,12 @@ export default async function LoginPage({
                 <Input id="email" type="email" name="email" placeholder="you@example.com" required />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <a href="/forgot-password" className="text-xs font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                    Forgot password?
+                  </a>
+                </div>
                 <Input id="password" type="password" name="password" placeholder="••••••••" required />
               </div>
               <Button type="submit" className="mt-2 w-full">

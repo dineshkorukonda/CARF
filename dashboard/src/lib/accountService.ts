@@ -3,10 +3,19 @@ import type { GithubInstallation } from "../adapters/github/appInstallClient";
 
 const BCRYPT_SALT_ROUNDS = 12;
 
+/** Single place the cost factor is applied, so every path that stores a password -- signup,
+ *  the account settings form, and a "forgot password" reset -- hashes it identically. */
+export function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+}
+
 export interface AccountRow {
   id: string;
   email: string;
   passwordHash: string;
+  /** Incremented on every password change; signed into the session cookie so that a
+   *  password change revokes sessions minted before it. See lib/session.ts. */
+  sessionVersion: number;
   createdAt: Date;
 }
 
@@ -31,7 +40,10 @@ export interface DashboardPrismaClient {
   account: {
     create(args: { data: { email: string; passwordHash: string } }): Promise<AccountRow>;
     findUnique(args: { where: { email: string } }): Promise<AccountRow | null>;
-    update(args: { where: { id: string }; data: { passwordHash: string } }): Promise<AccountRow>;
+    update(args: {
+      where: { id: string };
+      data: { passwordHash: string; sessionVersion: { increment: number } };
+    }): Promise<AccountRow>;
   };
   installation: {
     findFirst(args: { where: { accountId: string; installationId: string } }): Promise<InstallationRow | null>;
@@ -90,10 +102,17 @@ export async function verifyCredentials(
 
 /** Re-hashes and stores a new password for an already-authenticated account (the Account
  *  settings page's change-password form) -- no current-password check, since the caller
- *  already has a valid session cookie proving recent authentication. */
+ *  already has a valid session cookie proving recent authentication.
+ *
+ *  Bumps `sessionVersion` in the same update, which revokes every session cookie minted
+ *  before this change. That is the point of changing a password after a compromise: the
+ *  new hash alone would leave a stolen cookie working for the rest of SESSION_TTL_MS. */
 export async function updatePassword(prisma: DashboardPrismaClient, accountId: string, newPassword: string): Promise<void> {
   const passwordHash = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
-  await prisma.account.update({ where: { id: accountId }, data: { passwordHash } });
+  await prisma.account.update({
+    where: { id: accountId },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+  });
 }
 
 /**

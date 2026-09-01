@@ -69,7 +69,31 @@ dashboard/
   sync isn't required for correctness.
 
 ## Testing
-- Vitest, colocated under `dashboard/test/`, mirroring `src/`.
-- Everything under `src/adapters/github/` and `src/lib/` (except the Prisma singleton
-  itself and Next.js route handlers, which need a running Next.js/DB to integration-test)
-  gets unit tests with fakes/mocks, no real network or DB calls.
+Four kinds, per `.agents/rules/coding.md` §3. Vitest, colocated under `dashboard/test/`,
+mirroring `src/`.
+
+- **Unit** (`test/lib/`, `test/adapters/`, `test/config/`): everything under
+  `src/adapters/github/` and `src/lib/` except the Prisma singleton, with fakes/mocks and
+  no real network or DB calls. Prefer a hand-written class implementing the module's own
+  narrow `...PrismaClient` interface over a mocking library; `src/lib/auth.ts` and
+  `installationAccess.ts` reach for the env singleton and `next/headers` directly, so
+  those two suites use `vi.mock` instead — don't reshape production code to suit a test.
+- **Integration** (`test/routes/`): App Router route handlers are plain async functions,
+  so each suite imports the handler and calls it with a real `NextRequest`. That covers
+  form/JSON parsing, validation, authorization, status codes, redirect targets and cookie
+  flags with no running server and no database. Every route needs its success path, its
+  rejected input, *and* its unauthenticated path.
+- **Integration against a real database** (`test/db/`): only for guarantees a fake
+  structurally cannot check — unique constraints, `onDelete: Cascade`, atomic
+  `{ increment }`. Guard with `describe.skipIf(!process.env.DATABASE_URL)` and clean up in
+  `afterAll`, matching `core-api/test/db/crud.test.ts`. CI provides Postgres and applies
+  migrations, so these run for real there and skip locally.
+- **Smoke** (`test/smoke/`): imports every route, page and layout module and checks it
+  exposes what Next.js looks for. Catches a module that throws while loading, which no
+  other suite can.
+- **Regression** (`test/regression/`): one file per fixed defect class, naming the defect
+  and what must never come back. These are deliberately redundant with the suites above.
+
+Fakes must model Prisma's semantics, not just its shape — apply `{ increment: n }` rather
+than spreading it into the row, or the fake stores an object where the schema has an Int
+and produces false passes.

@@ -60,8 +60,9 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
       - run: npx prisma generate
-      # No test today touches a real DB (accountService is exercised against an in-memory
-      # fake) -- this just proves the committed migrations actually apply cleanly.
+      # Applies the committed migrations, and gives test/db/crud.test.ts the live database
+      # it needs -- that suite skips itself when DATABASE_URL is unset, so without this
+      # step it would pass by doing nothing.
       - run: npx prisma migrate deploy
       - run: npm test
 

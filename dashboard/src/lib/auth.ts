@@ -11,5 +11,12 @@ export async function getCurrentAccount(): Promise<AccountRow | null> {
   const session = verifySessionCookieValue(env.sessionSecret(), raw);
   if (!session) return null;
 
-  return prisma.account.findUnique({ where: { id: session.accountId } });
+  const account = await prisma.account.findUnique({ where: { id: session.accountId } });
+  if (!account) return null;
+
+  // A cookie minted before the account's last password change is revoked. The row is
+  // already loaded, so this costs no extra query.
+  if (account.sessionVersion !== session.sessionVersion) return null;
+
+  return account;
 }

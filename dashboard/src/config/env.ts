@@ -29,6 +29,20 @@ function normalizePrivateKey(value: string): string {
   return value.includes("\\n") ? value.replace(/\\n/g, "\n") : value;
 }
 
+/**
+ * `requireEnv` only rejects an empty value, so a typo'd port used to survive as
+ * `Number("smtp.example.com")` -- NaN -- and surface much later as an unrelated socket
+ * error from nodemailer. Fail here instead, naming the variable at fault.
+ */
+function requirePort(name: string): number {
+  const raw = requireEnv(name);
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`Invalid ${name}: expected a port between 1 and 65535, got "${raw}"`);
+  }
+  return port;
+}
+
 export const env = {
   /** Public origin the dashboard is served from, used to build OAuth/App-install redirect URIs. */
   baseUrl: () => requireEnv("DASHBOARD_BASE_URL"),
@@ -40,4 +54,12 @@ export const env = {
   githubAppPrivateKey: () => normalizePrivateKey(requireEnv("GITHUB_APP_PRIVATE_KEY")),
   /** Base URL of the core-api instance this dashboard reads status data from (issue #64). */
   coreApiBaseUrl: () => requireEnv("CORE_API_BASE_URL"),
+  /** SMTP creds for outbound mail (currently: password-reset links only). */
+  smtpHost: () => requireEnv("SMTP_HOST"),
+  smtpPort: () => requirePort("SMTP_PORT"),
+  smtpUser: () => requireEnv("SMTP_USER"),
+  smtpPassword: () => requireEnv("SMTP_PASS"),
+  /** "From" address on outbound mail -- doesn't have to match SMTP_USER (e.g. a shared
+   *  mailbox auth'd by one address sending as another), so it's its own var. */
+  smtpFrom: () => requireEnv("SMTP_FROM"),
 };
