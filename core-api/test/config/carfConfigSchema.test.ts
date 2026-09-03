@@ -33,11 +33,32 @@ describe("CarfConfigSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects 'data' as a threshold.types key (threshold engine has no data category)", () => {
+  it("accepts 'data' as a threshold.types key (db migrations)", () => {
     const result = CarfConfigSchema.safeParse({
-      threshold: { types: { data: { baseThreshold: 0.01 } } },
+      threshold: { types: { data: { baseThreshold: 0.01, baseWindow: 600 } } },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown threshold.types key", () => {
+    const result = CarfConfigSchema.safeParse({
+      threshold: { types: { unknown_category: { baseThreshold: 0.01 } } },
     });
     expect(result.success).toBe(false);
+  });
+
+  it("rejects shell injection characters in adapter.target", () => {
+    const result = CarfConfigSchema.safeParse({
+      adapter: { kind: "kubernetes", target: "my-deployment; rm -rf /" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts valid adapter.target", () => {
+    const result = CarfConfigSchema.safeParse({
+      adapter: { kind: "kubernetes", target: "my-deployment-v1" },
+    });
+    expect(result.success).toBe(true);
   });
 
   it("accepts a partial threshold.types entry (only baseThreshold, no baseWindow)", () => {

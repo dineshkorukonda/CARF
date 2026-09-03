@@ -1,4 +1,5 @@
-import { acquireDiff } from "./adapters/github/diffAcquisition.js";
+import { acquireDiff, fetchBlobContent } from "./adapters/github/diffAcquisition.js";
+import { load as loadYaml } from "js-yaml";
 import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
@@ -19,7 +20,7 @@ import {
   renewLock,
   type StandaloneLoopLockPrismaClient,
 } from "./adapters/standaloneLoopLock.js";
-import type { CarfConfig } from "./config/carfConfigSchema.js";
+import { CarfConfigSchema, type CarfConfig } from "./config/carfConfigSchema.js";
 import { env } from "./config/env.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { prisma as defaultPrisma } from "./db/client.js";
@@ -131,6 +132,36 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     token
   );
 
+  let activeCarfConfig = deps.carfConfig;
+  try {
+    const rawRepoConfig = await fetchBlobContent(
+      deps.githubApiClient,
+      target.owner,
+      target.repo,
+      ".carf.yml",
+      target.headSha,
+      token
+    );
+    if (rawRepoConfig) {
+      const parsed = loadYaml(rawRepoConfig);
+      const validated = CarfConfigSchema.safeParse(parsed ?? {});
+      if (validated.success) {
+        activeCarfConfig = validated.data;
+        deps.logger.info(
+          { owner: target.owner, repo: target.repo, sha: target.headSha },
+          "loaded repo-specific .carf.yml config from commit"
+        );
+      } else {
+        deps.logger.info(
+          { owner: target.owner, repo: target.repo, issues: validated.error.issues },
+          "malformed .carf.yml in repository commit, falling back to server default"
+        );
+      }
+    }
+  } catch (error) {
+    deps.logger.info({ error, owner: target.owner, repo: target.repo }, "failed to fetch .carf.yml from repository, falling back");
+  }
+
   const repoSlug = `${target.owner}/${target.repo}`;
   let result;
   try {
@@ -138,8 +169,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       prismaClient: deps.prismaClient,
       baseSha: target.baseSha,
       installationId: target.installationId,
-      thresholdConfig: mergeThresholdConfig(deps.carfConfig?.threshold),
-      classificationRules: deps.carfConfig?.classification?.rules ?? [],
+      thresholdConfig: mergeThresholdConfig(activeCarfConfig?.threshold),
+      classificationRules: activeCarfConfig?.classification?.rules ?? [],
     });
   } catch (error) {
     if (error instanceof NoSignalError) {
@@ -152,7 +183,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     throw error;
   }
 
-  const carfConfig = deps.carfConfig;
+  const carfConfig = activeCarfConfig;
   if (carfConfig?.mode !== "standalone") {
     return;
   }

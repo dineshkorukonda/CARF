@@ -19,7 +19,7 @@ export type ClassificationChangeType = z.infer<typeof ClassificationChangeTypeSc
  * "data" — the threshold decay formula only has four contribution
  * categories.
  */
-export const ThresholdChangeTypeSchema = z.enum(["infra", "dependency", "config", "code"]);
+export const ThresholdChangeTypeSchema = z.enum(["infra", "dependency", "config", "code", "data"]);
 export type ThresholdChangeType = z.infer<typeof ThresholdChangeTypeSchema>;
 
 const ClassificationRuleSchema = z
@@ -46,6 +46,7 @@ const ThresholdSchema = z
         dependency: ThresholdTypeOverrideSchema.optional(),
         config: ThresholdTypeOverrideSchema.optional(),
         code: ThresholdTypeOverrideSchema.optional(),
+        data: ThresholdTypeOverrideSchema.optional(),
       })
       .strict()
       .optional(),
@@ -57,6 +58,8 @@ const ClassificationSchema = z
     rules: z.array(ClassificationRuleSchema).optional(),
   })
   .strict();
+
+export const ADAPTER_TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
 
 /**
  * `mode: "standalone"` with `adapter.kind: "kubernetes"`, `"dockerCompose"`, `"pm2"`,
@@ -77,7 +80,13 @@ const ClassificationSchema = z
 const AdapterSchema = z
   .object({
     kind: z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm"]),
-    target: z.string().min(1),
+    target: z
+      .string()
+      .min(1)
+      .regex(
+        ADAPTER_TARGET_REGEX,
+        "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+      ),
   })
   .strict();
 

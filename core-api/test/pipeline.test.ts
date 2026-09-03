@@ -37,6 +37,7 @@ interface FakeChangeVectorRow {
   dependency: number;
   config: number;
   code: number;
+  data: number;
   codeComplexity: number;
 }
 
@@ -200,8 +201,8 @@ describe("processCommit", () => {
 
   it("accepts a custom ThresholdConfig override", async () => {
     const customConfig = {
-      baseThreshold: { infra: 1, dependency: 1, config: 1, code: 1 },
-      baseWindow: { infra: 10, dependency: 10, config: 10, code: 10 },
+      baseThreshold: { infra: 1, dependency: 1, config: 1, code: 1, data: 1 },
+      baseWindow: { infra: 10, dependency: 10, config: 10, code: 10, data: 10 },
       decay: 0,
       complexityDecay: 0,
     };

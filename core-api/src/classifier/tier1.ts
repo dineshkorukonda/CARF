@@ -38,7 +38,7 @@ const RULES: PatternRule[] = [
   { patterns: ["k8s/**/*.yaml", "k8s/**/*.yml", "helm/**"], type: "infra" },
   { patterns: ["*.tf", "**/*.tf"], type: "infra" },
   { patterns: ["package.json", "requirements.txt", "go.mod", "Cargo.toml", "mix.exs"], type: "dependency" },
-  { patterns: ["migrations/**"], type: "data" },
+  { patterns: ["migrations/**", "**/migrations/**", "db/migrate/**", "**/db/migrate/**", "prisma/migrations/**", "**/prisma/migrations/**"], type: "data" },
   { patterns: ["*.ts", "*.tsx", "*.go", "*.py", "*.rs", "*.java", "*.ex", "**/*.ts", "**/*.tsx", "**/*.go", "**/*.py", "**/*.rs", "**/*.java", "**/*.ex"], type: "code" },
   { patterns: ["*.yaml", "*.yml", "*.env", "**/*.yaml", "**/*.yml", "**/*.env", "**/ConfigMap*.yaml", "**/ConfigMap*.yml"], type: "config" },
   {

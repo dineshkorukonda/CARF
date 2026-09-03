@@ -17,6 +17,7 @@ function vector(overrides: Partial<ChangeVector> = {}): ChangeVector {
     dependency: 0,
     config: 0,
     code: 0,
+    data: 0,
     code_complexity: 0,
     ...overrides,
   } as ChangeVector;
@@ -31,10 +32,11 @@ const VECTORS: Array<[label: string, value: ChangeVector]> = [
   ["dependency maximal", vector({ dependency: 1 })],
   ["config maximal", vector({ config: 1 })],
   ["code maximal", vector({ code: 1 })],
-  ["all types maximal", vector({ infra: 1, dependency: 1, config: 1, code: 1 })],
-  ["all types mid", vector({ infra: 0.5, dependency: 0.5, config: 0.5, code: 0.5 })],
-  ["maximal with full complexity", vector({ infra: 1, code: 1, code_complexity: 1 })],
-  ["mid with mid complexity", vector({ config: 0.4, code_complexity: 0.5 })],
+  ["data maximal", vector({ data: 1 })],
+  ["all types maximal", vector({ infra: 1, dependency: 1, config: 1, code: 1, data: 1 })],
+  ["all types mid", vector({ infra: 0.5, dependency: 0.5, config: 0.5, code: 0.5, data: 0.5 })],
+  ["maximal with full complexity", vector({ infra: 1, code: 1, data: 1, code_complexity: 1 })],
+  ["mid with mid complexity", vector({ config: 0.4, data: 0.3, code_complexity: 0.5 })],
 ];
 
 describe("threshold invariants that must hold for every vector", () => {
@@ -74,7 +76,7 @@ describe("threshold invariants that must hold for every vector", () => {
     for (const type of result.activeTypes) {
       expect(v[type]).toBeGreaterThan(0);
     }
-    for (const type of ["infra", "dependency", "config", "code"] as const) {
+    for (const type of ["infra", "dependency", "config", "code", "data"] as const) {
       if (v[type] > 0) expect(result.activeTypes).toContain(type);
     }
   });

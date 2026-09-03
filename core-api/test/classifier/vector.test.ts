@@ -19,7 +19,7 @@ describe("buildChangeVector", () => {
     const vector = buildChangeVector(tier1, 0);
     expect(vector).not.toBeNull();
     expect(vector!.code).toBe(1);
-    expect(vector!.infra + vector!.dependency + vector!.config + vector!.code).toBeCloseTo(1.0);
+    expect(vector!.infra + vector!.dependency + vector!.config + vector!.code + vector!.data).toBeCloseTo(1.0);
   });
 
   it("produces a weighted vector for a mixed-category commit", () => {
@@ -29,7 +29,15 @@ describe("buildChangeVector", () => {
     expect(vector!.code).toBeCloseTo(0.5); // 2/4
     expect(vector!.config).toBeCloseTo(0.25); // 1/4
     expect(vector!.infra).toBeCloseTo(0.25); // 1/4
-    expect(vector!.infra + vector!.dependency + vector!.config + vector!.code).toBeCloseTo(1.0);
+    expect(vector!.infra + vector!.dependency + vector!.config + vector!.code + vector!.data).toBeCloseTo(1.0);
+  });
+
+  it("produces a vector for database migrations classified as data", () => {
+    const tier1 = classifyTier1(["migrations/001_create_users.sql"]);
+    const vector = buildChangeVector(tier1, 0);
+    expect(vector).not.toBeNull();
+    expect(vector!.data).toBe(1);
+    expect(vector!.code).toBe(0);
   });
 
   it("excludes unclassified files from the weighting (README alongside code doesn't dilute code weight)", () => {
@@ -75,6 +83,7 @@ describe("classifyCommit", () => {
       dependency: 0,
       config: 1 / 3,
       code: 1 / 3,
+      data: 0,
       code_complexity: 0,
     });
   });
@@ -107,9 +116,13 @@ describe("classifyCommit", () => {
     expect(vector).toBeNull();
   });
 
-  it("defaults to StubComplexityScorer when no scorer is provided", () => {
+  it("defaults to TreeSitterComplexityScorer when no scorer is provided", () => {
     const vector = classifyCommit([
-      { path: "src/handler.ts", before: "line1\n", after: "line1\nline2\n" },
+      {
+        path: "src/handler.ts",
+        before: "function handle() { return 1; }",
+        after: "function handle() { if (true) return 2; return 1; }",
+      },
     ]);
     expect(vector).not.toBeNull();
     expect(vector!.code_complexity).toBeGreaterThan(0);
@@ -128,6 +141,7 @@ describe("classifyCommit", () => {
       dependency: 0,
       config: 0,
       code: 0,
+      data: 0,
       code_complexity: 0,
     });
   });

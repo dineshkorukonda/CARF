@@ -37,10 +37,11 @@ export class HttpGithubApiClient implements GitHubApiClient {
       throw { status: response.status, message } satisfies HttpError;
     }
 
-    const body = (await response.json()) as { files?: Array<{ filename: string; status: string }> };
+    const body = (await response.json()) as { files?: Array<{ filename: string; status: string; previous_filename?: string }> };
     const files: CompareFile[] = (body.files ?? []).map((f) => ({
       filename: f.filename,
       status: f.status as CompareFile["status"],
+      previous_filename: f.previous_filename,
     }));
     return { files };
   }

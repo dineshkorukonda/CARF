@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { env } from "../../../../../config/env";
 import { fetchInstallation, signGithubAppJwt } from "../../../../../adapters/github/appInstallClient";
 import { getCurrentAccount } from "../../../../../lib/auth";
-import { linkInstallation } from "../../../../../lib/accountService";
+import { InstallationAlreadyLinkedError, linkInstallation } from "../../../../../lib/accountService";
 import { prisma } from "../../../../../lib/prisma";
 
 /**
@@ -30,6 +30,11 @@ export async function POST(request: NextRequest) {
     const installation = await fetchInstallation(installationId, appJwt);
     await linkInstallation(prisma, account.id, installation);
   } catch (err) {
+    if (err instanceof InstallationAlreadyLinkedError) {
+      return NextResponse.redirect(
+        new URL("/dashboard/installations?error=already_linked_to_another_account", env.baseUrl())
+      );
+    }
     console.error(`manual install-link failed for installationId=${installationId}:`, err);
     return NextResponse.redirect(new URL("/dashboard/installations?error=install_link_failed", env.baseUrl()));
   }
