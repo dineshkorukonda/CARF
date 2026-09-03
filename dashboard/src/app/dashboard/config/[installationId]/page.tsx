@@ -1,9 +1,4 @@
 import { redirect } from "next/navigation";
-import { Button } from "../../../../components/ui/button";
-import { Input } from "../../../../components/ui/input";
-import { Label } from "../../../../components/ui/label";
-import { RadioGroup, RadioGroupItem } from "../../../../components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
@@ -14,6 +9,7 @@ import { listInstallationRepos } from "../../../../adapters/github/reposClient";
 import { getCarfConfigFile } from "../../../../adapters/github/contentsClient";
 import { load } from "js-yaml";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
+import { ConfigModeForm } from "./ConfigModeForm";
 
 const ERROR_MESSAGES: Record<string, string> = {
   save_failed: "Couldn't save .carf.yml -- please try again.",
@@ -97,55 +93,18 @@ export default async function ConfigPage({
       )}
 
       <div>
-        <h2 className="text-base font-semibold">Standalone rollback</h2>
+        <h2 className="text-base font-semibold">Deployment & Rollback Mode</h2>
         <p className="text-sm text-muted-foreground">
-          Augment mode leaves rollback to your own pipeline; Standalone has CARF drive it.
+          Configure how CARF integrates with your deployments for this repository.
         </p>
-        <form action="/api/config/save" method="POST" className="mt-4 flex flex-col gap-5">
-          <input type="hidden" name="installationId" value={installationId} />
-          <input type="hidden" name="owner" value={owner} />
-          <input type="hidden" name="repo" value={repoName} />
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-sm font-medium">Mode</legend>
-            <RadioGroup name="mode" defaultValue={existing.mode === "standalone" ? "standalone" : "augment"}>
-              <Label className="flex items-center gap-2 font-normal">
-                <RadioGroupItem value="augment" />
-                Augment
-              </Label>
-              <Label className="flex items-center gap-2 font-normal">
-                <RadioGroupItem value="standalone" />
-                Standalone
-              </Label>
-            </RadioGroup>
-          </fieldset>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-1 text-sm font-medium">Adapter (Standalone only)</legend>
-            <Select name="adapterKind" defaultValue={existing.adapter?.kind ?? LIVE_ADAPTER_KINDS[0]}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LIVE_ADAPTER_KINDS.map((kind: AdapterKind) => (
-                  <SelectItem key={kind} value={kind}>
-                    {kind}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="text"
-              name="adapterTarget"
-              placeholder="e.g. my-deployment"
-              defaultValue={existing.adapter?.target ?? ""}
-            />
-          </fieldset>
-
-          <Button type="submit" className="self-start">
-            Save
-          </Button>
-        </form>
+        <ConfigModeForm
+          installationId={installationId}
+          owner={owner}
+          repo={repoName}
+          defaultMode={existing.mode === "standalone" ? "standalone" : "augment"}
+          defaultAdapterKind={(existing.adapter?.kind as AdapterKind) ?? LIVE_ADAPTER_KINDS[0]}
+          defaultAdapterTarget={existing.adapter?.target ?? ""}
+        />
       </div>
     </main>
   );
