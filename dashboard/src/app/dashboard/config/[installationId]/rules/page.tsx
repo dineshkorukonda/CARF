@@ -8,6 +8,8 @@ import { listInstallationRepos } from "../../../../../adapters/github/reposClien
 import { getCarfConfigFile } from "../../../../../adapters/github/contentsClient";
 import type { ThresholdChangeType } from "../../../../../lib/carfConfigSchema";
 import { RulesForm, type RulesFormInitial } from "./RulesForm";
+import { ensureCoreApiKey } from "../../../../../lib/coreApiAccess";
+import { RepoNavigationTabs } from "../../../RepoNavigationTabs";
 
 interface ExistingClassificationThreshold {
   classification?: { rules?: Array<{ type: string; patterns: string[] }> };
@@ -18,7 +20,7 @@ interface ExistingClassificationThreshold {
   };
 }
 
-const THRESHOLD_TYPES: readonly ThresholdChangeType[] = ["infra", "dependency", "config", "code"];
+const THRESHOLD_TYPES: readonly ThresholdChangeType[] = ["infra", "dependency", "config", "code", "data"];
 
 function toFormInitial(existing: ExistingClassificationThreshold): RulesFormInitial {
   return {
@@ -60,22 +62,38 @@ export default async function RulesPage({
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation) redirect("/dashboard?error=not_authorized");
 
+  let apiKey: string | null = null;
+  try {
+    apiKey = await ensureCoreApiKey(prisma, installation);
+  } catch {
+    // Non-fatal
+  }
+
   const token = await mintInstallationToken(installationId);
   const repos = await listInstallationRepos(token);
   const selectedFullName = repoParam ?? (repos.length === 1 ? repos[0]!.full_name : undefined);
 
   if (!selectedFullName) {
     return (
-      <main className="flex max-w-xl flex-col gap-6 p-8">
-        <h1 className="text-xl font-semibold">Choose a repository</h1>
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+        <RepoNavigationTabs
+          installationId={installationId}
+          repoName={installation.targetLogin}
+          apiKey={apiKey}
+        />
+        <div>
+          <h1 className="text-xl font-semibold">Choose a repository</h1>
+          <p className="text-sm text-muted-foreground">Select a repository to tune classification rules and thresholds.</p>
+        </div>
         <div className="flex flex-col gap-2">
           {repos.map((r) => (
             <a
               key={r.id}
               href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(r.full_name)}`}
-              className="rounded-sm border border-border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
+              className="rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:bg-muted font-medium flex items-center justify-between"
             >
-              {r.full_name}
+              <span>{r.full_name}</span>
+              <span className="text-xs text-muted-foreground">Tune Rules →</span>
             </a>
           ))}
         </div>
@@ -89,16 +107,22 @@ export default async function RulesPage({
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+      <RepoNavigationTabs
+        installationId={installationId}
+        repoName={selectedFullName}
+        apiKey={apiKey}
+      />
+
       <div>
-        <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
+        <h1 className="text-xl font-semibold">Classification & Dynamic Threshold Rules</h1>
         <p className="text-sm text-muted-foreground">
-          {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
+          {selectedFullName} — configure file patterns, base error thresholds, and observation windows.
         </p>
       </div>
 
       {saved && (
         <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
-          Saved -- committed to {selectedFullName}.
+          Saved — committed to {selectedFullName}.
         </p>
       )}
 
