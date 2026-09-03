@@ -234,9 +234,9 @@ export default function ProposedArchitectureLandingPage() {
             <div className="my-6 pl-0 space-y-3 font-['Inter',system-ui,sans-serif] text-[14px]">
               {[
                 { step: "1", title: "CI Trigger", desc: "PR merge triggers Git Webhook adapter passing target commit SHA and unified diff payload." },
-                { step: "2", title: "Tier 1 Classifier", desc: "Fast path pattern matching classifies touched files into infra, dependency, config, or code buckets." },
+                { step: "2", title: "Tier 1 Classifier", desc: "Fast path pattern matching classifies touched files into infra, dependency, config, data, or code buckets." },
                 { step: "3", title: "Tier 2 Classifier", desc: "Tree-sitter structural diffing parses code files to calculate function modifications, signature changes, and nesting depth deltas." },
-                { step: "4", title: "Vector Persistence", desc: "Normalized Change Vector {infra, dependency, config, code, code_complexity} is saved to PostgreSQL." },
+                { step: "4", title: "Vector Persistence", desc: "Normalized Change Vector {infra, dependency, config, code, data, code_complexity} is saved to PostgreSQL." },
                 { step: "5", title: "Threshold Computation", desc: "Threshold Engine computes dynamic error tolerance limit and observation window according to §6.2 formula." },
                 { step: "6", title: "Webhook Query", desc: "Argo Rollouts or Flagger AnalysisTemplate calls GET /v1/threshold?commit=SHA and applies strictness dynamically." },
               ].map((item) => (

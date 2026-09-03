@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Code, HardDrive, Package, Settings, Zap } from "lucide-react";
+import { Code, Database, HardDrive, Package, Settings, Zap } from "lucide-react";
 
 export function ChangeTypeMatrix() {
-  const [activeType, setActiveType] = useState<"code" | "config" | "dependency" | "infra">(
+  const [activeType, setActiveType] = useState<"code" | "config" | "dependency" | "infra" | "data">(
     "infra"
   );
 
@@ -55,6 +55,21 @@ export function ChangeTypeMatrix() {
 + "express-session": "2.0.0-rc1"`,
     },
     {
+      key: "data" as const,
+      type: "Data / Migration",
+      icon: Database,
+      sensitivity: "Very Strict",
+      window: "10 minutes",
+      threshold: "1.0%",
+      rollbackAction: "Tight Protection",
+      rationale:
+        "Schema migrations (Prisma, Flyway, Rails) risk lock contention or table locks; guarded with strict 1.0% tolerance.",
+      diffExample: `--- a/prisma/migrations/20260901_add_tenant/migration.sql
++++ b/prisma/migrations/20260901_add_tenant/migration.sql
++ ALTER TABLE "Account" ADD COLUMN "tenantId" TEXT NOT NULL;
++ CREATE INDEX "Account_tenantId_idx" ON "Account"("tenantId");`,
+    },
+    {
       key: "infra" as const,
       type: "Infrastructure",
       icon: HardDrive,
@@ -71,7 +86,7 @@ export function ChangeTypeMatrix() {
     },
   ];
 
-  const activeItem = matrixData.find((item) => item.key === activeType) || matrixData[3];
+  const activeItem = matrixData.find((item) => item.key === activeType) || matrixData[4];
 
   return (
     <section id="sensitivity-matrix" className="py-24 sm:py-28 border-t border-white/10">

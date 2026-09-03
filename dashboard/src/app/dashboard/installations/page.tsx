@@ -6,6 +6,8 @@ import { getCurrentAccount } from "../../../lib/auth";
 import { listInstallationsForAccount } from "../../../lib/accountService";
 import { prisma } from "../../../lib/prisma";
 
+import { ApiKeyCopyButton } from "./ApiKeyCopyButton";
+
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_install_state: "GitHub App install request expired or was tampered with. Please try again.",
   install_link_failed: "Couldn't confirm that installation with GitHub -- check the id and try again.",
@@ -60,7 +62,9 @@ export default async function InstallationsPage({
                     installation <span className="font-mono">{installation.installationId}</span> ·{" "}
                     {installation.repositorySelection} repos
                     {installation.coreApiKey && (
-                      <> · key: <span className="font-mono text-xs select-all text-foreground">{installation.coreApiKey}</span></>
+                      <span className="inline-flex items-center gap-1.5 pl-1">
+                        · key: <ApiKeyCopyButton apiKey={installation.coreApiKey} />
+                      </span>
                     )}
                   </p>
                 </div>
