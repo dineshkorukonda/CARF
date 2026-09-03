@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, UserRound } from "lucide-react";
+import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { InstallationSwitcher } from "./InstallationSwitcher";
 import type { InstallationRow } from "../../lib/accountService";
@@ -39,7 +39,7 @@ function NavLink({
         "flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors " +
         (active
           ? "bg-sidebar-foreground text-sidebar"
-          : "text-sidebar-foreground/55 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
+          : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
       }
     >
       {icon}
@@ -69,8 +69,8 @@ function ContextNavLink({
       className={
         "flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors " +
         (active
-          ? "bg-sidebar-foreground/10 text-sidebar-foreground"
-          : "text-sidebar-foreground/55 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
+          ? "bg-sidebar-foreground/15 text-sidebar-foreground font-semibold"
+          : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
       }
     >
       {icon}
@@ -92,15 +92,12 @@ export function SidebarShell({
   useEffect(() => {
     try {
       const stored = localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1";
-      // One-time sync from localStorage (an external store, unreadable during SSR) into
-      // state right after mount -- not the "derive state from props" anti-pattern the
-      // set-state-in-effect rule targets.
       if (stored) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setCollapsed(true);
       }
     } catch {
-      // localStorage unavailable (private browsing, etc.) -- default expanded is fine.
+      // localStorage unavailable
     }
   }, []);
 
@@ -110,14 +107,19 @@ export function SidebarShell({
       try {
         localStorage.setItem(COLLAPSE_STORAGE_KEY, next ? "1" : "0");
       } catch {
-        // Non-fatal -- collapse state just won't persist across reloads.
+        // Non-fatal
       }
       return next;
     });
   }
 
   const activeId = activeInstallationId(pathname);
-  const active = activeId ? installations.find((i) => i.installationId === activeId) : undefined;
+  // Default to active route param if on repo page, otherwise default to primary installation
+  const active = activeId
+    ? installations.find((i) => i.installationId === activeId)
+    : installations.length > 0
+      ? installations[0]
+      : undefined;
 
   return (
     <aside
@@ -127,12 +129,16 @@ export function SidebarShell({
       }
     >
       <div className="flex flex-col gap-5 py-6">
+        {/* Brand header */}
         <div className={collapsed ? "flex flex-col items-center gap-3 px-3" : "flex items-center justify-between px-4"}>
           <Link href="/dashboard" className="flex items-center gap-2 text-sm font-bold tracking-wide">
             {collapsed ? (
               <span className="flex size-6 items-center justify-center text-[13px] font-bold">C</span>
             ) : (
-              <span>CARF</span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-emerald-500" />
+                <span>CARF</span>
+              </span>
             )}
           </Link>
           <button
@@ -145,104 +151,90 @@ export function SidebarShell({
           </button>
         </div>
 
-        {active ? (
-          <>
+        {/* Repository Workspace Nav */}
+        {active && (
+          <div className="flex flex-col gap-2">
+            {!collapsed && (
+              <div className="px-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                  Active Repository
+                </p>
+              </div>
+            )}
             <InstallationSwitcher installations={installations} active={active} collapsed={collapsed} />
+
             <nav className="flex flex-col gap-0.5 px-3">
               <ContextNavLink
                 href={`/dashboard/status/${active.installationId}`}
                 collapsed={collapsed}
-                icon={<Radio className="size-4 shrink-0" />}
+                icon={<Radio className="size-4 shrink-0 text-emerald-500" />}
               >
-                Status
+                Live Status
               </ContextNavLink>
               <ContextNavLink
                 href={`/dashboard/config/${active.installationId}`}
                 collapsed={collapsed}
                 icon={<Settings2 className="size-4 shrink-0" />}
               >
-                Configure
+                Deployment Adapter
               </ContextNavLink>
               <ContextNavLink
                 href={`/dashboard/config/${active.installationId}/rules`}
                 collapsed={collapsed}
-                icon={<Settings2 className="size-4 shrink-0" />}
+                icon={<Sliders className="size-4 shrink-0" />}
               >
-                Rules
+                Threshold Rules
               </ContextNavLink>
               <ContextNavLink
                 href={`/dashboard/analytics/${active.installationId}`}
                 collapsed={collapsed}
                 icon={<BarChart3 className="size-4 shrink-0" />}
               >
-                Analytics
+                Rollout Analytics
               </ContextNavLink>
             </nav>
-
-            <div className="mx-4 border-t border-sidebar-foreground/10" />
-
-            <nav className="flex flex-col gap-0.5 px-3">
-              <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
-                Home
-              </NavLink>
-              <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
-                All installations
-              </NavLink>
-            </nav>
-          </>
-        ) : (
-          <>
-            <nav className="flex flex-col gap-0.5 px-3">
-              <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
-                Home
-              </NavLink>
-              <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
-                All installations
-              </NavLink>
-            </nav>
-
-            <div className="mx-4 border-t border-sidebar-foreground/10" />
-
-            <div className="flex flex-col gap-1 px-3">
-              {!collapsed && (
-                <p className="px-3 text-[11px] font-medium tracking-wide text-sidebar-foreground/40 uppercase">
-                  Jump to a repo
-                </p>
-              )}
-              {installations.length === 0 && !collapsed && (
-                <p className="px-3 py-1.5 text-sm text-sidebar-foreground/45">None yet</p>
-              )}
-              {installations.map((installation) => (
-                <Link
-                  key={installation.id}
-                  href={`/dashboard/status/${installation.installationId}`}
-                  title={collapsed ? installation.targetLogin : undefined}
-                  className="flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
-                >
-                  <span className="size-1.5 shrink-0 rounded-full bg-[#5b6cff]" />
-                  {!collapsed && <span className="truncate">{installation.targetLogin}</span>}
-                </Link>
-              ))}
-            </div>
-          </>
+          </div>
         )}
+
+        <div className="mx-4 border-t border-sidebar-foreground/10" />
+
+        {/* Global Navigation */}
+        <div className="flex flex-col gap-2">
+          {!collapsed && (
+            <div className="px-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                General
+              </p>
+            </div>
+          )}
+          <nav className="flex flex-col gap-0.5 px-3">
+            <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
+              Overview
+            </NavLink>
+            <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
+              All Installations
+            </NavLink>
+          </nav>
+        </div>
       </div>
 
-      <div className="flex flex-col gap-1 border-t border-sidebar-foreground/10 px-3 py-4">
+      {/* User footer */}
+      <div className="flex flex-col gap-2 border-t border-sidebar-foreground/10 p-3">
         <NavLink href="/dashboard/account" collapsed={collapsed} icon={<UserRound className="size-4 shrink-0" />}>
-          Account
+          <span className="truncate">{accountEmail}</span>
         </NavLink>
-        {!collapsed && <p className="truncate px-3 pt-2 text-xs text-sidebar-foreground/45">{accountEmail}</p>}
-        <form action="/api/auth/logout" method="POST" className="mt-1">
+        <form action="/api/auth/logout" method="POST">
           <Button
-            variant="outline"
-            size="sm"
             type="submit"
+            variant="ghost"
             title={collapsed ? "Sign out" : undefined}
-            className="w-full justify-center gap-2 border-sidebar-foreground/15 bg-transparent text-sidebar-foreground hover:bg-sidebar-foreground/10"
+            className={
+              "w-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground " +
+              (collapsed ? "justify-center px-0" : "justify-start px-3")
+            }
           >
             <LogOut className="size-4 shrink-0" />
-            {!collapsed && "Sign out"}
+            {!collapsed && <span className="ml-2.5 truncate">Sign out</span>}
           </Button>
         </form>
       </div>

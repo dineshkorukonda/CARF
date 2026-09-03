@@ -15,7 +15,7 @@ import {
 import { applyClassificationThresholdPatch } from "../../../../../lib/carfConfigWriter";
 
 const CLASSIFICATION_TYPES: readonly ClassificationChangeType[] = ["infra", "dependency", "config", "code", "data"];
-const THRESHOLD_TYPES: readonly ThresholdChangeType[] = ["infra", "dependency", "config", "code"];
+const THRESHOLD_TYPES: readonly ThresholdChangeType[] = ["infra", "dependency", "config", "code", "data"];
 
 interface RuleRow {
   type: ClassificationChangeType;
