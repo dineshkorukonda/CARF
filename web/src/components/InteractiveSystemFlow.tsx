@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Code2,
+  Database,
   FileCode2,
   Layers,
   CheckCircle2,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 
 export function InteractiveSystemFlow() {
-  const [selectedVector, setSelectedVector] = useState<"code" | "config" | "dependency" | "infra">("code");
+  const [selectedVector, setSelectedVector] = useState<"code" | "config" | "dependency" | "infra" | "data">("code");
   const [simulatedErrorRate, setSimulatedErrorRate] = useState<number>(2.2);
 
   const vectors = {
@@ -76,6 +77,21 @@ export function InteractiveSystemFlow() {
       borderColor: "#fecaca",
       badge: "Strictest / Zero Tolerance",
       description: "Routing, ingress, Docker, or Terraform changes. Zero-tolerance policy triggers automated rollback in seconds."
+    },
+    data: {
+      title: "Database Migrations",
+      icon: Database,
+      tier1: "Path: prisma/migrations/**, db/migrate/**",
+      tier2: "DDL Schema Diff: Added tenantId with NOT NULL constraint",
+      vectorWeights: { code: 0.0, code_complexity: 0.0, infra: 0.0, config: 0.0, dependency: 0.0, data: 1.0 },
+      baseWindow: "10 min",
+      windowSec: 600,
+      threshold: 1.0,
+      color: "#0d9488", // teal
+      bgColor: "#f0fdfa",
+      borderColor: "#99f6e4",
+      badge: "Strict / Data Integrity",
+      description: "Database DDL and schema migrations. Strict 1.0% tolerance ceiling with 10-minute stabilization window."
     }
   };
 
@@ -105,7 +121,7 @@ export function InteractiveSystemFlow() {
       </div>
 
       {/* Vector Selector Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#eaeaea] bg-[#f8fafc]">
+      <div className="grid grid-cols-2 sm:grid-cols-5 border-b border-[#eaeaea] bg-[#f8fafc]">
         {(Object.keys(vectors) as Array<keyof typeof vectors>).map((key) => {
           const item = vectors[key];
           const Icon = item.icon;

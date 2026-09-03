@@ -1,66 +1,144 @@
-import { Activity, LayoutDashboard, Server, Layers } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { Activity, Box, Container, Layers, LayoutDashboard, Server, Terminal } from "lucide-react";
 
 export function SupportedTargets() {
-  const targets = [
+  const [activeTab, setActiveTab] = useState<"standalone" | "augment">("standalone");
+
+  const standaloneTargets = [
+    {
+      name: "Docker Compose",
+      type: "Standalone Adapter",
+      icon: Container,
+      method: "docker compose up -d",
+      protocol: "Docker Engine API / CLI",
+      badge: "Native Engine",
+      description:
+        "Inspects container health checks via 'docker compose ps'. Automatically redeploys previous image tags on threshold breach.",
+    },
+    {
+      name: "Docker Swarm",
+      type: "Standalone Adapter",
+      icon: Box,
+      method: "docker service update --rollback",
+      protocol: "Swarm Manager CLI",
+      badge: "Native Engine",
+      description:
+        "Monitors active task states and triggers Swarm's native rolling rollback to the previous task definition automatically.",
+    },
+    {
+      name: "PM2 Process Manager",
+      type: "Standalone Adapter",
+      icon: Terminal,
+      method: "pm2 reload + symlink switch",
+      protocol: "Process Daemon",
+      badge: "Native Engine",
+      description:
+        "Inspects cluster worker health with 'pm2 jlist', switches /var/www/current symlink, and reloads processes with zero downtime.",
+    },
+    {
+      name: "Kubernetes (kubectl)",
+      type: "Standalone Adapter",
+      icon: Server,
+      method: "kubectl rollout undo",
+      protocol: "Kubernetes API / CLI",
+      badge: "Native Engine",
+      description:
+        "Tracks Pod and Deployment replica readiness. Triggers an automated 'rollout undo' when canary error budgets are exceeded.",
+    },
+  ];
+
+  const augmentTargets = [
     {
       name: "Argo Rollouts",
       type: "Progressive Delivery",
       icon: Server,
       method: "AnalysisTemplate Webhook",
-      protocol: "HTTP API",
-      badge: "Native Integration",
+      protocol: "HTTP API (Bearer Token)",
+      badge: "Native Augment",
       description:
-        "CARF responds to Argo Rollouts mid-canary to provide the dynamic threshold for the commit.",
+        "CARF responds to Argo Rollouts mid-canary step to dynamically tune error thresholds based on commit risk vectors.",
     },
     {
       name: "Flagger",
       type: "Progressive Delivery",
       icon: Layers,
-      method: "Webhook Metric",
-      protocol: "HTTP API",
-      badge: "Native Integration",
+      method: "Webhook Metric Provider",
+      protocol: "HTTP API (Bearer Token)",
+      badge: "Native Augment",
       description:
-        "Plugs into Flagger's webhook metric provider to drive rollback decisions intelligently.",
+        "Plugs directly into Flagger's canary webhook metric provider to dynamically adjust error margins for each deployment.",
     },
     {
       name: "Prometheus",
       type: "Metrics Backend",
       icon: Activity,
-      method: "PromQL client",
+      method: "PromQL query",
       protocol: "HTTP API",
-      badge: "Supported",
+      badge: "Telemetry Source",
       description:
-        "CARF queries baseline health data from Prometheus to optionally adjust its threshold output.",
+        "CARF queries baseline error and latency distributions from Prometheus to calibrate dynamic thresholds against historical noise.",
     },
     {
       name: "Datadog",
       type: "Metrics Backend",
       icon: LayoutDashboard,
-      method: "API Client",
+      method: "Metrics API",
       protocol: "HTTP API",
-      badge: "Supported",
+      badge: "Telemetry Source",
       description:
-        "Integrates with Datadog telemetry to inform dynamic threshold scoring.",
-    }
+        "Correlates runtime APM and error tracking data with git commit complexity vectors to guard production deployments.",
+    },
   ];
+
+  const currentTargets = activeTab === "standalone" ? standaloneTargets : augmentTargets;
 
   return (
     <section id="targets" className="py-24 sm:py-28 border-t border-white/10">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="max-w-2xl mb-12">
-          <div className="inline-flex items-center gap-2 text-[#f56031] mb-4">
-            <span className="font-mono text-xs uppercase tracking-[0.18em]">Integrations</span>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 text-[#f56031] mb-4">
+              <span className="font-mono text-xs uppercase tracking-[0.18em]">Deployment Targets</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
+              Supported deployment engines & tools
+            </h2>
+            <p className="mt-4 text-base sm:text-lg text-neutral-400 leading-relaxed">
+              Use CARF Standalone to execute automated rollbacks directly, or Augment mode to plug dynamic thresholds into your existing orchestrator.
+            </p>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-semibold tracking-tight text-white leading-tight">
-            Supported integrations
-          </h2>
-          <p className="mt-4 text-base sm:text-lg text-neutral-400 leading-relaxed">
-            Plugs into the progressive delivery tools you already run — providing dynamic thresholds without replacing them.
-          </p>
+
+          {/* Mode Switcher Tabs */}
+          <div className="inline-flex rounded-full bg-white/5 p-1 border border-white/10 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab("standalone")}
+              className={`rounded-full px-4 py-2 text-xs font-medium font-mono transition-colors ${
+                activeTab === "standalone"
+                  ? "bg-[#f56031] text-black font-semibold shadow-sm"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              Standalone Adapters (Direct Rollback)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("augment")}
+              className={`rounded-full px-4 py-2 text-xs font-medium font-mono transition-colors ${
+                activeTab === "augment"
+                  ? "bg-[#f56031] text-black font-semibold shadow-sm"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              Augment Mode (Argo / Flagger / Telemetry)
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
-          {targets.map((target) => {
+          {currentTargets.map((target) => {
             const Icon = target.icon;
             return (
               <div
@@ -88,11 +166,11 @@ export function SupportedTargets() {
 
                 <div className="pt-3 border-t border-white/10 font-mono text-[11px] text-zinc-500 space-y-1.5">
                   <div className="flex justify-between gap-3">
-                    <span>Method</span>
+                    <span>Action / Command</span>
                     <span className="text-zinc-300 text-right">{target.method}</span>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <span>Protocol</span>
+                    <span>Interface</span>
                     <span className="text-zinc-400 text-right">{target.protocol}</span>
                   </div>
                 </div>
