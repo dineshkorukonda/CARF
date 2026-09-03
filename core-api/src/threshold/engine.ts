@@ -6,9 +6,9 @@ import type { ChangeVector } from "../classifier/vector.js";
  * after the per-type contributions are combined, not one of the per-type contributions
  * itself (see computeThreshold below).
  */
-export type ChangeType = "infra" | "dependency" | "config" | "code";
+export type ChangeType = "infra" | "dependency" | "config" | "code" | "data";
 
-const CHANGE_TYPES: readonly ChangeType[] = ["infra", "dependency", "config", "code"];
+const CHANGE_TYPES: readonly ChangeType[] = ["infra", "dependency", "config", "code", "data"];
 
 export interface ThresholdConfig {
   /** Baseline anomaly-score threshold per change type before decay is applied. */
@@ -24,8 +24,8 @@ export interface ThresholdConfig {
 /**
  * Default tuning. Windows widen from infra (fastest-moving, tightest blast radius) up
  * to code (broadest, most permissive): infra=60s, dependency=180s, config=300s,
- * code=900s (15 min). Thresholds follow the same ordering — infra is the most sensitive
- * (smallest threshold, easiest to trip), code the least (largest threshold).
+ * data=600s (db migrations), code=900s (15 min). Thresholds follow the same ordering —
+ * infra and data are the most sensitive (smallest threshold, easiest to trip), code the least.
  */
 export const DEFAULT_CONFIG: ThresholdConfig = {
   baseThreshold: {
@@ -33,12 +33,14 @@ export const DEFAULT_CONFIG: ThresholdConfig = {
     dependency: 0.03,
     config: 0.05,
     code: 0.08,
+    data: 0.01,
   },
   baseWindow: {
     infra: 60,
     dependency: 180,
     config: 300,
     code: 900,
+    data: 600,
   },
   decay: 0.5,
   complexityDecay: 0.3,

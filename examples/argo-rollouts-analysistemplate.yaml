@@ -18,6 +18,7 @@ spec:
     - name: commit-sha
     - name: carf-base-url
       value: http://core-api.carf.svc.cluster.local
+    - name: carf-api-key
   metrics:
     - name: carf-threshold
       interval: 30s
@@ -30,6 +31,8 @@ spec:
           headers:
             - key: Accept
               value: application/json
+            - key: Authorization
+              value: "Bearer {{args.carf-api-key}}"
           jsonPath: "{$}"
     # A second metric consumes carf-threshold's result.finalThreshold as the error-rate
     # threshold for the canary's real success-rate query (e.g. Prometheus), instead of a

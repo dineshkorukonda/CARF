@@ -31,13 +31,17 @@ function extractInstallationId(body: Record<string, unknown>): string | undefine
   return installation?.id != null ? String(installation.id) : undefined;
 }
 
+const ZERO_SHA = "0000000000000000000000000000000000000000";
+
 function parsePush(body: Record<string, unknown>): DeployTarget | null {
+  if (body.deleted === true) return null;
   const { owner, repo } = extractRepo(body);
   const installationId = extractInstallationId(body);
   const baseSha = body.before as string | undefined;
   const headSha = body.after as string | undefined;
 
   if (!owner || !repo || !installationId || !baseSha || !headSha) return null;
+  if (headSha === ZERO_SHA) return null;
   return { owner, repo, baseSha, headSha, installationId, event: "push" };
 }
 

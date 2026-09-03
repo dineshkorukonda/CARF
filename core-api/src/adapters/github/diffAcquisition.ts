@@ -4,6 +4,7 @@ import type { CompareFile, GitHubApiClient, HttpError } from "./githubApiClient.
 export interface ChangedFile {
   path: string;
   status: CompareFile["status"];
+  previousPath?: string | undefined;
 }
 
 function isNotFound(error: unknown): boolean {
@@ -19,7 +20,7 @@ export async function getChangedFiles(
   token: string
 ): Promise<ChangedFile[]> {
   const result = await client.compareCommits(owner, repo, baseSha, headSha, token);
-  return result.files.map((f) => ({ path: f.filename, status: f.status }));
+  return result.files.map((f) => ({ path: f.filename, status: f.status, previousPath: f.previous_filename }));
 }
 
 /** Returns null when the path doesn't exist on that ref (added/removed side of the diff). */
@@ -57,8 +58,9 @@ export async function acquireDiff(
   return Promise.all(
     changedFiles.map(async (file) => {
       const path = file.path;
+      const beforePath = file.status === "renamed" && file.previousPath ? file.previousPath : path;
       const [before, after] = await Promise.all([
-        file.status === "added" ? "" : fetchBlobContent(client, owner, repo, path, baseSha, token),
+        file.status === "added" ? "" : fetchBlobContent(client, owner, repo, beforePath, baseSha, token),
         file.status === "removed" ? "" : fetchBlobContent(client, owner, repo, path, headSha, token),
       ]);
       return { path, before: before ?? "", after: after ?? "" };

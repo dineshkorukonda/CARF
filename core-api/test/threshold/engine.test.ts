@@ -8,6 +8,7 @@ function vector(overrides: Partial<ChangeVector> = {}): ChangeVector {
     dependency: 0,
     config: 0,
     code: 0,
+    data: 0,
     code_complexity: 0,
     ...overrides,
   };
@@ -15,8 +16,8 @@ function vector(overrides: Partial<ChangeVector> = {}): ChangeVector {
 
 // Simple, hand-checkable config used by most tests so expected numbers are easy to verify.
 const TEST_CONFIG: ThresholdConfig = {
-  baseThreshold: { infra: 0.01, dependency: 0.03, config: 0.05, code: 0.08 },
-  baseWindow: { infra: 60, dependency: 180, config: 300, code: 900 },
+  baseThreshold: { infra: 0.01, dependency: 0.03, config: 0.05, code: 0.08, data: 0.01 },
+  baseWindow: { infra: 60, dependency: 180, config: 300, code: 900, data: 600 },
   decay: 0.5,
   complexityDecay: 0.3,
 };
@@ -68,8 +69,8 @@ describe("computeThreshold", () => {
     // Craft a case where the type with the min threshold contribution differs from the
     // type with the min window contribution.
     const config: ThresholdConfig = {
-      baseThreshold: { infra: 0.5, dependency: 0.01, config: 0.05, code: 0.08 },
-      baseWindow: { infra: 60, dependency: 5000, config: 300, code: 900 },
+      baseThreshold: { infra: 0.5, dependency: 0.01, config: 0.05, code: 0.08, data: 0.01 },
+      baseWindow: { infra: 60, dependency: 5000, config: 300, code: 900, data: 600 },
       decay: 0.5,
       complexityDecay: 0.3,
     };

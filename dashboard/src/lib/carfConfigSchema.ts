@@ -12,10 +12,18 @@ import { z } from "zod";
 export const AdapterKindSchema = z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm"]);
 export type AdapterKind = z.infer<typeof AdapterKindSchema>;
 
+export const ADAPTER_TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
+
 export const AdapterConfigSchema = z
   .object({
     kind: AdapterKindSchema,
-    target: z.string().min(1),
+    target: z
+      .string()
+      .min(1)
+      .regex(
+        ADAPTER_TARGET_REGEX,
+        "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+      ),
   })
   .strict();
 export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
@@ -40,8 +48,8 @@ export const LIVE_ADAPTER_KINDS: readonly AdapterKind[] = [
 export const ClassificationChangeTypeSchema = z.enum(["infra", "dependency", "config", "code", "data"]);
 export type ClassificationChangeType = z.infer<typeof ClassificationChangeTypeSchema>;
 
-/** Mirrors ThresholdChangeTypeSchema -- narrower than classification, no "data" category. */
-export const ThresholdChangeTypeSchema = z.enum(["infra", "dependency", "config", "code"]);
+/** Mirrors ThresholdChangeTypeSchema -- includes data (db migrations). */
+export const ThresholdChangeTypeSchema = z.enum(["infra", "dependency", "config", "code", "data"]);
 export type ThresholdChangeType = z.infer<typeof ThresholdChangeTypeSchema>;
 
 export const ClassificationRuleSchema = z
@@ -70,6 +78,7 @@ export const ThresholdSchema = z
         dependency: ThresholdTypeOverrideSchema.optional(),
         config: ThresholdTypeOverrideSchema.optional(),
         code: ThresholdTypeOverrideSchema.optional(),
+        data: ThresholdTypeOverrideSchema.optional(),
       })
       .strict()
       .optional(),
