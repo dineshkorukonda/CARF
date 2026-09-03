@@ -1,6 +1,8 @@
 import { getCurrentAccount } from "../../lib/auth";
 import { listInstallationsForAccount } from "../../lib/accountService";
 import { prisma } from "../../lib/prisma";
+import { Terminal, Container, Server } from "lucide-react";
+import Link from "next/link";
 
 const ERROR_MESSAGES: Record<string, string> = {
   not_authorized: "That installation isn't linked to your account.",
@@ -124,6 +126,83 @@ export default async function DashboardPage({
                 : undefined
             }
           />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <div>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Supported Deployment Engines</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            CARF supports zero-downtime automated rollbacks directly on your servers or clusters.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="rounded-sm border border-border p-4 bg-card flex flex-col justify-between gap-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <Terminal className="size-4 text-primary shrink-0" />
+                <span>PM2 (Server / VPS)</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Atomic release symlinks (<code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">/var/www/current</code>) with zero-downtime <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">pm2 reload</code> on threshold breach.
+              </p>
+            </div>
+            {primaryInstallation ? (
+              <Link
+                href={`/dashboard/config/${primaryInstallation.installationId}`}
+                className="text-xs font-medium text-primary hover:underline underline-offset-4 self-start"
+              >
+                Configure PM2 adapter →
+              </Link>
+            ) : (
+              <span className="text-xs text-muted-foreground">Install app to configure</span>
+            )}
+          </div>
+
+          <div className="rounded-sm border border-border p-4 bg-card flex flex-col justify-between gap-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <Container className="size-4 text-primary shrink-0" />
+                <span>Docker Compose</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Inspects container health checks and rolls back using <code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">IMAGE_TAG</code> redeployments on single Linux VMs.
+              </p>
+            </div>
+            {primaryInstallation ? (
+              <Link
+                href={`/dashboard/config/${primaryInstallation.installationId}`}
+                className="text-xs font-medium text-primary hover:underline underline-offset-4 self-start"
+              >
+                Configure Docker adapter →
+              </Link>
+            ) : (
+              <span className="text-xs text-muted-foreground">Install app to configure</span>
+            )}
+          </div>
+
+          <div className="rounded-sm border border-border p-4 bg-card flex flex-col justify-between gap-3">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 font-medium text-sm">
+                <Server className="size-4 text-primary shrink-0" />
+                <span>Kubernetes & Swarm</span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Native cluster commands (<code className="font-mono text-[11px] bg-muted px-1 py-0.5 rounded">kubectl rollout undo</code> and Swarm rolling rollbacks) for container fleets.
+              </p>
+            </div>
+            {primaryInstallation ? (
+              <Link
+                href={`/dashboard/config/${primaryInstallation.installationId}`}
+                className="text-xs font-medium text-primary hover:underline underline-offset-4 self-start"
+              >
+                Configure Cluster adapter →
+              </Link>
+            ) : (
+              <span className="text-xs text-muted-foreground">Install app to configure</span>
+            )}
+          </div>
         </div>
       </div>
     </main>
