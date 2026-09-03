@@ -218,6 +218,76 @@ export default function ProposedArchitectureLandingPage() {
               </table>
             </div>
 
+            {/* Standalone Deployment Architecture Callouts */}
+            <div className="my-8 space-y-4 font-['Inter',system-ui,sans-serif]">
+              <div className="p-5 rounded-[4px] border border-[#e5e5e5] bg-[#fafafa]">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="font-semibold text-xs tracking-wider uppercase text-[#111]">
+                    Scenario A: Production Server with PM2
+                  </span>
+                  <span className="text-[11px] font-mono text-[#666]">Node.js / Python / Ruby VPS</span>
+                </div>
+                <p className="text-[13px] text-[#555] leading-relaxed mb-3">
+                  If your site runs on a Linux server using PM2 with atomic symlink releases (<code className="font-mono bg-[#eee] px-1 py-0.5 rounded">/var/www/current</code> ➔ <code className="font-mono bg-[#eee] px-1 py-0.5 rounded">releases/&lt;sha&gt;</code>), CARF Standalone Mode provides automated zero-downtime rollback protection without needing Kubernetes:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-white border border-[#eaeaea] rounded-[3px] space-y-1">
+                    <span className="font-semibold text-[#111]">1. Repository Config (.carf.yml)</span>
+                    <pre className="font-mono text-[11px] text-[#444] bg-[#f5f5f5] p-2 rounded">
+{`mode: standalone
+adapter:
+  kind: pm2
+  target: "web-api"`}
+                    </pre>
+                  </div>
+                  <div className="p-3 bg-white border border-[#eaeaea] rounded-[3px] space-y-1">
+                    <span className="font-semibold text-[#111]">2. CARF Rollback on Breach</span>
+                    <pre className="font-mono text-[11px] text-[#444] bg-[#f5f5f5] p-2 rounded">
+{`ln -sfn releases/<baseSha> current
+pm2 reload web-api`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5 rounded-[4px] border border-[#e5e5e5] bg-[#fafafa]">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="font-semibold text-xs tracking-wider uppercase text-[#111]">
+                    Scenario B: Cloud VM with Docker Compose
+                  </span>
+                  <span className="text-[11px] font-mono text-[#666]">AWS EC2 / DigitalOcean / Hetzner</span>
+                </div>
+                <p className="text-[13px] text-[#555] leading-relaxed mb-3">
+                  If your site runs via Docker Compose with parameterized image tags (<code className="font-mono bg-[#eee] px-1 py-0.5 rounded">image: app:\${"{"}IMAGE_TAG:-latest{"}"}</code>), CARF inspects container health checks and automatically redeploys the previous image revision when error rates spike:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 bg-white border border-[#eaeaea] rounded-[3px] space-y-1">
+                    <span className="font-semibold text-[#111]">1. Repository Config (.carf.yml)</span>
+                    <pre className="font-mono text-[11px] text-[#444] bg-[#f5f5f5] p-2 rounded">
+{`mode: standalone
+adapter:
+  kind: dockerCompose
+  target: "web"`}
+                    </pre>
+                  </div>
+                  <div className="p-3 bg-white border border-[#eaeaea] rounded-[3px] space-y-1">
+                    <span className="font-semibold text-[#111]">2. CARF Rollback on Breach</span>
+                    <pre className="font-mono text-[11px] text-[#444] bg-[#f5f5f5] p-2 rounded">
+{`IMAGE_TAG=<baseSha> \\
+docker compose up -d web`}
+                    </pre>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-xs text-[#666] pt-1">
+                Detailed step-by-step server guides with directory trees and copyable scripts are available in{" "}
+                <Link href="/docs#target-runtimes" className="text-[#111] font-medium underline underline-offset-2 hover:opacity-80">
+                  Documentation → Target Runtimes & Standalone Setup
+                </Link>.
+              </p>
+            </div>
+
             {/* § 4. System Architecture & Flow */}
             <h2
               id="system-architecture"
