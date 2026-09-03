@@ -24,6 +24,8 @@ model Commit {
 
   @@unique([owner, repo, sha])
   @@index([owner, repo])
+  @@index([installationId])
+  @@index([installationId, createdAt])
 }
 
 // Mirrors the ChangeVector shape from core-api/src/classifier/vector.ts.
@@ -36,6 +38,7 @@ model ChangeVector {
   dependency      Float
   config          Float
   code            Float
+  data            Float    @default(0)
   codeComplexity  Float
   computedAt      DateTime @default(now())
 }

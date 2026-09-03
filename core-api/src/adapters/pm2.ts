@@ -1,4 +1,4 @@
-import { defaultExec, type ExecFn } from "./execFn.js";
+import { defaultExec, assertSafeTarget, type ExecFn } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
 
 const DEFAULT_RELEASES_ROOT = "/var/www/releases";
@@ -45,12 +45,16 @@ export class PM2Adapter implements RollbackAdapter {
     private readonly previousSha: string,
     options: PM2AdapterOptions = {}
   ) {
+    assertSafeTarget(previousSha, "previousSha");
     this.exec = options.exec ?? defaultExec;
     this.releasesRoot = options.releasesRoot ?? DEFAULT_RELEASES_ROOT;
     this.currentSymlink = options.currentSymlink ?? DEFAULT_CURRENT_SYMLINK;
+    assertSafeTarget(this.releasesRoot, "releasesRoot");
+    assertSafeTarget(this.currentSymlink, "currentSymlink");
   }
 
   async checkHealth(target: string): Promise<{ errorRate: number; healthy: boolean }> {
+    assertSafeTarget(target);
     const { stdout } = await this.exec("pm2 jlist");
     const processes: Pm2ProcessDescription[] = JSON.parse(stdout);
     const matching = processes.filter((p) => p.name === target);
@@ -66,13 +70,8 @@ export class PM2Adapter implements RollbackAdapter {
   }
 
   async rollback(target: string): Promise<void> {
+    assertSafeTarget(target);
     const releaseDir = `${this.releasesRoot}/${this.previousSha}`;
-    // `ln -sfn` happily creates a dangling symlink pointing at a directory that doesn't
-    // exist -- it doesn't fail just because the target is missing. Guarding with `test -d`
-    // (chained so the whole command fails, and this.exec()'s promisified child_process
-    // rejects on a non-zero exit) means a rollback to a release that was never actually
-    // deployed here (retention-pruned, or never built on this host) throws instead of
-    // silently repointing the symlink at nothing and reporting success.
     await this.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
     await this.exec(`pm2 reload ${target}`);
   }

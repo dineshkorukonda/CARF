@@ -347,14 +347,17 @@ export function diffAst(beforeSource: string, afterSource: string, language: str
 
 /** Weighted-sum complexity score for a single AstDelta. See the exported *_WEIGHT
  * constants above for the current weighting — tune those, not this formula, when
- * calibrating against the Phase 3 evaluation harness. */
+ * calibrating against the Phase 3 evaluation harness.
+ *
+ * Guaranteed non-negative: deleting code in a file does not produce a negative score
+ * that would subtract from complexity introduced in other files. */
 export function computeAstScore(delta: AstDelta): number {
-  return (
+  const rawScore =
     delta.functionsChanged * FUNCTIONS_CHANGED_WEIGHT +
     delta.signatureChanges * SIGNATURE_CHANGE_WEIGHT +
     delta.nestingDepthDelta * NESTING_DEPTH_WEIGHT +
-    delta.cyclomaticDelta * CYCLOMATIC_WEIGHT
-  );
+    delta.cyclomaticDelta * CYCLOMATIC_WEIGHT;
+  return Math.max(0, rawScore);
 }
 
 /**
@@ -371,7 +374,7 @@ export function classifyTier2(codeFiles: CodeFileInput[]): number {
     }
     try {
       const delta = diffAst(file.before, file.after, language);
-      total += computeAstScore(delta);
+      total += Math.max(0, computeAstScore(delta));
     } catch (err) {
       console.warn(`[tier2] failed to parse/diff ${file.path}, skipping: ${String(err)}`);
     }

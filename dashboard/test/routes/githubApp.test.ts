@@ -26,9 +26,13 @@ vi.mock("../../src/adapters/github/appInstallClient", () => ({
   fetchInstallation: (...args: unknown[]) => fetchInstallation(...args),
 }));
 
-vi.mock("../../src/lib/accountService", () => ({
-  linkInstallation: (...args: unknown[]) => linkInstallation(...args),
-}));
+vi.mock("../../src/lib/accountService", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/lib/accountService")>();
+  return {
+    ...actual,
+    linkInstallation: (...args: unknown[]) => linkInstallation(...args),
+  };
+});
 
 const { GET: installStart } = await import("../../src/app/api/github-app/install/start/route");
 const { GET: installCallback } = await import("../../src/app/api/github-app/install/callback/route");

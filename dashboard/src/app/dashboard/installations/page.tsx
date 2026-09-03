@@ -59,6 +59,9 @@ export default async function InstallationsPage({
                   <p className="text-xs text-muted-foreground">
                     installation <span className="font-mono">{installation.installationId}</span> ·{" "}
                     {installation.repositorySelection} repos
+                    {installation.coreApiKey && (
+                      <> · key: <span className="font-mono text-xs select-all text-foreground">{installation.coreApiKey}</span></>
+                    )}
                   </p>
                 </div>
               </div>

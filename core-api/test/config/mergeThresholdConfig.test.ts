@@ -44,8 +44,8 @@ describe("mergeThresholdConfig", () => {
 
   it("accepts an explicit base config other than DEFAULT_CONFIG", () => {
     const customBase = {
-      baseThreshold: { infra: 1, dependency: 1, config: 1, code: 1 },
-      baseWindow: { infra: 1, dependency: 1, config: 1, code: 1 },
+      baseThreshold: { infra: 1, dependency: 1, config: 1, code: 1, data: 1 },
+      baseWindow: { infra: 1, dependency: 1, config: 1, code: 1, data: 1 },
       decay: 1,
       complexityDecay: 1,
     };

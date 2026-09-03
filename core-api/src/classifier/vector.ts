@@ -1,11 +1,12 @@
 import { classifyTier1, type Tier1Result, type UserPatternRule } from "./tier1.js";
-import { StubComplexityScorer, type CodeComplexityScorer, type CodeFile } from "./codeComplexityScorer.js";
+import { TreeSitterComplexityScorer, type CodeComplexityScorer, type CodeFile } from "./codeComplexityScorer.js";
 
 export interface ChangeVector {
   infra: number;
   dependency: number;
   config: number;
   code: number;
+  data: number;
   code_complexity: number;
 }
 
@@ -34,6 +35,7 @@ export function buildChangeVector(tier1: Tier1Result, tier2ComplexityScore: numb
     dependency: tally.dependency / totalFiles,
     config: tally.config / totalFiles,
     code: tally.code / totalFiles,
+    data: tally.data / totalFiles,
     code_complexity: clampedComplexity,
   };
 }
@@ -45,7 +47,7 @@ export function buildChangeVector(tier1: Tier1Result, tier2ComplexityScore: numb
  */
 export function classifyCommit(
   changedFiles: CodeFile[],
-  scorer: CodeComplexityScorer = new StubComplexityScorer(),
+  scorer: CodeComplexityScorer = new TreeSitterComplexityScorer(),
   userRules: UserPatternRule[] = []
 ): ChangeVector | null {
   const tier1 = classifyTier1(

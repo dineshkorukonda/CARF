@@ -46,6 +46,7 @@ export interface DashboardPrismaClient {
     }): Promise<AccountRow>;
   };
   installation: {
+    findUnique?(args: { where: { installationId: string } }): Promise<InstallationRow | null>;
     findFirst(args: { where: { accountId: string; installationId: string } }): Promise<InstallationRow | null>;
     upsert(args: {
       where: { installationId: string };
@@ -115,11 +116,20 @@ export async function updatePassword(prisma: DashboardPrismaClient, accountId: s
   });
 }
 
+export class InstallationAlreadyLinkedError extends Error {
+  constructor(installationId: string) {
+    super(`Installation ${installationId} is already linked to another account`);
+    this.name = "InstallationAlreadyLinkedError";
+  }
+}
+
 /**
  * Links a freshly-installed GitHub App installation to the logged-in account. Upsert (not
  * create) because GitHub's install callback can redeliver on retries/setup_action=update,
  * and because the account attached to an installationId shouldn't accidentally fork into
  * two rows across separate install attempts.
+ *
+ * Rejects if the installation is already claimed by a different account.
  */
 export async function linkInstallation(
   prisma: DashboardPrismaClient,
@@ -128,6 +138,12 @@ export async function linkInstallation(
 ): Promise<InstallationRow> {
   const targetLogin = installation.account?.login ?? "unknown";
   const targetType = installation.account?.type ?? "unknown";
+  const existing = prisma.installation.findUnique
+    ? await prisma.installation.findUnique({ where: { installationId: String(installation.id) } })
+    : null;
+  if (existing && existing.accountId !== accountId) {
+    throw new InstallationAlreadyLinkedError(String(installation.id));
+  }
   return prisma.installation.upsert({
     where: { installationId: String(installation.id) },
     create: {

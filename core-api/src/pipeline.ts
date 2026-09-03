@@ -77,6 +77,7 @@ export interface PipelinePrismaClient {
         dependency: number;
         config: number;
         code: number;
+        data: number;
         codeComplexity: number;
       };
       update: {
@@ -84,6 +85,7 @@ export interface PipelinePrismaClient {
         dependency: number;
         config: number;
         code: number;
+        data: number;
         codeComplexity: number;
       };
     }): Promise<unknown>;
@@ -183,6 +185,7 @@ export async function processCommit(
       dependency: vector.dependency,
       config: vector.config,
       code: vector.code,
+      data: vector.data,
       codeComplexity: vector.code_complexity,
     },
     update: {
@@ -190,6 +193,7 @@ export async function processCommit(
       dependency: vector.dependency,
       config: vector.config,
       code: vector.code,
+      data: vector.data,
       codeComplexity: vector.code_complexity,
     },
   });

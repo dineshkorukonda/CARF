@@ -1,4 +1,4 @@
-import { defaultExec, type ExecFn } from "./execFn.js";
+import { defaultExec, assertSafeTarget, type ExecFn } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
 
 export interface DockerComposeAdapterOptions {
@@ -37,11 +37,16 @@ export class DockerComposeAdapter implements RollbackAdapter {
     private readonly previousImageTag: string,
     options: DockerComposeAdapterOptions = {}
   ) {
+    assertSafeTarget(previousImageTag, "previousImageTag");
     this.exec = options.exec ?? defaultExec;
+    if (options.composeFile) {
+      assertSafeTarget(options.composeFile, "composeFile");
+    }
     this.composeFileFlag = options.composeFile ? `-f ${options.composeFile} ` : "";
   }
 
   async checkHealth(target: string): Promise<{ errorRate: number; healthy: boolean }> {
+    assertSafeTarget(target);
     const { stdout } = await this.exec(`docker compose ${this.composeFileFlag}ps --format json ${target}`);
     const lines = stdout
       .split("\n")
@@ -62,6 +67,7 @@ export class DockerComposeAdapter implements RollbackAdapter {
   }
 
   async rollback(target: string): Promise<void> {
+    assertSafeTarget(target);
     await this.exec(`IMAGE_TAG=${this.previousImageTag} docker compose ${this.composeFileFlag}up -d ${target}`);
   }
 }

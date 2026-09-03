@@ -1,4 +1,4 @@
-import { defaultExec, type ExecFn } from "./execFn.js";
+import { defaultExec, assertSafeTarget, type ExecFn } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
 
 export interface DockerSwarmAdapterOptions {
@@ -34,6 +34,7 @@ export class DockerSwarmAdapter implements RollbackAdapter {
   }
 
   async checkHealth(target: string): Promise<{ errorRate: number; healthy: boolean }> {
+    assertSafeTarget(target);
     const { stdout } = await this.exec(`docker service ps ${target} --filter desired-state=running --format json`);
     const lines = stdout
       .split("\n")
@@ -52,6 +53,7 @@ export class DockerSwarmAdapter implements RollbackAdapter {
   }
 
   async rollback(target: string): Promise<void> {
+    assertSafeTarget(target);
     await this.exec(`docker service update --rollback ${target}`);
   }
 }

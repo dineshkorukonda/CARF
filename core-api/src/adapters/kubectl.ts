@@ -1,4 +1,4 @@
-import { defaultExec, type ExecFn } from "./execFn.js";
+import { defaultExec, assertSafeTarget, type ExecFn } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
 
 export interface KubectlAdapterOptions {
@@ -31,10 +31,14 @@ export class KubectlAdapter implements RollbackAdapter {
 
   constructor(options: KubectlAdapterOptions = {}) {
     this.exec = options.exec ?? defaultExec;
+    if (options.namespace) {
+      assertSafeTarget(options.namespace, "namespace");
+    }
     this.namespaceFlag = options.namespace ? ` -n ${options.namespace}` : "";
   }
 
   async checkHealth(target: string): Promise<{ errorRate: number; healthy: boolean }> {
+    assertSafeTarget(target);
     const { stdout } = await this.exec(`kubectl get deployment ${target}${this.namespaceFlag} -o json`);
     const deployment: DeploymentStatus = JSON.parse(stdout);
 
@@ -46,6 +50,7 @@ export class KubectlAdapter implements RollbackAdapter {
   }
 
   async rollback(target: string): Promise<void> {
+    assertSafeTarget(target);
     await this.exec(`kubectl rollout undo deployment/${target}${this.namespaceFlag}`);
   }
 }

@@ -1,6 +1,7 @@
 export interface CompareFile {
   filename: string;
   status: "added" | "modified" | "removed" | "renamed";
+  previous_filename?: string | undefined;
 }
 
 export interface CompareResult {

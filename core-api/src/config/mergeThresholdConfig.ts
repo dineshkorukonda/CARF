@@ -27,12 +27,14 @@ export function mergeThresholdConfig(
       dependency: types.dependency?.baseThreshold ?? base.baseThreshold.dependency,
       config: types.config?.baseThreshold ?? base.baseThreshold.config,
       code: types.code?.baseThreshold ?? base.baseThreshold.code,
+      data: types.data?.baseThreshold ?? base.baseThreshold.data,
     },
     baseWindow: {
       infra: types.infra?.baseWindow ?? base.baseWindow.infra,
       dependency: types.dependency?.baseWindow ?? base.baseWindow.dependency,
       config: types.config?.baseWindow ?? base.baseWindow.config,
       code: types.code?.baseWindow ?? base.baseWindow.code,
+      data: types.data?.baseWindow ?? base.baseWindow.data,
     },
   };
 }

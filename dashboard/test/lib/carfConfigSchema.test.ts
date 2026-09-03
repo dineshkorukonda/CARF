@@ -114,10 +114,13 @@ describe("ThresholdSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  // "data" is a classification type only -- accepting it here would write a threshold
-  // override core-api's narrower ThresholdChangeTypeSchema would then reject.
-  it("rejects a 'data' threshold override", () => {
-    const result = ThresholdSchema.safeParse({ types: { data: { baseThreshold: 0.1 } } });
+  it("accepts a 'data' threshold override", () => {
+    const result = ThresholdSchema.safeParse({ types: { data: { baseThreshold: 0.01, baseWindow: 600 } } });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an unknown threshold override type", () => {
+    const result = ThresholdSchema.safeParse({ types: { invalid_type: { baseThreshold: 0.1 } } });
     expect(result.success).toBe(false);
   });
 });
