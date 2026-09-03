@@ -5,6 +5,7 @@ import { prisma } from "../../../../lib/prisma";
 import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { fetchRecentCommits, type RecentCommit } from "../../../../adapters/coreApi/client";
 import { env } from "../../../../config/env";
+import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 
 const RECENT_COMMITS_LIMIT = 20; // matches core-api's src/routes/commits.ts
 
@@ -36,8 +37,9 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
 
   let commits: RecentCommit[] = [];
   let loadError: string | null = null;
+  let apiKey: string | null = null;
   try {
-    const apiKey = await ensureCoreApiKey(prisma, installation);
+    apiKey = await ensureCoreApiKey(prisma, installation);
     commits = await fetchRecentCommits(env.coreApiBaseUrl(), apiKey);
   } catch {
     loadError = "Couldn't reach core-api for this installation's data yet.";
@@ -53,10 +55,16 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-8">
+      <RepoNavigationTabs
+        installationId={installationId}
+        repoName={installation.targetLogin}
+        apiKey={apiKey}
+      />
+
       <div>
-        <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
+        <h1 className="text-xl font-semibold">Rollout Health & Analytics</h1>
         <p className="text-sm text-muted-foreground">
-          Analytics based on the last {RECENT_COMMITS_LIMIT} commits CARF has classified.
+          Stability metrics and risk distribution based on the last {RECENT_COMMITS_LIMIT} classified commits.
         </p>
       </div>
 

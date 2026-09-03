@@ -1,25 +1,25 @@
 import { redirect } from "next/navigation";
+import { load } from "js-yaml";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
-import { env } from "../../../../config/env";
-import { signGithubAppJwt } from "../../../../adapters/github/appInstallClient";
-import { createInstallationToken } from "../../../../adapters/github/installationTokenClient";
+import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { listInstallationRepos } from "../../../../adapters/github/reposClient";
 import { getCarfConfigFile } from "../../../../adapters/github/contentsClient";
-import { load } from "js-yaml";
-import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
 import { ConfigModeForm } from "./ConfigModeForm";
-
-const ERROR_MESSAGES: Record<string, string> = {
-  save_failed: "Couldn't save .carf.yml -- please try again.",
-  not_authorized: "That installation isn't linked to your account.",
-};
+import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
+import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
+import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 
 interface ExistingModeAdapter {
-  mode?: "standalone" | "augment";
+  mode?: string;
   adapter?: { kind?: string; target?: string };
 }
+
+const ERROR_MESSAGES: Record<string, string> = {
+  save_failed: "Failed to commit config changes to repository. Please try again.",
+  not_authorized: "That installation isn't linked to your account.",
+};
 
 export default async function ConfigPage({
   params,
@@ -37,15 +37,26 @@ export default async function ConfigPage({
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation) redirect("/dashboard?error=not_authorized");
 
-  const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
-  const { token } = await createInstallationToken(installationId, appJwt);
+  let apiKey: string | null = null;
+  try {
+    apiKey = await ensureCoreApiKey(prisma, installation);
+  } catch {
+    // Non-fatal
+  }
+
+  const token = await mintInstallationToken(installationId);
   const repos = await listInstallationRepos(token);
 
   const selectedFullName = repoParam ?? (repos.length === 1 ? repos[0]!.full_name : undefined);
 
   if (!selectedFullName) {
     return (
-      <main className="flex max-w-xl flex-col gap-6 p-8">
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+        <RepoNavigationTabs
+          installationId={installationId}
+          repoName={installation.targetLogin}
+          apiKey={apiKey}
+        />
         <div>
           <h1 className="text-xl font-semibold">Choose a repository</h1>
           <p className="text-sm text-muted-foreground">
@@ -58,9 +69,10 @@ export default async function ConfigPage({
             <a
               key={r.id}
               href={`/dashboard/config/${installationId}?repo=${encodeURIComponent(r.full_name)}`}
-              className="rounded-sm border border-border px-3 py-2.5 text-sm transition-colors hover:bg-muted"
+              className="rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:bg-muted font-medium flex items-center justify-between"
             >
-              {r.full_name}
+              <span>{r.full_name}</span>
+              <span className="text-xs text-muted-foreground">Configure →</span>
             </a>
           ))}
         </div>
@@ -73,11 +85,17 @@ export default async function ConfigPage({
   const existing = (file ? (load(file.content) as ExistingModeAdapter | undefined) : undefined) ?? {};
 
   return (
-    <main className="mx-auto flex w-full max-w-xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+      <RepoNavigationTabs
+        installationId={installationId}
+        repoName={selectedFullName}
+        apiKey={apiKey}
+      />
+
       <div>
-        <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
+        <h1 className="text-xl font-semibold">Deployment & Rollback Engine</h1>
         <p className="text-sm text-muted-foreground">
-          {selectedFullName} -- saves generate a commit to <code>.carf.yml</code>.
+          {selectedFullName} — changes are committed directly to <code className="font-mono text-xs">.carf.yml</code>.
         </p>
       </div>
 
@@ -88,24 +106,18 @@ export default async function ConfigPage({
       )}
       {saved && (
         <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
-          Saved -- committed to {selectedFullName}.
+          Saved — committed to {selectedFullName}.
         </p>
       )}
 
-      <div>
-        <h2 className="text-base font-semibold">Deployment & Rollback Mode</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure how CARF integrates with your deployments for this repository.
-        </p>
-        <ConfigModeForm
-          installationId={installationId}
-          owner={owner}
-          repo={repoName}
-          defaultMode={existing.mode === "standalone" ? "standalone" : "augment"}
-          defaultAdapterKind={(existing.adapter?.kind as AdapterKind) ?? LIVE_ADAPTER_KINDS[0]}
-          defaultAdapterTarget={existing.adapter?.target ?? ""}
-        />
-      </div>
+      <ConfigModeForm
+        installationId={installationId}
+        owner={owner!}
+        repo={repoName!}
+        defaultMode={existing.mode === "standalone" ? "standalone" : "augment"}
+        defaultAdapterKind={(existing.adapter?.kind as AdapterKind) ?? LIVE_ADAPTER_KINDS[0]}
+        defaultAdapterTarget={existing.adapter?.target ?? ""}
+      />
     </main>
   );
 }

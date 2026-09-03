@@ -6,6 +6,7 @@ import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { fetchRecentCommits, type RecentCommit } from "../../../../adapters/coreApi/client";
 import { env } from "../../../../config/env";
 import { StatusTable } from "./StatusTable";
+import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 
 export default async function StatusPage({ params }: { params: Promise<{ installationId: string }> }) {
   const account = await getCurrentAccount();
@@ -17,8 +18,9 @@ export default async function StatusPage({ params }: { params: Promise<{ install
 
   let commits: RecentCommit[] = [];
   let loadError: string | null = null;
+  let apiKey: string | null = null;
   try {
-    const apiKey = await ensureCoreApiKey(prisma, installation);
+    apiKey = await ensureCoreApiKey(prisma, installation);
     commits = await fetchRecentCommits(env.coreApiBaseUrl(), apiKey);
   } catch {
     loadError = "Couldn't reach core-api for this installation's status yet.";
@@ -26,9 +28,17 @@ export default async function StatusPage({ params }: { params: Promise<{ install
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
+      <RepoNavigationTabs
+        installationId={installationId}
+        repoName={installation.targetLogin}
+        apiKey={apiKey}
+      />
+
       <div>
-        <h1 className="text-xl font-semibold">{installation.targetLogin}</h1>
-        <p className="text-sm text-muted-foreground">Recent classified commits.</p>
+        <h1 className="text-xl font-semibold">Live Rollout Status</h1>
+        <p className="text-sm text-muted-foreground">
+          Recent commits classified with dynamic error budgets and observation windows.
+        </p>
       </div>
 
       {loadError ? (
