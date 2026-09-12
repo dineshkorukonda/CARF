@@ -11,7 +11,8 @@ export async function GET() {
   try {
     const history = await getEvaluationHistory(10);
     return NextResponse.json({ history });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? "Failed to fetch history" }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch history";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -60,15 +60,36 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
 
   // Record simulated runs into EvaluationLog if table is accessible via prisma
   try {
-    const pAny = prisma as any;
-    if (pAny.evaluationLog) {
+    interface EvaluationRecord {
+      id: string;
+      commitSha: string;
+      condition: string;
+      outcome: string;
+      mttrMs: number | null;
+      createdAt: Date | string;
+    }
+
+    interface PrismaWithEvaluationLog {
+      evaluationLog?: {
+        create: (args: {
+          data: { commitSha: string; condition: string; outcome: string; mttrMs: number; createdAt: Date };
+        }) => Promise<unknown>;
+        findMany: (args: {
+          orderBy: { createdAt: "asc" | "desc" };
+          take: number;
+        }) => Promise<EvaluationRecord[]>;
+      };
+    }
+
+    const client = prisma as unknown as PrismaWithEvaluationLog;
+    if (client.evaluationLog) {
       const now = new Date();
       const runId = "sim_" + Math.random().toString(36).substring(2, 9);
       await Promise.all([
-        pAny.evaluationLog.create({
+        client.evaluationLog.create({
           data: { commitSha: runId + "_a", condition: "static", outcome: fpA > 0 ? "false_positive" : "true_negative", mttrMs: mttrA, createdAt: now },
         }),
-        pAny.evaluationLog.create({
+        client.evaluationLog.create({
           data: { commitSha: runId + "_b", condition: "carf_dynamic", outcome: tpB > 0 ? "true_positive" : "true_negative", mttrMs: mttrB, createdAt: now },
         }),
       ]);
@@ -87,13 +108,31 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
 
 export async function getEvaluationHistory(limit: number = 10): Promise<EvaluationHistoryItem[]> {
   try {
-    const pAny = prisma as any;
-    if (pAny.evaluationLog && typeof pAny.evaluationLog.findMany === "function") {
-      const rows = await pAny.evaluationLog.findMany({
+    interface EvaluationRecord {
+      id: string;
+      commitSha: string;
+      condition: string;
+      outcome: string;
+      mttrMs: number | null;
+      createdAt: Date | string;
+    }
+
+    interface PrismaWithEvaluationLog {
+      evaluationLog?: {
+        findMany: (args: {
+          orderBy: { createdAt: "asc" | "desc" };
+          take: number;
+        }) => Promise<EvaluationRecord[]>;
+      };
+    }
+
+    const client = prisma as unknown as PrismaWithEvaluationLog;
+    if (client.evaluationLog && typeof client.evaluationLog.findMany === "function") {
+      const rows = await client.evaluationLog.findMany({
         orderBy: { createdAt: "desc" },
         take: limit,
       });
-      return rows.map((r: any) => ({
+      return rows.map((r) => ({
         id: r.id,
         commitSha: r.commitSha,
         condition: r.condition,

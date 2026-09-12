@@ -1,17 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Play, CheckCircle2, AlertTriangle, ArrowDownRight, RefreshCw, BarChart2, Shield, Activity } from "lucide-react";
+import { Play, CheckCircle2, RefreshCw, BarChart2, Activity } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
 import { Badge } from "../../../../components/ui/badge";
 import type { SimulationResult, EvaluationHistoryItem } from "../../../../lib/evalHarness";
 
 export function VerifyDashboard({
-  installationId,
   repoName,
   initialHistory,
 }: {
-  installationId: string;
+  installationId?: string;
   repoName: string;
   initialHistory: EvaluationHistoryItem[];
 }) {
@@ -36,8 +35,9 @@ export function VerifyDashboard({
         const histData = await histRes.json();
         if (histData.history) setHistory(histData.history);
       }
-    } catch (e: any) {
-      setError(e.message ?? "Failed to execute simulation");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to execute simulation";
+      setError(message);
     } finally {
       setRunning(false);
     }
@@ -55,7 +55,7 @@ export function VerifyDashboard({
             Offline Evaluation Harness
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Benchmarks CARF change-aware dynamic thresholds (Condition B) directly against static canary defaults (Condition A).
+            Benchmarks CARF change-aware dynamic thresholds (Condition B) directly against static canary defaults (Condition A) for <span className="font-mono text-foreground">{repoName}</span>.
           </p>
         </div>
 

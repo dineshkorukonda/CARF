@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, ArrowRight, ExternalLink, RefreshCw } from "lucide-react";
+import { CheckCircle2, ArrowRight, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
+import type { CompatibilityReport } from "../../../lib/compatCheck";
+import type { RecentCommit } from "../../../adapters/coreApi/client";
 
 export interface OnboardingStatus {
   currentStep: number;
@@ -13,9 +15,9 @@ export interface OnboardingStatus {
   repos?: Array<{ name: string; full_name: string }>;
   step1: { completed: boolean };
   step2: { completed: boolean; repoCount?: number };
-  step3: { completed: boolean; report?: any };
+  step3: { completed: boolean; report?: CompatibilityReport };
   step4: { completed: boolean };
-  step5: { completed: boolean; commit?: any; totalCommits?: number };
+  step5: { completed: boolean; commit?: RecentCommit; totalCommits?: number };
 }
 
 export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
