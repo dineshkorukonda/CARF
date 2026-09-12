@@ -43,7 +43,9 @@ describe("classifyRolloutOutcome", () => {
     });
     expect(res.kind).toBe("rolled_back");
     expect(res.label).toBe("Rolled back");
-    expect(res.errorRate).toBe(0.09);
+    if (res.kind === "rolled_back") {
+      expect(res.errorRate).toBe(0.09);
+    }
   });
 
   it("returns 'pending' when threshold exists but no outcome row was written yet", () => {
