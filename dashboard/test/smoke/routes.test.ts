@@ -29,6 +29,8 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
   ["api/config/save", ["POST"], () => import("../../src/app/api/config/save/route")],
   ["api/config/save-rules", ["POST"], () => import("../../src/app/api/config/save-rules/route")],
   ["api/github-app/install/callback", ["GET"], () => import("../../src/app/api/github-app/install/callback/route")],
+  ["api/eval/run", ["POST"], () => import("../../src/app/api/eval/run/route")],
+  ["api/eval/history", ["GET"], () => import("../../src/app/api/eval/history/route")],
   ["api/github-app/install/manual", ["POST"], () => import("../../src/app/api/github-app/install/manual/route")],
   ["api/github-app/install/start", ["GET"], () => import("../../src/app/api/github-app/install/start/route")],
   ["api/onboarding/status", ["GET"], () => import("../../src/app/api/onboarding/status/route")],
@@ -49,6 +51,7 @@ const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["dashboard/config/[installationId]/rules", () => import("../../src/app/dashboard/config/[installationId]/rules/page")],
   ["dashboard/installations", () => import("../../src/app/dashboard/installations/page")],
   ["dashboard/status/[installationId]", () => import("../../src/app/dashboard/status/[installationId]/page")],
+  ["dashboard/verify/[installationId]", () => import("../../src/app/dashboard/verify/[installationId]/page")],
 ];
 
 const LAYOUT_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
