@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ThemeToggle } from "../../components/ThemeToggle";
 import { Breadcrumbs } from "./Breadcrumbs";
+import { InstallationSwitcher } from "./InstallationSwitcher";
 import type { InstallationRow } from "../../lib/accountService";
 
 export function Topbar({
@@ -14,7 +15,15 @@ export function Topbar({
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-6">
-      <Breadcrumbs installations={installations} />
+      <div className="flex items-center gap-4">
+        <Breadcrumbs installations={installations} />
+        {installations.length > 0 && (
+          <InstallationSwitcher
+            installations={installations}
+            variant="topbar"
+          />
+        )}
+      </div>
       <div className="flex items-center gap-2.5">
         <ThemeToggle />
         <span className="hidden text-sm text-muted-foreground sm:inline">{accountEmail}</span>
