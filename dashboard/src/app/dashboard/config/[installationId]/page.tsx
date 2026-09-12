@@ -18,6 +18,9 @@ interface ExistingModeAdapter {
 
 const ERROR_MESSAGES: Record<string, string> = {
   save_failed: "Failed to commit config changes to repository. Please try again.",
+  permissions: "GitHub App is missing 'Contents: Read and write' permissions. Please update your GitHub App repository permissions to 'Read and write' and accept them for this repository.",
+  branch_protected: "Cannot commit directly: the default branch has branch protection or rulesets enabled.",
+  conflict: "Conflict writing .carf.yml: the file was modified concurrently. Please refresh and try again.",
   not_authorized: "That installation isn't linked to your account.",
 };
 

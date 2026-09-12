@@ -5,7 +5,7 @@ import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { signGithubAppJwt } from "../../../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../../../adapters/github/installationTokenClient";
-import { getCarfConfigFile, putCarfConfigFile } from "../../../../adapters/github/contentsClient";
+import { getCarfConfigFile, putCarfConfigFile, GitHubContentsError } from "../../../../adapters/github/contentsClient";
 import { applyModeAdapterPatch } from "../../../../lib/carfConfigWriter";
 import type { AdapterKind } from "../../../../lib/carfConfigSchema";
 
@@ -57,9 +57,14 @@ export async function POST(request: NextRequest) {
       token,
       existingFile?.sha
     );
-  } catch {
+  } catch (error: unknown) {
+    console.error("[config/save] Failed to save .carf.yml:", error);
     const failUrl = new URL(backTo);
-    failUrl.searchParams.set("error", "save_failed");
+    if (error instanceof GitHubContentsError) {
+      failUrl.searchParams.set("error", error.reason);
+    } else {
+      failUrl.searchParams.set("error", "save_failed");
+    }
     return NextResponse.redirect(failUrl);
   }
 

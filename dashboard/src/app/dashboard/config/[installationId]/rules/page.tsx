@@ -46,18 +46,26 @@ function toFormInitial(existing: ExistingClassificationThreshold): RulesFormInit
   };
 }
 
+const ERROR_MESSAGES: Record<string, string> = {
+  save_failed: "Failed to commit config changes to repository. Please try again.",
+  permissions: "GitHub App is missing 'Contents: Read and write' permissions. Please update your GitHub App repository permissions to 'Read and write' and accept them for this repository.",
+  branch_protected: "Cannot commit directly: the default branch has branch protection or rulesets enabled.",
+  conflict: "Conflict writing .carf.yml: the file was modified concurrently. Please refresh and try again.",
+  not_authorized: "That installation isn't linked to your account.",
+};
+
 export default async function RulesPage({
   params,
   searchParams,
 }: {
   params: Promise<{ installationId: string }>;
-  searchParams: Promise<{ repo?: string; saved?: string }>;
+  searchParams: Promise<{ repo?: string; error?: string; saved?: string }>;
 }) {
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
 
   const { installationId } = await params;
-  const { repo: repoParam, saved } = await searchParams;
+  const { repo: repoParam, error, saved } = await searchParams;
 
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation) redirect("/dashboard?error=not_authorized");
@@ -120,6 +128,11 @@ export default async function RulesPage({
         </p>
       </div>
 
+      {error && (
+        <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {ERROR_MESSAGES[error] ?? "Something went wrong."}
+        </p>
+      )}
       {saved && (
         <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
           Saved — committed to {selectedFullName}.
