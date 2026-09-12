@@ -31,6 +31,7 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
   ["api/github-app/install/callback", ["GET"], () => import("../../src/app/api/github-app/install/callback/route")],
   ["api/github-app/install/manual", ["POST"], () => import("../../src/app/api/github-app/install/manual/route")],
   ["api/github-app/install/start", ["GET"], () => import("../../src/app/api/github-app/install/start/route")],
+  ["api/onboarding/status", ["GET"], () => import("../../src/app/api/onboarding/status/route")],
   ["api/status/[installationId]", ["GET"], () => import("../../src/app/api/status/[installationId]/route")],
 ];
 
@@ -41,6 +42,7 @@ const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["(auth)/reset-password", () => import("../../src/app/(auth)/reset-password/page")],
   ["(auth)/signup", () => import("../../src/app/(auth)/signup/page")],
   ["dashboard", () => import("../../src/app/dashboard/page")],
+  ["dashboard/onboarding", () => import("../../src/app/dashboard/onboarding/page")],
   ["dashboard/account", () => import("../../src/app/dashboard/account/page")],
   ["dashboard/analytics/[installationId]", () => import("../../src/app/dashboard/analytics/[installationId]/page")],
   ["dashboard/config/[installationId]", () => import("../../src/app/dashboard/config/[installationId]/page")],
