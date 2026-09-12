@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 export function TopProgressBar() {
@@ -8,16 +8,27 @@ export function TopProgressBar() {
   const searchParams = useSearchParams();
   const [progress, setProgress] = useState(0);
   const [visible, setVisible] = useState(false);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
-    if (visible) {
-      setProgress(100);
-      const timer = setTimeout(() => {
-        setVisible(false);
-        setProgress(0);
-      }, 300);
-      return () => clearTimeout(timer);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
+
+    const timer1 = setTimeout(() => {
+      setProgress(100);
+    }, 0);
+
+    const timer2 = setTimeout(() => {
+      setVisible(false);
+      setProgress(0);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [pathname, searchParams]);
 
   useEffect(() => {
