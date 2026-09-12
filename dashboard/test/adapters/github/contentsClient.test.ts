@@ -61,9 +61,43 @@ describe("putCarfConfigFile", () => {
   });
 
   it("throws when the HTTP response isn't ok", async () => {
-    const fetchFn: FetchFn = vi.fn().mockResolvedValue({ ok: false, status: 409, json: async () => ({}) });
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({ ok: false, status: 409, text: async () => "conflict" });
     await expect(putCarfConfigFile("acme", "widgets", "mode: augment\n", "msg", "token-1", "sha", fetchFn)).rejects.toThrow(
       /status 409/
     );
+  });
+
+  it("identifies permissions issues when GitHub returns 403", async () => {
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ message: "Resource not accessible by integration" }),
+    });
+
+    try {
+      await putCarfConfigFile("acme", "widgets", "mode: augment\n", "msg", "token-1", undefined, fetchFn);
+      expect.unreachable("should have thrown");
+    } catch (err: unknown) {
+      const gErr = err as import("../../../src/adapters/github/contentsClient").GitHubContentsError;
+      expect(gErr.reason).toBe("permissions");
+      expect(gErr.status).toBe(403);
+    }
+  });
+
+  it("identifies branch protection issues when GitHub rejects commit on protected branch", async () => {
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({ message: "Commit was rejected: branch main is protected" }),
+    });
+
+    try {
+      await putCarfConfigFile("acme", "widgets", "mode: augment\n", "msg", "token-1", undefined, fetchFn);
+      expect.unreachable("should have thrown");
+    } catch (err: unknown) {
+      const gErr = err as import("../../../src/adapters/github/contentsClient").GitHubContentsError;
+      expect(gErr.reason).toBe("branch_protected");
+      expect(gErr.status).toBe(403);
+    }
   });
 });

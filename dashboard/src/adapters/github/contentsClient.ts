@@ -8,6 +8,55 @@ export interface RepoFile {
   sha: string;
 }
 
+export type GitHubErrorReason = "permissions" | "branch_protected" | "conflict" | "not_found" | "unknown";
+
+export class GitHubContentsError extends Error {
+  readonly status: number;
+  readonly responseBody: string;
+  readonly reason: GitHubErrorReason;
+
+  constructor(status: number, responseBody: string, customMessage?: string) {
+    let reason: GitHubErrorReason = "unknown";
+    const lower = responseBody.toLowerCase();
+
+    if (status === 403) {
+      if (
+        lower.includes("resource not accessible") ||
+        lower.includes("push access") ||
+        lower.includes("permission") ||
+        lower.includes("scope")
+      ) {
+        reason = "permissions";
+      } else if (lower.includes("protected") || lower.includes("ruleset")) {
+        reason = "branch_protected";
+      } else {
+        reason = "permissions";
+      }
+    } else if (status === 409) {
+      if (lower.includes("protected") || lower.includes("ruleset") || lower.includes("rejected")) {
+        reason = "branch_protected";
+      } else {
+        reason = "conflict";
+      }
+    } else if (status === 404) {
+      reason = "not_found";
+    }
+
+    const defaultMsg =
+      reason === "permissions"
+        ? `GitHub App lacks 'Contents: Read and write' permissions (status ${status})`
+        : reason === "branch_protected"
+        ? `Branch protection or ruleset prevented commit (status ${status})`
+        : `GitHub .carf.yml commit failed (status ${status})${responseBody ? `: ${responseBody}` : ""}`;
+
+    super(customMessage ?? defaultMsg);
+    this.name = "GitHubContentsError";
+    this.status = status;
+    this.responseBody = responseBody;
+    this.reason = reason;
+  }
+}
+
 /**
  * `GET /repos/{owner}/{repo}/contents/.carf.yml` -- installation-token auth. Returns null
  * when the file doesn't exist yet (a 404 here is an expected, common case: most repos
@@ -30,7 +79,8 @@ export async function getCarfConfigFile(
 
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(`GitHub .carf.yml fetch failed (status ${response.status})`);
+    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+    throw new GitHubContentsError(response.status, errorBody, `GitHub .carf.yml fetch failed (status ${response.status})`);
   }
 
   const body = (await response.json()) as { content: string; encoding: string; sha: string };
@@ -71,6 +121,7 @@ export async function putCarfConfigFile(
   });
 
   if (!response.ok) {
-    throw new Error(`GitHub .carf.yml commit failed (status ${response.status})`);
+    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+    throw new GitHubContentsError(response.status, errorBody);
   }
 }

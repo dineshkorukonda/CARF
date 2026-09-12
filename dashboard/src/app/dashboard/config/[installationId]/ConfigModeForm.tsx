@@ -7,7 +7,7 @@ import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Button } from "../../../../components/ui/button";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
-import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2 } from "lucide-react";
 
 interface ConfigModeFormProps {
   installationId: string;
@@ -143,6 +143,7 @@ export function ConfigModeForm({
   const [adapterTarget, setAdapterTarget] = useState(defaultAdapterTarget);
   const [showGuide, setShowGuide] = useState(true);
   const [copiedYml, setCopiedYml] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const currentAdapter = ADAPTER_DETAILS[adapterKind] ?? ADAPTER_DETAILS.kubernetes;
   const guide = currentAdapter.serverGuide;
@@ -166,7 +167,12 @@ export function ConfigModeForm({
   };
 
   return (
-    <form action="/api/config/save" method="POST" className="mt-4 flex flex-col gap-6">
+    <form
+      action="/api/config/save"
+      method="POST"
+      onSubmit={() => setIsSaving(true)}
+      className="mt-4 flex flex-col gap-6"
+    >
       <input type="hidden" name="installationId" value={installationId} />
       <input type="hidden" name="owner" value={owner} />
       <input type="hidden" name="repo" value={repo} />
@@ -322,8 +328,22 @@ export function ConfigModeForm({
         </fieldset>
       )}
 
-      <Button type="submit" className="self-start">
-        Save Configuration
+      {isSaving && (
+        <div className="flex items-center gap-2 rounded-sm border border-primary/30 bg-primary/10 p-3 text-xs text-primary animate-pulse">
+          <Loader2 className="size-3.5 animate-spin shrink-0" />
+          <span>Committing updated .carf.yml to {owner}/{repo} via GitHub App...</span>
+        </div>
+      )}
+
+      <Button type="submit" disabled={isSaving} className="self-start min-w-36">
+        {isSaving ? (
+          <>
+            <Loader2 className="size-4 animate-spin mr-2" />
+            <span>Saving to GitHub...</span>
+          </>
+        ) : (
+          "Save Configuration"
+        )}
       </Button>
     </form>
   );

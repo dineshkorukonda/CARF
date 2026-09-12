@@ -150,7 +150,14 @@ export function RulesForm({
         body: JSON.stringify({ installationId, owner, repo, ...patch }),
       });
       if (!response.ok) {
-        setSubmitError("Couldn't save .carf.yml -- please try again.");
+        const body = (await response.json().catch(() => null)) as { error?: string; reason?: string; details?: string } | null;
+        if (body?.reason === "permissions") {
+          setSubmitError("GitHub App is missing 'Contents: Read and write' permissions. Please update permissions in GitHub App settings and accept them for this repository.");
+        } else if (body?.reason === "branch_protected") {
+          setSubmitError("Cannot commit directly: default branch has branch protection or rulesets enabled.");
+        } else {
+          setSubmitError(body?.error ? `Failed to save: ${body.error}` : "Couldn't save .carf.yml -- please try again.");
+        }
         return;
       }
       window.location.href = `/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(`${owner}/${repo}`)}&saved=1`;

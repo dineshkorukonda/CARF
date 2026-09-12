@@ -42,10 +42,14 @@ vi.mock("../../src/lib/installationAccess", () => ({
   mintInstallationToken: (...args: unknown[]) => mintInstallationToken(...args),
 }));
 
-vi.mock("../../src/adapters/github/contentsClient", () => ({
-  getCarfConfigFile: (...args: unknown[]) => getCarfConfigFile(...args),
-  putCarfConfigFile: (...args: unknown[]) => putCarfConfigFile(...args),
-}));
+vi.mock("../../src/adapters/github/contentsClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/adapters/github/contentsClient")>();
+  return {
+    ...actual,
+    getCarfConfigFile: (...args: unknown[]) => getCarfConfigFile(...args),
+    putCarfConfigFile: (...args: unknown[]) => putCarfConfigFile(...args),
+  };
+});
 
 const { POST: save } = await import("../../src/app/api/config/save/route");
 const { POST: saveRules } = await import("../../src/app/api/config/save-rules/route");
@@ -169,11 +173,22 @@ describe("POST /api/config/save", () => {
   it("reports save_failed when the GitHub write fails, keeping the user on the page", async () => {
     getCurrentAccount.mockResolvedValue(ACCOUNT);
     getInstallationForAccount.mockResolvedValue(INSTALLATION);
-    putCarfConfigFile.mockRejectedValue(new Error("409 conflict"));
+    putCarfConfigFile.mockRejectedValue(new Error("unexpected error"));
 
     const response = await save(formRequest(VALID_FORM));
 
     expect(location(response)).toBe("/dashboard/config/55555?repo=acme%2Fwidgets&error=save_failed");
+  });
+
+  it("reports permissions error when GitHub rejects due to missing app permissions", async () => {
+    const { GitHubContentsError } = await import("../../src/adapters/github/contentsClient");
+    getCurrentAccount.mockResolvedValue(ACCOUNT);
+    getInstallationForAccount.mockResolvedValue(INSTALLATION);
+    putCarfConfigFile.mockRejectedValue(new GitHubContentsError(403, "Resource not accessible by integration"));
+
+    const response = await save(formRequest(VALID_FORM));
+
+    expect(location(response)).toBe("/dashboard/config/55555?repo=acme%2Fwidgets&error=permissions");
   });
 
   // In augment mode the adapter block is dropped rather than written with empty values.
