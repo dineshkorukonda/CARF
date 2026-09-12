@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound } from "lucide-react";
+import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, FlaskConical } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { InstallationSwitcher } from "./InstallationSwitcher";
 import type { InstallationRow } from "../../lib/accountService";
@@ -170,6 +170,13 @@ export function SidebarShell({
                 icon={<Radio className="size-4 shrink-0 text-emerald-500" />}
               >
                 Live Status
+              </ContextNavLink>
+              <ContextNavLink
+                href={`/dashboard/verify/${active.installationId}`}
+                collapsed={collapsed}
+                icon={<FlaskConical className="size-4 shrink-0 text-blue-500" />}
+              >
+                Verify (Simulation)
               </ContextNavLink>
               <ContextNavLink
                 href={`/dashboard/config/${active.installationId}`}

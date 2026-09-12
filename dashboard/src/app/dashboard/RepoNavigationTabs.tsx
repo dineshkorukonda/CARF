@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Radio, Settings2, Sliders } from "lucide-react";
+import { BarChart3, Radio, Settings2, Sliders, FlaskConical } from "lucide-react";
 import { ApiKeyCopyButton } from "./installations/ApiKeyCopyButton";
 
 interface RepoNavigationTabsProps {
@@ -19,6 +19,7 @@ export function RepoNavigationTabs({
   const pathname = usePathname();
 
   const isStatus = pathname.startsWith(`/dashboard/status/${installationId}`);
+  const isVerify = pathname.startsWith(`/dashboard/verify/${installationId}`);
   const isRules = pathname.startsWith(`/dashboard/config/${installationId}/rules`);
   const isConfig = pathname.startsWith(`/dashboard/config/${installationId}`) && !isRules;
   const isAnalytics = pathname.startsWith(`/dashboard/analytics/${installationId}`);
@@ -29,6 +30,12 @@ export function RepoNavigationTabs({
       href: `/dashboard/status/${installationId}`,
       active: isStatus,
       icon: Radio,
+    },
+    {
+      label: "Verify (Simulation)",
+      href: `/dashboard/verify/${installationId}`,
+      active: isVerify,
+      icon: FlaskConical,
     },
     {
       label: "Deployment Adapter",
