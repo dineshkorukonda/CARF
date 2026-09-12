@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { load } from "js-yaml";
+import { CheckCircle2, Radio, Sliders, ArrowRight } from "lucide-react";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
@@ -18,6 +20,9 @@ interface ExistingModeAdapter {
 
 const ERROR_MESSAGES: Record<string, string> = {
   save_failed: "Failed to commit config changes to repository. Please try again.",
+  permissions: "GitHub App is missing 'Contents: Read and write' permissions. Please update your GitHub App repository permissions to 'Read and write' and accept them for this repository.",
+  branch_protected: "Cannot commit directly: the default branch has branch protection or rulesets enabled.",
+  conflict: "Conflict writing .carf.yml: the file was modified concurrently. Please refresh and try again.",
   not_authorized: "That installation isn't linked to your account.",
 };
 
@@ -105,9 +110,32 @@ export default async function ConfigPage({
         </p>
       )}
       {saved && (
-        <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
-          Saved — committed to {selectedFullName}.
-        </p>
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-foreground space-y-3">
+          <div className="flex items-center gap-2 font-medium text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+            <span>Saved — committed .carf.yml to {selectedFullName}.</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Configuration is active. Next step: view live commit scoring or customize threshold sensitivity.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Link
+              href={`/dashboard/status/${installationId}?repo=${encodeURIComponent(selectedFullName)}`}
+              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
+            >
+              <Radio className="size-3.5" />
+              <span>Go to Live Status</span>
+              <ArrowRight className="size-3" />
+            </Link>
+            <Link
+              href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(selectedFullName)}`}
+              className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted transition-colors text-foreground"
+            >
+              <Sliders className="size-3.5" />
+              <span>Tune Threshold Rules</span>
+            </Link>
+          </div>
+        </div>
       )}
 
       <ConfigModeForm

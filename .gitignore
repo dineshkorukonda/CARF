@@ -6,3 +6,6 @@ dist/
 build/
 .next/
 coverage/
+carf-e2e-test/
+jean.json
+

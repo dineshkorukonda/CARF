@@ -3,7 +3,7 @@ import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { mintInstallationToken } from "../../../../lib/installationAccess";
-import { getCarfConfigFile, putCarfConfigFile } from "../../../../adapters/github/contentsClient";
+import { getCarfConfigFile, putCarfConfigFile, GitHubContentsError } from "../../../../adapters/github/contentsClient";
 import { applyClassificationThresholdPatch, InvalidCarfConfigError } from "../../../../lib/carfConfigWriter";
 import { ClassificationSchema, ThresholdSchema } from "../../../../lib/carfConfigSchema";
 
@@ -68,8 +68,17 @@ export async function POST(request: NextRequest) {
       existingFile?.sha
     );
   } catch (error) {
-    const status = error instanceof InvalidCarfConfigError ? 400 : 502;
-    return NextResponse.json({ error: "failed to save .carf.yml" }, { status });
+    console.error("[config/save-rules] Failed to save .carf.yml:", error);
+    if (error instanceof InvalidCarfConfigError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof GitHubContentsError) {
+      return NextResponse.json(
+        { error: error.message, reason: error.reason, details: error.responseBody },
+        { status: error.status >= 400 && error.status < 500 ? error.status : 502 }
+      );
+    }
+    return NextResponse.json({ error: "failed to save .carf.yml" }, { status: 502 });
   }
 
   return NextResponse.json({ ok: true });
