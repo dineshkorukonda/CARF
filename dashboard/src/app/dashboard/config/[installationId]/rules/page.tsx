@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { load } from "js-yaml";
+import { CheckCircle2, Radio, ArrowRight } from "lucide-react";
 import { getCurrentAccount } from "../../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../../lib/accountService";
 import { prisma } from "../../../../../lib/prisma";
@@ -134,9 +136,25 @@ export default async function RulesPage({
         </p>
       )}
       {saved && (
-        <p className="rounded-sm bg-primary/10 px-3 py-2 text-sm text-primary">
-          Saved — committed to {selectedFullName}.
-        </p>
+        <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-foreground space-y-3">
+          <div className="flex items-center gap-2 font-medium text-emerald-600 dark:text-emerald-400">
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />
+            <span>Saved — committed custom threshold rules to {selectedFullName}.</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Your custom path rules and threshold sensitivity curves are now active for upcoming deployments.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Link
+              href={`/dashboard/status/${installationId}?repo=${encodeURIComponent(selectedFullName)}`}
+              className="inline-flex items-center gap-1.5 rounded-sm bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
+            >
+              <Radio className="size-3.5" />
+              <span>Go to Live Status</span>
+              <ArrowRight className="size-3" />
+            </Link>
+          </div>
+        </div>
       )}
 
       <RulesForm installationId={installationId} owner={owner!} repo={repoName!} initial={toFormInitial(existing)} />
