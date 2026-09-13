@@ -7,6 +7,7 @@ import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
 import type { CompatibilityReport } from "../../../lib/compatCheck";
 import type { RecentCommit } from "../../../adapters/coreApi/client";
+import { GithubAppProbeCard } from "../installations/GithubAppProbeCard";
 
 export interface OnboardingStatus {
   currentStep: number;
@@ -79,7 +80,10 @@ export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
               <p className="text-xs text-muted-foreground leading-relaxed">Authenticate and authorize the CARF GitHub App to inspect deployments and rollback triggers.</p>
               <div className="pt-2">
                 {!status.step1.completed ? (
-                  <Button render={<a href="/api/github-app/install/start" />} size="sm"><span>Connect GitHub App</span><ArrowRight className="size-3.5 ml-1" /></Button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button render={<a href="/api/github-app/install/start" />} size="sm"><span>Connect GitHub App</span><ArrowRight className="size-3.5 ml-1" /></Button>
+                    <Link href="/dashboard/installations" className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4">Manual link / Diagnostics</Link>
+                  </div>
                 ) : (
                   <span className="text-xs font-mono text-emerald-500">GitHub App authorization verified</span>
                 )}
@@ -214,6 +218,10 @@ export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="pt-2">
+        <GithubAppProbeCard />
       </div>
     </div>
   );

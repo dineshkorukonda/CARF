@@ -7,6 +7,7 @@ import { listInstallationsForAccount } from "../../../lib/accountService";
 import { prisma } from "../../../lib/prisma";
 import Link from "next/link";
 import { ApiKeyCopyButton } from "./ApiKeyCopyButton";
+import { GithubAppProbeCard } from "./GithubAppProbeCard";
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_install_state: "GitHub App install request expired or was tampered with. Please try again.",
@@ -127,6 +128,8 @@ export default async function InstallationsPage({
           ))}
         </div>
       )}
+
+      <GithubAppProbeCard />
 
       <div className="rounded-sm border border-border bg-muted/20 p-5 mt-2 space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
