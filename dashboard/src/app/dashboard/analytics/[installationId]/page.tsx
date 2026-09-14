@@ -41,7 +41,8 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
   try {
     apiKey = await ensureCoreApiKey(prisma, installation);
     commits = await fetchRecentCommits(env.coreApiBaseUrl(), apiKey);
-  } catch {
+  } catch (err) {
+    console.error("[analytics] failed to reach core-api for installation", installationId, err);
     loadError = "Couldn't reach core-api for this installation's data yet.";
   }
 
