@@ -30,14 +30,14 @@ export default async function InstallationsPage({
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 p-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">GitHub Installations</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">GitHub Integration</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Repositories connected to CARF for automated risk analysis and rollback protection.
+            Connected GitHub account and repositories protected by CARF.
           </p>
         </div>
         <Button render={<a href="/api/github-app/install/start" />} className="self-start sm:self-auto gap-1.5">
           <Plus className="size-4" />
-          <span>Install on New Repo</span>
+          <span>Add / Manage Repositories</span>
         </Button>
       </div>
 

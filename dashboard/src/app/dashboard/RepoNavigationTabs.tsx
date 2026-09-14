@@ -65,29 +65,29 @@ export function RepoNavigationTabs({
           <span className="text-sm font-semibold text-foreground">
             {repoName ?? "Repository Workspace"}
           </span>
-          <span className="font-mono text-xs text-muted-foreground">
-            (id: {installationId})
+          <span className="font-mono text-xs text-slate-500">
+            (Integration #{installationId})
           </span>
         </div>
         {apiKey && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <span>API Key:</span>
             <ApiKeyCopyButton apiKey={apiKey} />
           </div>
         )}
       </div>
 
-      <nav className="flex items-center gap-1 overflow-x-auto">
+      <nav className="flex items-center gap-1.5 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
             <Link
               key={tab.label}
               href={tab.href}
-              className={`inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
                 tab.active
-                  ? "bg-primary text-primary-foreground shadow-xs"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
               }`}
             >
               <Icon className="size-3.5 shrink-0" />

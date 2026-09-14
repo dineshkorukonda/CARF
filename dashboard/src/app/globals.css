@@ -17,53 +17,30 @@
  * in both themes (--sidebar*), independent of the light/dark toggle, which only affects the
  * content pane -- see SidebarShell.tsx.
  */
-:root {
-  --background: #f2f3f6;
-  --foreground: #0f1420;
-  --card: #f2f3f6;
-  --card-foreground: #0f1420;
+:root,
+:root.dark {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #0f1420;
-  --primary: #2c3fe0;
+  --popover-foreground: #0f172a;
+  --primary: #0f172a;
   --primary-foreground: #ffffff;
-  --secondary: #e4e7ee;
-  --secondary-foreground: #0f1420;
-  --muted: #e4e7ee;
-  --muted-foreground: #5c6280;
-  --accent: #e4e7ee;
-  --accent-foreground: #0f1420;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.98 0.01 25);
-  --border: #d7dbe4;
-  --input: #d7dbe4;
-  --ring: #2c3fe0;
-  --sidebar: #0f1420;
-  --sidebar-foreground: #eef0f6;
-  --radius: 0.25rem;
-}
-
-:root.dark {
-  --background: #0b0d13;
-  --foreground: #eef0f6;
-  --card: #0b0d13;
-  --card-foreground: #eef0f6;
-  --popover: #151926;
-  --popover-foreground: #eef0f6;
-  --primary: #5b6cff;
-  --primary-foreground: #0b0d13;
-  --secondary: #1c2030;
-  --secondary-foreground: #eef0f6;
-  --muted: #1c2030;
-  --muted-foreground: #8890ac;
-  --accent: #1c2030;
-  --accent-foreground: #eef0f6;
-  --destructive: oklch(0.62 0.21 25);
-  --destructive-foreground: oklch(0.97 0.01 25);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: #5b6cff;
-  --sidebar: #0f1420;
-  --sidebar-foreground: #eef0f6;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #0f172a;
+  --sidebar: #0f172a;
+  --sidebar-foreground: #f8fafc;
+  --radius: 0.5rem;
 }
 
 @theme inline {
