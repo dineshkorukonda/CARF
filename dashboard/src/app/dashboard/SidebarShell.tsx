@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, FlaskConical } from "lucide-react";
@@ -133,10 +134,10 @@ export function SidebarShell({
         <div className={collapsed ? "flex flex-col items-center gap-3 px-3" : "flex items-center justify-between px-4"}>
           <Link href="/dashboard" className="flex items-center gap-2 text-sm font-bold tracking-wide">
             {collapsed ? (
-              <span className="flex size-6 items-center justify-center text-[13px] font-bold">C</span>
+              <Image src="/icon.png" alt="CARF" width={22} height={22} className="rounded-sm shrink-0" />
             ) : (
-              <span className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-emerald-500" />
+              <span className="flex items-center gap-2">
+                <Image src="/icon.png" alt="CARF" width={20} height={20} className="rounded-sm shrink-0" />
                 <span>CARF</span>
               </span>
             )}
