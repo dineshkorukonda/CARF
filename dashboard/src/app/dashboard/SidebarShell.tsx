@@ -151,76 +151,6 @@ export function SidebarShell({
           </button>
         </div>
 
-        {/* Repository Workspace Nav */}
-        {active && (
-          <div className="flex flex-col gap-2">
-            {!collapsed && (
-              <div className="px-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                  Active Integration
-                </p>
-              </div>
-            )}
-            {!collapsed ? (
-              <div className="mx-3 rounded-lg border border-sidebar-foreground/15 bg-sidebar-foreground/5 p-2.5">
-                <div className="flex items-center gap-2">
-                  <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-semibold text-xs text-sidebar-foreground truncate">
-                    @{active.targetLogin}
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] text-sidebar-foreground/60 font-mono">
-                  Integration #{active.installationId}
-                </p>
-              </div>
-            ) : (
-              <div className="flex justify-center my-1" title={`@${active.targetLogin} (#${active.installationId})`}>
-                <div className="size-2.5 rounded-full bg-emerald-500" />
-              </div>
-            )}
-
-            <nav className="flex flex-col gap-0.5 px-3">
-              <ContextNavLink
-                href={`/dashboard/status/${active.installationId}`}
-                collapsed={collapsed}
-                icon={<Radio className="size-4 shrink-0 text-emerald-500" />}
-              >
-                Live Status
-              </ContextNavLink>
-              <ContextNavLink
-                href={`/dashboard/verify/${active.installationId}`}
-                collapsed={collapsed}
-                icon={<FlaskConical className="size-4 shrink-0 text-blue-500" />}
-              >
-                Verify (Simulation)
-              </ContextNavLink>
-              <ContextNavLink
-                href={`/dashboard/config/${active.installationId}`}
-                collapsed={collapsed}
-                icon={<Settings2 className="size-4 shrink-0" />}
-              >
-                Deployment Adapter
-              </ContextNavLink>
-              <ContextNavLink
-                href={`/dashboard/config/${active.installationId}/rules`}
-                collapsed={collapsed}
-                icon={<Sliders className="size-4 shrink-0" />}
-              >
-                Threshold Rules
-              </ContextNavLink>
-              <ContextNavLink
-                href={`/dashboard/analytics/${active.installationId}`}
-                collapsed={collapsed}
-                icon={<BarChart3 className="size-4 shrink-0" />}
-              >
-                Rollout Analytics
-              </ContextNavLink>
-            </nav>
-          </div>
-        )}
-
-        <div className="mx-4 border-t border-sidebar-foreground/10" />
-
         {/* Global Navigation */}
         <div className="flex flex-col gap-2">
           {!collapsed && (
@@ -239,6 +169,78 @@ export function SidebarShell({
             </NavLink>
           </nav>
         </div>
+
+        {active && (
+          <>
+            <div className="mx-4 border-t border-sidebar-foreground/10" />
+
+            {/* Repository Workspace Nav */}
+            <div className="flex flex-col gap-2">
+              {!collapsed && (
+                <div className="px-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    Active Integration
+                  </p>
+                </div>
+              )}
+              {!collapsed ? (
+                <div className="mx-3 rounded-lg border border-sidebar-foreground/15 bg-sidebar-foreground/5 p-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-semibold text-xs text-sidebar-foreground truncate">
+                      @{active.targetLogin}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-sidebar-foreground/60 font-mono">
+                    Integration #{active.installationId}
+                  </p>
+                </div>
+              ) : (
+                <div className="flex justify-center my-1" title={`@${active.targetLogin} (#${active.installationId})`}>
+                  <div className="size-2.5 rounded-full bg-emerald-500" />
+                </div>
+              )}
+
+              <nav className="flex flex-col gap-0.5 px-3">
+                <ContextNavLink
+                  href={`/dashboard/status/${active.installationId}`}
+                  collapsed={collapsed}
+                  icon={<Radio className="size-4 shrink-0 text-emerald-500" />}
+                >
+                  Live Status
+                </ContextNavLink>
+                <ContextNavLink
+                  href={`/dashboard/verify/${active.installationId}`}
+                  collapsed={collapsed}
+                  icon={<FlaskConical className="size-4 shrink-0 text-blue-500" />}
+                >
+                  Verify (Simulation)
+                </ContextNavLink>
+                <ContextNavLink
+                  href={`/dashboard/config/${active.installationId}`}
+                  collapsed={collapsed}
+                  icon={<Settings2 className="size-4 shrink-0" />}
+                >
+                  Deployment Adapter
+                </ContextNavLink>
+                <ContextNavLink
+                  href={`/dashboard/config/${active.installationId}/rules`}
+                  collapsed={collapsed}
+                  icon={<Sliders className="size-4 shrink-0" />}
+                >
+                  Threshold Rules
+                </ContextNavLink>
+                <ContextNavLink
+                  href={`/dashboard/analytics/${active.installationId}`}
+                  collapsed={collapsed}
+                  icon={<BarChart3 className="size-4 shrink-0" />}
+                >
+                  Rollout Analytics
+                </ContextNavLink>
+              </nav>
+            </div>
+          </>
+        )}
       </div>
 
       {/* User footer */}
