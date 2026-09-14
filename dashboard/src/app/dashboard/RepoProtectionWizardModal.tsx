@@ -2,16 +2,11 @@
 
 import { useState } from "react";
 import {
-  ShieldCheck,
   Zap,
   X,
-  FileCode2,
-  GitBranch,
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Sliders,
-  ExternalLink,
 } from "lucide-react";
 import type { ProtectionPreset } from "../../lib/repoProtectionTemplates";
 import { generateCarfYaml, generateWatchdogWorkflowYaml } from "../../lib/repoProtectionTemplates";

@@ -8,12 +8,10 @@ import {
   ShieldCheck,
   Zap,
   Clock,
-  AlertTriangle,
   Search,
   CheckCircle2,
   Sliders,
   Activity,
-  Layers,
 } from "lucide-react";
 import type { InstallationRepo } from "../../adapters/github/reposClient";
 import type { RecentCommit } from "../../adapters/coreApi/client";
@@ -32,12 +30,11 @@ export function OverviewView({
   installation,
   repos,
   commits,
-  accountEmail,
 }: {
   installation: InstallationRow;
   repos: InstallationRepo[];
   commits: RecentCommit[];
-  accountEmail: string;
+  accountEmail?: string;
 }) {
   const [repoSearch, setRepoSearch] = useState("");
   const [protectionMap, setProtectionMap] = useState<Record<string, RepoProtectionStatus>>({});
@@ -77,14 +74,20 @@ export function OverviewView({
     );
   }, [repos, repoSearch]);
 
+  const [currentTime, setCurrentTime] = useState<number>(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Compute live overview metrics
   const totalCommits = commits.length;
-  const now = Date.now();
   const activeWatchdogs = commits.filter(
     (c) =>
       c.rolledBack === null &&
       c.finalWindow &&
-      new Date(c.createdAt).getTime() + c.finalWindow * 1000 > now
+      (currentTime > 0 ? new Date(c.createdAt).getTime() + c.finalWindow * 1000 > currentTime : true)
   ).length;
   const rollbacksTriggered = commits.filter((c) => c.rolledBack === true).length;
   const avgThreshold =
