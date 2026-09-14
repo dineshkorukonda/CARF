@@ -87,7 +87,6 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
 
   // Condition A: Fixed Static Canary (1% error threshold, 300s window)
   const staticThreshold = 0.01;
-  const staticWindowMs = 300_000;
 
   for (let i = 0; i < count; i++) {
     const tpl = TEMPLATES[Math.floor(rand() * TEMPLATES.length)]!;
@@ -99,24 +98,18 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
 
     // Compute CARF Dynamic Threshold for Condition B:
     let dynamicThreshold = 0.05;
-    let dynamicWindowMs = 300_000;
     if (tpl.type === "infra") {
       dynamicThreshold = 0.01;
-      dynamicWindowMs = 60_000;
     } else if (tpl.type === "dependency") {
       dynamicThreshold = 0.03;
-      dynamicWindowMs = 180_000;
     } else if (tpl.type === "config") {
       dynamicThreshold = 0.02;
-      dynamicWindowMs = 120_000;
     } else if (tpl.type === "code") {
       // AST complexity penalty
       const complexityPenalty = Math.min(0.6, (tpl.astChurn / 50) * 0.5);
       dynamicThreshold = 0.08 * (1 - complexityPenalty);
-      dynamicWindowMs = Math.round(900_000 * (1 - complexityPenalty * 0.5));
     } else if (tpl.type === "test") {
       dynamicThreshold = 0.08; // Safe test churn, permissive threshold
-      dynamicWindowMs = 600_000;
     }
 
     // Condition A Evaluation (Static):
@@ -180,16 +173,18 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
   const avgMttrA = mttrListA.length > 0 ? mttrListA.reduce((a, b) => a + b, 0) / mttrListA.length : 42_000;
   const avgMttrB = mttrListB.length > 0 ? mttrListB.reduce((a, b) => a + b, 0) / mttrListB.length : 18_000;
 
-  const totalSafe = fpA + tnA;
+  const totalSafeA = fpA + tnA;
+  const totalSafeB = fpB + tnB;
+
   const conditionA: EvalMetrics = {
-    falsePositiveRate: totalSafe > 0 ? fpA / totalSafe : 0,
+    falsePositiveRate: totalSafeA > 0 ? fpA / totalSafeA : 0,
     truePositiveMttrMs: Math.round(avgMttrA),
     precision: tpA + fpA > 0 ? tpA / (tpA + fpA) : 0,
     recall: tpA + fnA > 0 ? tpA / (tpA + fnA) : 0,
   };
 
   const conditionB: EvalMetrics = {
-    falsePositiveRate: totalSafe > 0 ? fpB / totalSafe : 0,
+    falsePositiveRate: totalSafeB > 0 ? fpB / totalSafeB : 0,
     truePositiveMttrMs: Math.round(avgMttrB),
     precision: tpB + fpB > 0 ? tpB / (tpB + fpB) : 0,
     recall: tpB + fnB > 0 ? tpB / (tpB + fnB) : 0,

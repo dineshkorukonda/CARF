@@ -8,15 +8,12 @@ import {
   BarChart2,
   Activity,
   AlertTriangle,
-  Flame,
   ShieldCheck,
-  TrendingDown,
-  Zap,
   Filter,
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
-import type { SimulationResult, SyntheticTraceItem, EvaluationHistoryItem } from "../../../lib/evalHarness";
+import type { SimulationResult, EvaluationHistoryItem } from "../../../lib/evalHarness";
 
 export function EvaluationBenchmarkView({
   initialHistory,

@@ -21,11 +21,11 @@ import {
 } from "lucide-react";
 import type { RecentCommit } from "../../adapters/coreApi/client";
 import { classifyRolloutOutcome } from "../../lib/outcomeClassifier";
-import { Badge } from "../../components/ui/badge";
 
-function formatRelativeTime(dateString: string): string {
+function formatRelativeTime(dateString: string, currentMs: number): string {
   try {
-    const diffMs = Date.now() - new Date(dateString).getTime();
+    if (!currentMs) return "just now";
+    const diffMs = currentMs - new Date(dateString).getTime();
     const diffSec = Math.floor(diffMs / 1000);
     if (diffSec < 60) return `${Math.max(1, diffSec)}s ago`;
     const diffMin = Math.floor(diffSec / 60);
@@ -41,18 +41,24 @@ function formatRelativeTime(dateString: string): string {
 function CommitCard({ commit }: { commit: RecentCommit }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState<number>(0);
   const [isIntervening, setIsIntervening] = useState<string | null>(null);
   const [interventionFeedback, setInterventionFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const outcome = classifyRolloutOutcome(commit);
   const createdAtMs = new Date(commit.createdAt).getTime();
   const windowSeconds = commit.finalWindow ?? 180;
   const expiresAtMs = createdAtMs + windowSeconds * 1000;
-  const isWithinWindow = now < expiresAtMs;
+  const effectiveNow = now || createdAtMs;
+  const isWithinWindow = effectiveNow < expiresAtMs;
   const isInObservation = outcome.kind === "pending" && isWithinWindow;
-  const remainingSeconds = Math.max(0, Math.ceil((expiresAtMs - now) / 1000));
-  const progressPct = Math.min(100, Math.max(0, ((now - createdAtMs) / (windowSeconds * 1000)) * 100));
+  const remainingSeconds = Math.max(0, Math.ceil((expiresAtMs - effectiveNow) / 1000));
+  const progressPct = Math.min(100, Math.max(0, ((effectiveNow - createdAtMs) / (windowSeconds * 1000)) * 100));
 
   useEffect(() => {
     if (!isInObservation) return;
@@ -116,7 +122,7 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500">{formatRelativeTime(commit.createdAt)}</span>
+          <span className="text-xs text-slate-500">{formatRelativeTime(commit.createdAt, effectiveNow)}</span>
           <a
             href={`https://github.com/${commit.owner}/${commit.repo}/commit/${commit.sha}`}
             target="_blank"
@@ -384,7 +390,7 @@ export function PipelineStageTracker({
         <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-100 text-slate-600 mb-4">
           <GitCommit className="size-6" />
         </div>
-        <h3 className="text-base font-semibold text-slate-900">No Rollouts Recorded Yet</h3>
+        <h3 className="text-base font-semibold text-slate-900">{emptyMessage}</h3>
         <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 leading-relaxed">
           CARF is listening for GitHub push events across your connected repositories. Push code or merge a pull request to watch its AST classification and watchdog observation run live.
         </p>

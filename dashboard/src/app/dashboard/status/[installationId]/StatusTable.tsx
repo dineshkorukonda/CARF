@@ -86,6 +86,13 @@ export function StatusTable({
     return Array.from(repos);
   }, [commits]);
 
+  const [currentTime, setCurrentTime] = useState<number>(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setCurrentTime(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const filteredCommits = useMemo(() => {
     return commits.filter((c) => {
       if (selectedRepoFilter !== "all" && `${c.owner}/${c.repo}` !== selectedRepoFilter) {
@@ -96,7 +103,7 @@ export function StatusTable({
         const isObserving =
           outcome.kind === "pending" &&
           c.finalWindow &&
-          new Date(c.createdAt).getTime() + c.finalWindow * 1000 > Date.now();
+          (currentTime > 0 ? new Date(c.createdAt).getTime() + c.finalWindow * 1000 > currentTime : true);
 
         if (statusFilter === "observing" && !isObserving) return false;
         if (statusFilter === "healthy" && outcome.kind !== "healthy") return false;
@@ -104,7 +111,7 @@ export function StatusTable({
       }
       return true;
     });
-  }, [commits, selectedRepoFilter, statusFilter]);
+  }, [commits, selectedRepoFilter, statusFilter, currentTime]);
 
   return (
     <div className="flex flex-col gap-5">
