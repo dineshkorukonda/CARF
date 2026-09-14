@@ -101,3 +101,32 @@ describe("putCarfConfigFile", () => {
     }
   });
 });
+
+describe("getRepoFile and putRepoFile", () => {
+  it("fetches arbitrary file from repo and decodes base64", async () => {
+    const { getRepoFile } = await import("../../../src/adapters/github/contentsClient");
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ content: Buffer.from("name: ci\n", "utf-8").toString("base64"), encoding: "base64", sha: "wf123" }),
+    });
+
+    const file = await getRepoFile("acme", "widgets", ".github/workflows/carf.yml", "token-1", fetchFn);
+    expect(file).toEqual({ content: "name: ci\n", sha: "wf123" });
+  });
+
+  it("puts arbitrary file to repo", async () => {
+    const { putRepoFile } = await import("../../../src/adapters/github/contentsClient");
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+
+    await putRepoFile("acme", "widgets", ".github/workflows/carf.yml", "name: carf\n", "add workflow", "token-1", undefined, fetchFn);
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      "https://api.github.com/repos/acme/widgets/contents/.github/workflows/carf.yml",
+      expect.objectContaining({
+        method: "PUT",
+      })
+    );
+  });
+});
+

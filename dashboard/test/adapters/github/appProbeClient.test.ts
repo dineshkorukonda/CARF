@@ -121,7 +121,7 @@ describe("appProbeClient", () => {
             json: async () => ({ token: "ghs_test123", expires_at: "2026-09-13T16:00:00Z" }),
           };
         }
-        if (url === "https://api.github.com/installation/repositories") {
+        if (url.startsWith("https://api.github.com/installation/repositories")) {
           return {
             ok: true,
             status: 200,

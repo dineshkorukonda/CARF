@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import {
   FolderGit2,
@@ -20,6 +20,13 @@ import type { RecentCommit } from "../../adapters/coreApi/client";
 import type { InstallationRow } from "../../lib/accountService";
 import { RefreshReposButton } from "./RefreshReposButton";
 import { PipelineStageTracker } from "./PipelineStageTracker";
+import { RepoProtectionWizardModal } from "./RepoProtectionWizardModal";
+
+export interface RepoProtectionStatus {
+  isProtected: boolean;
+  hasWorkflow: boolean;
+  mode?: string;
+}
 
 export function OverviewView({
   installation,
@@ -33,6 +40,34 @@ export function OverviewView({
   accountEmail: string;
 }) {
   const [repoSearch, setRepoSearch] = useState("");
+  const [protectionMap, setProtectionMap] = useState<Record<string, RepoProtectionStatus>>({});
+  const [wizardTargetRepo, setWizardTargetRepo] = useState<InstallationRepo | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadStatuses() {
+      try {
+        const res = await fetch(`/api/repo/status?installationId=${installation.installationId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.statuses && Array.isArray(data.statuses) && isMounted) {
+          const map: Record<string, RepoProtectionStatus> = {};
+          for (const s of data.statuses) {
+            map[s.name] = { isProtected: s.isProtected, hasWorkflow: s.hasWorkflow, mode: s.mode };
+            map[s.fullName] = { isProtected: s.isProtected, hasWorkflow: s.hasWorkflow, mode: s.mode };
+          }
+          setProtectionMap(map);
+        }
+      } catch (err) {
+        console.warn("[OverviewView] Failed to load repo statuses:", err);
+      }
+    }
+    loadStatuses();
+    return () => {
+      isMounted = false;
+    };
+  }, [installation.installationId]);
+
 
   const filteredRepos = useMemo(() => {
     if (!repoSearch.trim()) return repos;
@@ -193,53 +228,105 @@ export function OverviewView({
           </div>
         ) : (
           <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {filteredRepos.map((repo) => (
-              <div
-                key={repo.id}
-                className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors shadow-none"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 font-semibold text-slate-900 text-sm truncate">
-                      <FolderGit2 className="size-4 text-slate-400 shrink-0" />
-                      <span className="truncate">{repo.name}</span>
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {repo.private && (
-                        <span className="rounded bg-amber-50 border border-amber-200 px-1 py-0.2 text-[9px] font-medium text-amber-700">
-                          Private
+            {filteredRepos.map((repo) => {
+              const status = protectionMap[repo.name] || protectionMap[repo.full_name];
+              const isProtected = status?.isProtected ?? false;
+
+              return (
+                <div
+                  key={repo.id}
+                  className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-300 transition-colors shadow-none"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 font-semibold text-slate-900 text-sm truncate">
+                        <FolderGit2 className="size-4 text-slate-400 shrink-0" />
+                        <span className="truncate">{repo.name}</span>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {repo.private && (
+                          <span className="rounded bg-amber-50 border border-amber-200 px-1 py-0.2 text-[9px] font-medium text-amber-700">
+                            Private
+                          </span>
+                        )}
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">
+                          {repo.default_branch}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400 truncate">{repo.full_name}</p>
+
+                    <div className="mt-2.5 flex items-center gap-1.5">
+                      {isProtected ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          <CheckCircle2 className="size-3 text-emerald-600" />
+                          Protected (.carf.yml active)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                          <span className="size-1.5 rounded-full bg-slate-400" />
+                          Unconfigured (Defaults)
                         </span>
                       )}
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">
-                        {repo.default_branch}
-                      </span>
                     </div>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-400 truncate">{repo.full_name}</p>
-                  {repo.pushed_at && (
-                    <p className="mt-1.5 text-[11px] text-slate-500 font-mono">
-                      Pushed: {new Date(repo.pushed_at).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
 
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
-                  <Link
-                    href={`/dashboard/status/${installation.installationId}?repo=${repo.name}`}
-                    className="font-medium text-slate-700 hover:text-slate-900 transition-colors"
-                  >
-                    View Status &rarr;
-                  </Link>
-                  <Link
-                    href={`/dashboard/config/${installation.installationId}`}
-                    className="text-slate-400 hover:text-slate-700 transition-colors"
-                    title="Configure thresholds"
-                  >
-                    <Sliders className="size-3.5" />
-                  </Link>
+                    {repo.pushed_at && (
+                      <p className="mt-2 text-[11px] text-slate-500 font-mono">
+                        Pushed: {new Date(repo.pushed_at).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+                    {isProtected ? (
+                      <>
+                        <Link
+                          href={`/dashboard/status/${installation.installationId}?repo=${repo.name}`}
+                          className="font-medium text-slate-700 hover:text-slate-900 transition-colors"
+                        >
+                          View Status &rarr;
+                        </Link>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setWizardTargetRepo(repo)}
+                            className="text-[11px] font-medium text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                            title="Update CARF configuration"
+                          >
+                            Reprotect
+                          </button>
+                          <Link
+                            href={`/dashboard/config/${installation.installationId}`}
+                            className="text-slate-400 hover:text-slate-700 transition-colors"
+                            title="Configure thresholds"
+                          >
+                            <Sliders className="size-3.5" />
+                          </Link>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setWizardTargetRepo(repo)}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs cursor-pointer"
+                        >
+                          <Zap className="size-3 text-amber-300" />
+                          <span>1-Click Protect</span>
+                        </button>
+                        <Link
+                          href={`/dashboard/status/${installation.installationId}?repo=${repo.name}`}
+                          className="text-slate-400 hover:text-slate-700 transition-colors"
+                          title="View Status"
+                        >
+                          Status &rarr;
+                        </Link>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -263,6 +350,23 @@ export function OverviewView({
 
         <PipelineStageTracker commits={commits} />
       </div>
+
+      {/* ── 1-Click Protection Wizard Modal ── */}
+      {wizardTargetRepo && (
+        <RepoProtectionWizardModal
+          isOpen={true}
+          onClose={() => setWizardTargetRepo(null)}
+          installationId={installation.installationId}
+          repo={wizardTargetRepo}
+          onProtectionSuccess={(repoFullName) => {
+            setProtectionMap((prev) => ({
+              ...prev,
+              [wizardTargetRepo.name]: { isProtected: true, hasWorkflow: true, mode: "balanced" },
+              [repoFullName]: { isProtected: true, hasWorkflow: true, mode: "balanced" },
+            }));
+          }}
+        />
+      )}
     </div>
   );
 }
