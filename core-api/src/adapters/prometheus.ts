@@ -3,19 +3,19 @@ import type { RollbackAdapter } from "./rollbackAdapter.js";
 
 export interface PrometheusAdapterOptions {
   /** Base URL for Prometheus, e.g. "http://prometheus:9090". Defaults to "http://localhost:9090". */
-  prometheusUrl?: string;
+  prometheusUrl?: string | undefined;
   /**
    * PromQL query string to evaluate error rate. May contain `{target}` which will be
    * interpolated with the target service name. Defaults to a standard error fraction:
    * `rate(http_requests_total{job="{target}",status=~"5.."}[1m]) / rate(http_requests_total{job="{target}"}[1m])`
    */
-  query?: string;
+  query?: string | undefined;
   /** Optional shell command to execute rollback, interpolated with `{target}`. */
-  rollbackCommand?: string;
+  rollbackCommand?: string | undefined;
   /** Injected fetch function for unit testing without live HTTP network calls. */
-  fetchFn?: typeof fetch;
+  fetchFn?: typeof fetch | undefined;
   /** Injected exec function for testing rollback command execution. */
-  exec?: ExecFn;
+  exec?: ExecFn | undefined;
 }
 
 const DEFAULT_PROMETHEUS_URL = "http://localhost:9090";
@@ -46,7 +46,7 @@ interface PrometheusResponse {
 export class PrometheusAdapter implements RollbackAdapter {
   private readonly prometheusUrl: string;
   private readonly query: string;
-  private readonly rollbackCommand?: string;
+  private readonly rollbackCommand?: string | undefined;
   private readonly fetchFn: typeof fetch;
   private readonly exec: ExecFn;
 
