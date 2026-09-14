@@ -5,6 +5,7 @@ import { getCurrentAccount } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { CompatChecker } from "./CompatChecker";
+import { InteractiveSimulator } from "./InteractiveSimulator";
 
 const STEPS = [
   {
@@ -102,6 +103,27 @@ export default async function HomePage() {
               <div className="mt-0.5 text-[11px] text-muted-foreground">{phase.caption}</div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-14">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Interactive Pipeline Simulator
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+                See CARF in action.
+              </h2>
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+            Watch the video-style walkthrough step through commit classification, dynamic threshold
+            decay, and autonomous rollback — or take the controls in manual sandbox mode.
+          </p>
+
+          <div className="mt-6">
+            <InteractiveSimulator />
+          </div>
         </div>
 
         <div className="mt-14">
