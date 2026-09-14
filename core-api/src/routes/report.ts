@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifySchema } from "fastify";
 import { prisma as defaultPrisma } from "../db/client.js";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
+import { incrementHealthReports, incrementRollbacksExecuted } from "./metrics.js";
 
 export interface ReportRoutePrismaClient extends InstallationAuthPrismaClient {
   threshold: {
@@ -115,6 +116,11 @@ export async function registerReportRoute(app: FastifyInstance, options: ReportR
     const isBreached = errorRate >= thresholdRow.finalThreshold;
     const action = isBreached ? "rollback" : "continue";
     const reason = isBreached ? "threshold_violation" : "within_budget";
+
+    incrementHealthReports(action);
+    if (isBreached) {
+      incrementRollbacksExecuted();
+    }
 
     if (isBreached || durationMs !== undefined) {
       try {
