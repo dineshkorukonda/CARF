@@ -58,6 +58,72 @@ export class GitHubContentsError extends Error {
 }
 
 /**
+ * `GET /repos/{owner}/{repo}/contents/{path}` -- installation-token auth.
+ * Returns null when the file doesn't exist yet (404), or the decoded content and sha.
+ */
+export async function getRepoFile(
+  owner: string,
+  repo: string,
+  path: string,
+  installationToken: string,
+  fetchFn: FetchFn = fetch
+): Promise<RepoFile | null> {
+  const cleanPath = path.replace(/^\/+/, "");
+  const response = await fetchFn(`${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${cleanPath}`, {
+    headers: {
+      Authorization: `Bearer ${installationToken}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+    throw new GitHubContentsError(response.status, errorBody, `GitHub ${cleanPath} fetch failed (status ${response.status})`);
+  }
+
+  const body = (await response.json()) as { content: string; encoding: string; sha: string };
+  const content = body.encoding === "base64" ? Buffer.from(body.content, "base64").toString("utf-8") : body.content;
+  return { content, sha: body.sha };
+}
+
+/**
+ * `PUT /repos/{owner}/{repo}/contents/{path}` -- creates or updates a file in GitHub.
+ */
+export async function putRepoFile(
+  owner: string,
+  repo: string,
+  path: string,
+  content: string,
+  commitMessage: string,
+  installationToken: string,
+  previousSha: string | undefined,
+  fetchFn: FetchFn = fetch
+): Promise<void> {
+  const cleanPath = path.replace(/^\/+/, "");
+  const response = await fetchFn(`${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${cleanPath}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${installationToken}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: commitMessage,
+      content: Buffer.from(content, "utf-8").toString("base64"),
+      sha: previousSha,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+    throw new GitHubContentsError(response.status, errorBody);
+  }
+}
+
+/**
  * `GET /repos/{owner}/{repo}/contents/.carf.yml` -- installation-token auth. Returns null
  * when the file doesn't exist yet (a 404 here is an expected, common case: most repos
  * won't have a `.carf.yml` until the dashboard's config UI creates their first one), not
@@ -69,23 +135,7 @@ export async function getCarfConfigFile(
   installationToken: string,
   fetchFn: FetchFn = fetch
 ): Promise<RepoFile | null> {
-  const response = await fetchFn(`${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${CONFIG_PATH}`, {
-    headers: {
-      Authorization: `Bearer ${installationToken}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
-    throw new GitHubContentsError(response.status, errorBody, `GitHub .carf.yml fetch failed (status ${response.status})`);
-  }
-
-  const body = (await response.json()) as { content: string; encoding: string; sha: string };
-  const content = body.encoding === "base64" ? Buffer.from(body.content, "base64").toString("utf-8") : body.content;
-  return { content, sha: body.sha };
+  return getRepoFile(owner, repo, CONFIG_PATH, installationToken, fetchFn);
 }
 
 /**
@@ -105,23 +155,5 @@ export async function putCarfConfigFile(
   previousSha: string | undefined,
   fetchFn: FetchFn = fetch
 ): Promise<void> {
-  const response = await fetchFn(`${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${CONFIG_PATH}`, {
-    method: "PUT",
-    headers: {
-      Authorization: `Bearer ${installationToken}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      message: commitMessage,
-      content: Buffer.from(yamlContent, "utf-8").toString("base64"),
-      sha: previousSha,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
-    throw new GitHubContentsError(response.status, errorBody);
-  }
+  return putRepoFile(owner, repo, CONFIG_PATH, yamlContent, commitMessage, installationToken, previousSha, fetchFn);
 }
