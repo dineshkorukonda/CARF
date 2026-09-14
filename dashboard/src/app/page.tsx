@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { GitBranch, Activity, Cpu, RotateCcw } from "lucide-react";
 import { getCurrentAccount } from "../lib/auth";
 import { Button } from "../components/ui/button";
@@ -46,11 +47,16 @@ export default async function HomePage() {
     <main className="min-h-svh bg-background text-foreground">
       <header className="border-b border-border">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2 text-sm font-medium tracking-tight">
-            <span className="rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-semibold text-background">
-              CARF
-            </span>
-            <span className="hidden sm:inline">Dashboard</span>
+          <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight">
+            <Image
+              src="/icon.png"
+              alt="CARF"
+              width={22}
+              height={22}
+              className="rounded-sm shrink-0"
+              priority
+            />
+            <span>CARF</span>
           </Link>
           <div className="flex items-center gap-3">
             <ThemeToggle />
