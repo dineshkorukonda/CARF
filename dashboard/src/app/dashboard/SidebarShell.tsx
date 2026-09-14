@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, FlaskConical } from "lucide-react";
 import { Button } from "../../components/ui/button";
-import { InstallationSwitcher } from "./InstallationSwitcher";
 import type { InstallationRow } from "../../lib/accountService";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
@@ -158,11 +157,27 @@ export function SidebarShell({
             {!collapsed && (
               <div className="px-4">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                  Active Repository
+                  Active Integration
                 </p>
               </div>
             )}
-            <InstallationSwitcher installations={installations} active={active} collapsed={collapsed} />
+            {!collapsed ? (
+              <div className="mx-3 rounded-lg border border-sidebar-foreground/15 bg-sidebar-foreground/5 p-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-semibold text-xs text-sidebar-foreground truncate">
+                    @{active.targetLogin}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-sidebar-foreground/60 font-mono">
+                  Integration #{active.installationId}
+                </p>
+              </div>
+            ) : (
+              <div className="flex justify-center my-1" title={`@${active.targetLogin} (#${active.installationId})`}>
+                <div className="size-2.5 rounded-full bg-emerald-500" />
+              </div>
+            )}
 
             <nav className="flex flex-col gap-0.5 px-3">
               <ContextNavLink
@@ -220,7 +235,7 @@ export function SidebarShell({
               Overview
             </NavLink>
             <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
-              All Installations
+              GitHub Integration
             </NavLink>
           </nav>
         </div>
