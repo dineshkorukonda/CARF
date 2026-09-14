@@ -22,7 +22,8 @@ export default async function StatusPage({ params }: { params: Promise<{ install
   try {
     apiKey = await ensureCoreApiKey(prisma, installation);
     commits = await fetchRecentCommits(env.coreApiBaseUrl(), apiKey);
-  } catch {
+  } catch (err) {
+    console.error("[status] failed to reach core-api for installation", installationId, err);
     loadError = "Couldn't reach core-api for this installation's status yet.";
   }
 

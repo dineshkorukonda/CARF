@@ -43,13 +43,13 @@ export function InstallationSwitcher({
 
   if (!active && installations.length === 0) {
     return (
-      <Link
+      <a
         href="/api/github-app/install/start"
         className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted"
       >
         <Plus className="size-3 text-primary" />
         <span>Connect repo</span>
-      </Link>
+      </a>
     );
   }
 
@@ -110,14 +110,14 @@ export function InstallationSwitcher({
           </div>
 
           <div className="border-t border-border mt-1 pt-1">
-            <Link
+            <a
               href="/api/github-app/install/start"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-primary font-medium hover:bg-muted rounded-xs transition-colors"
             >
               <Plus className="size-3" />
               <span>+ Connect another repo</span>
-            </Link>
+            </a>
             <Link
               href="/dashboard/installations"
               onClick={() => setOpen(false)}
