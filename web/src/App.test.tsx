@@ -42,4 +42,15 @@ describe("CARF Minimal Showcase SPA", () => {
     expect(screen.getByText(/Tier 2 Tree-Sitter AST/i)).toBeInTheDocument();
     expect(screen.getByText(/Real-Time Canary Tuning/i)).toBeInTheDocument();
   });
+
+  it("renders the interactive calibration playground and scenario presets", () => {
+    render(<App />);
+    expect(screen.getByText(/Interactive Calibration Playground/i)).toBeInTheDocument();
+    expect(screen.getByText(/Simulate Tree-Sitter AST & Dynamic Canary Thresholds/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Test Suite Addition/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Core Algorithmic Refactor/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Database Schema Migration/i })).toBeInTheDocument();
+    expect(screen.getByText(/A\/B Rollback Decision Comparison/i)).toBeInTheDocument();
+  });
 });
+
