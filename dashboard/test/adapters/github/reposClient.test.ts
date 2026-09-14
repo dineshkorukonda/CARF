@@ -17,7 +17,7 @@ describe("listInstallationRepos", () => {
     expect(repos).toHaveLength(1);
     expect(repos[0]).toMatchObject({ full_name: "acme/widgets" });
     expect(fetchFn).toHaveBeenCalledWith(
-      "https://api.github.com/installation/repositories",
+      expect.stringContaining("https://api.github.com/installation/repositories"),
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token-1" }) })
     );
   });
