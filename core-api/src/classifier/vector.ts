@@ -34,14 +34,14 @@ export function buildChangeVector(tier1: Tier1Result, tier2ComplexityScore: numb
     infra: tally.infra / totalFiles,
     dependency: tally.dependency / totalFiles,
     config: tally.config / totalFiles,
-    code: tally.code / totalFiles,
+    code: (tally.code + (tally.test ?? 0)) / totalFiles,
     data: tally.data / totalFiles,
     code_complexity: clampedComplexity,
   };
 }
 
 /**
- * Full pipeline entry point: runs Tier 1, routes "code" files to the injected
+ * Full pipeline entry point: runs Tier 1, routes "code" and "test" files to the injected
  * CodeComplexityScorer, and returns the final ChangeVector. This is the only function
  * routes/threshold code should call — never tier1.ts/tier2.ts directly.
  */
@@ -55,7 +55,7 @@ export function classifyCommit(
     userRules
   );
   const codeFiles = changedFiles.filter((f) =>
-    tier1.files.some((classified) => classified.path === f.path && classified.type === "code")
+    tier1.files.some((classified) => classified.path === f.path && (classified.type === "code" || classified.type === "test"))
   );
   const complexityScore = scorer.score(codeFiles);
   return buildChangeVector(tier1, complexityScore);

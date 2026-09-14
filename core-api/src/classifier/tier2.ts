@@ -4,6 +4,9 @@ import Java from "tree-sitter-java";
 import Python from "tree-sitter-python";
 import Rust from "tree-sitter-rust";
 import TypeScript from "tree-sitter-typescript";
+import { isTestPath } from "./tier1.js";
+
+export const TEST_COMPLEXITY_DISCOUNT = 0.1;
 
 /**
  * Tier 2 — tree-sitter AST structural diff parser.
@@ -374,7 +377,9 @@ export function classifyTier2(codeFiles: CodeFileInput[]): number {
     }
     try {
       const delta = diffAst(file.before, file.after, language);
-      total += Math.max(0, computeAstScore(delta));
+      const rawScore = Math.max(0, computeAstScore(delta));
+      const discount = isTestPath(file.path) ? TEST_COMPLEXITY_DISCOUNT : 1.0;
+      total += rawScore * discount;
     } catch (err) {
       console.warn(`[tier2] failed to parse/diff ${file.path}, skipping: ${String(err)}`);
     }

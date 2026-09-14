@@ -79,7 +79,7 @@ export const ADAPTER_TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
  */
 const AdapterSchema = z
   .object({
-    kind: z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm"]),
+    kind: z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm", "prometheus"]),
     target: z
       .string()
       .min(1)
@@ -87,6 +87,9 @@ const AdapterSchema = z
         ADAPTER_TARGET_REGEX,
         "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
       ),
+    prometheusUrl: z.string().url().optional(),
+    query: z.string().optional(),
+    rollbackCommand: z.string().optional(),
   })
   .strict();
 

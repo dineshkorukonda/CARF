@@ -1,7 +1,21 @@
 import micromatch from "micromatch";
 import type { ClassificationChangeType } from "../config/carfConfigSchema.js";
 
-export type ChangeType = "infra" | "dependency" | "config" | "code" | "data" | "unclassified";
+export type ChangeType = "infra" | "dependency" | "config" | "code" | "data" | "test" | "unclassified";
+
+export const TEST_PATTERNS = [
+  "**/*.test.*",
+  "**/*.spec.*",
+  "**/test/**",
+  "**/tests/**",
+  "**/__tests__/**",
+  "**/*_test.go",
+  "**/*_test.py",
+];
+
+export function isTestPath(path: string): boolean {
+  return micromatch.isMatch(path, TEST_PATTERNS, { dot: true, nocase: true });
+}
 
 export interface FileClassification {
   path: string;
@@ -39,6 +53,7 @@ const RULES: PatternRule[] = [
   { patterns: ["*.tf", "**/*.tf"], type: "infra" },
   { patterns: ["package.json", "requirements.txt", "go.mod", "Cargo.toml", "mix.exs"], type: "dependency" },
   { patterns: ["migrations/**", "**/migrations/**", "db/migrate/**", "**/db/migrate/**", "prisma/migrations/**", "**/prisma/migrations/**"], type: "data" },
+  { patterns: TEST_PATTERNS, type: "test" },
   { patterns: ["*.ts", "*.tsx", "*.go", "*.py", "*.rs", "*.java", "*.ex", "**/*.ts", "**/*.tsx", "**/*.go", "**/*.py", "**/*.rs", "**/*.java", "**/*.ex"], type: "code" },
   { patterns: ["*.yaml", "*.yml", "*.env", "**/*.yaml", "**/*.yml", "**/*.env", "**/ConfigMap*.yaml", "**/ConfigMap*.yml"], type: "config" },
   {
@@ -79,7 +94,7 @@ function matchPath(path: string, rules: PatternRule[]): { type: ChangeType; matc
 }
 
 function emptyTally(): Record<ChangeType, number> {
-  return { infra: 0, dependency: 0, config: 0, code: 0, data: 0, unclassified: 0 };
+  return { infra: 0, dependency: 0, config: 0, code: 0, data: 0, test: 0, unclassified: 0 };
 }
 
 export function classifyTier1(changedFilePaths: string[], userRules: UserPatternRule[] = []): Tier1Result {
