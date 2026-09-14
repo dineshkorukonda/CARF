@@ -1,3 +1,16 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+// Auto-load .env file if running directly under Node in production
+try {
+  const envPath = resolve(process.cwd(), ".env");
+  if (existsSync(envPath) && typeof process.loadEnvFile === "function") {
+    process.loadEnvFile(envPath);
+  }
+} catch {
+  // Ignore if already loaded or not found
+}
+
 import { buildApp } from "./app.js";
 import { env } from "./config/env.js";
 import { loadCarfConfig } from "./config/carfConfig.js";
