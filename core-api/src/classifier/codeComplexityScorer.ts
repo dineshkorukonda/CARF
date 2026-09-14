@@ -1,4 +1,5 @@
-import { classifyTier2 } from "./tier2.js";
+import { classifyTier2, TEST_COMPLEXITY_DISCOUNT } from "./tier2.js";
+import { isTestPath } from "./tier1.js";
 
 export interface CodeFile {
   path: string;
@@ -34,7 +35,11 @@ function scoreFile(before: string, after: string): number {
  */
 export class StubComplexityScorer implements CodeComplexityScorer {
   score(codeFiles: CodeFile[]): number {
-    return codeFiles.reduce((total, file) => total + scoreFile(file.before, file.after), 0);
+    return codeFiles.reduce((total, file) => {
+      const raw = scoreFile(file.before, file.after);
+      const discount = isTestPath(file.path) ? TEST_COMPLEXITY_DISCOUNT : 1.0;
+      return total + raw * discount;
+    }, 0);
   }
 }
 
