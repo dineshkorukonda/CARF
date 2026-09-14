@@ -204,11 +204,23 @@ export function OverviewView({
                       <FolderGit2 className="size-4 text-slate-400 shrink-0" />
                       <span className="truncate">{repo.name}</span>
                     </span>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">
-                      {repo.default_branch}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {repo.private && (
+                        <span className="rounded bg-amber-50 border border-amber-200 px-1 py-0.2 text-[9px] font-medium text-amber-700">
+                          Private
+                        </span>
+                      )}
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">
+                        {repo.default_branch}
+                      </span>
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-slate-400 truncate">{repo.full_name}</p>
+                  {repo.pushed_at && (
+                    <p className="mt-1.5 text-[11px] text-slate-500 font-mono">
+                      Pushed: {new Date(repo.pushed_at).toLocaleDateString()}
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
