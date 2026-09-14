@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
@@ -20,10 +21,9 @@ export default async function LoginPage({
     <main className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col px-6 py-8 sm:px-10">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 text-sm font-medium tracking-tight">
-            <span className="rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-semibold text-background">
-              CARF
-            </span>
+          <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight">
+            <Image src="/icon.png" alt="CARF" width={22} height={22} className="rounded-sm shrink-0" priority />
+            <span>CARF</span>
           </Link>
           <ThemeToggle />
         </div>

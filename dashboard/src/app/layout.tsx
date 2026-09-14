@@ -6,8 +6,17 @@ import { TopProgressBar } from "../components/TopProgressBar";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CARF Dashboard",
+  title: "CARF — Change-Aware Rollback Framework",
   description: "Connect a GitHub account, install the CARF App, and manage rollback configuration.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
