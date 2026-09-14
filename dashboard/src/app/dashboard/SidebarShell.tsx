@@ -164,6 +164,9 @@ export function SidebarShell({
             <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
               Overview
             </NavLink>
+            <NavLink href="/dashboard/eval" collapsed={collapsed} icon={<FlaskConical className="size-4 shrink-0 text-emerald-600" />}>
+              Research Benchmark
+            </NavLink>
             <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
               GitHub Integration
             </NavLink>
