@@ -14,6 +14,10 @@ import {
   Copy,
   Check,
   Layers,
+  Terminal,
+  Activity,
+  OctagonAlert,
+  FastForward,
 } from "lucide-react";
 import type { RecentCommit } from "../../adapters/coreApi/client";
 import { classifyRolloutOutcome } from "../../lib/outcomeClassifier";
@@ -38,6 +42,8 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [isIntervening, setIsIntervening] = useState<string | null>(null);
+  const [interventionFeedback, setInterventionFeedback] = useState<string | null>(null);
 
   const outcome = classifyRolloutOutcome(commit);
   const createdAtMs = new Date(commit.createdAt).getTime();
@@ -58,6 +64,29 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
     navigator.clipboard.writeText(commit.sha);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function handleIntervention(action: "rollback" | "promote") {
+    setIsIntervening(action);
+    setInterventionFeedback(null);
+    try {
+      const res = await fetch("/api/rollout/intervention", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commitSha: commit.sha, action }),
+      });
+      if (res.ok) {
+        setInterventionFeedback(
+          action === "rollback" ? "Rollback triggered successfully" : "Rollout fast-tracked & promoted"
+        );
+      } else {
+        setInterventionFeedback("Intervention failed to dispatch");
+      }
+    } catch {
+      setInterventionFeedback("Network error dispatching intervention");
+    } finally {
+      setIsIntervening(null);
+    }
   }
 
   const thresholdPct =
@@ -100,20 +129,20 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
         </div>
       </div>
 
-      {/* ── Horizontal 5-Stage Pipeline ── */}
+      {/* ── 5 Horizontal Progressive Delivery Stages ── */}
       <div className="p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Stage 1: Ingestion */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {/* Stage 1: Webhook Ingestion */}
           <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                1. Webhook
+                1. Ingestion
               </span>
               <CheckCircle2 className="size-3.5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-800">Ingested & Verified</p>
-              <p className="text-[11px] text-slate-500">HMAC-SHA256 valid</p>
+              <p className="text-xs font-semibold text-slate-900">Webhook Verified</p>
+              <p className="text-[11px] text-slate-500 truncate">SHA: {commit.sha.slice(0, 7)}</p>
             </div>
           </div>
 
@@ -121,27 +150,17 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
           <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                2. Classification
+                2. AST Parsing
               </span>
-              <Layers className="size-3.5 text-indigo-600" />
+              <Layers className="size-3.5 text-blue-600" />
             </div>
             <div>
-              <div className="flex flex-wrap gap-1 mb-1">
-                {commit.activeTypes.length > 0 ? (
-                  commit.activeTypes.map((type) => (
-                    <Badge
-                      key={type}
-                      variant="outline"
-                      className="bg-white text-[10px] px-1.5 py-0 capitalize text-slate-700 border-slate-200"
-                    >
-                      {type}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-500">Pure Code / Doc</span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500">Tier-1 & Tier-2 AST</p>
+              <p className="text-xs font-semibold text-slate-900 truncate">
+                {commit.activeTypes.length > 0 ? commit.activeTypes.join(", ") : "Unclassified"}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {commit.activeTypes.length > 0 ? `${commit.activeTypes.length} types detected` : "Safe baseline"}
+              </p>
             </div>
           </div>
 
@@ -149,19 +168,17 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
           <div className="rounded-lg border border-slate-100 bg-slate-50/70 p-3 flex flex-col justify-between gap-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                3. Error Budget
+                3. Dynamic Budget
               </span>
-              <Zap className="size-3.5 text-amber-600" />
+              <Zap className="size-3.5 text-amber-500" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-900">{thresholdPct}</p>
-              <p className="text-[11px] text-slate-500">
-                Window: {commit.finalWindow ? `${commit.finalWindow}s` : "180s"}
-              </p>
+              <p className="text-xs font-semibold text-slate-900 font-mono">{thresholdPct}</p>
+              <p className="text-[11px] text-slate-500">Window: {commit.finalWindow ?? 180}s</p>
             </div>
           </div>
 
-          {/* Stage 4: Watchdog Timer */}
+          {/* Stage 4: Live Observation Watchdog */}
           <div
             className={`rounded-lg border p-3 flex flex-col justify-between gap-2 ${
               isInObservation
@@ -173,30 +190,29 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
               <span className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
                 4. Watchdog
               </span>
-              <Clock
-                className={`size-3.5 ${
-                  isInObservation ? "animate-spin text-amber-600" : "text-slate-500"
-                }`}
-              />
+              {isInObservation ? (
+                <Clock className="size-3.5 text-amber-600 animate-spin" />
+              ) : (
+                <CheckCircle2 className="size-3.5 text-emerald-600" />
+              )}
             </div>
             <div>
               {isInObservation ? (
                 <>
-                  <p className="text-xs font-semibold text-amber-900">
-                    ⏱️ {remainingSeconds}s left
-                  </p>
-                  <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-amber-200/70">
+                  <div className="flex justify-between text-xs font-medium text-amber-900 mb-1">
+                    <span>Active</span>
+                    <span className="font-mono">{remainingSeconds}s left</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-amber-200/50 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-amber-600 transition-all duration-1000"
                       style={{ width: `${progressPct}%` }}
+                      className="h-full bg-amber-500 transition-all duration-1000"
                     />
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="text-xs font-semibold text-slate-800">
-                    Observed {commit.finalWindow ?? 180}s
-                  </p>
+                  <p className="text-xs font-semibold text-slate-900">Completed</p>
                   <p className="text-[11px] text-slate-500">Watchdog elapsed</p>
                 </>
               )}
@@ -253,50 +269,100 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
           </div>
         </div>
 
+        {/* ── Operator Interventions Banner for in-flight rollouts ── */}
+        {isInObservation && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/40 p-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-amber-900">
+              <Activity className="size-4 text-amber-600 animate-pulse" />
+              <span className="font-semibold">Live Rollout In-Flight:</span>
+              <span>Watchdog timer active ({remainingSeconds}s remaining).</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                disabled={Boolean(isIntervening)}
+                onClick={() => handleIntervention("rollback")}
+                className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 shadow-2xs transition-colors disabled:opacity-50"
+              >
+                <OctagonAlert className="size-3.5 text-rose-600" />
+                <span>Abort & Rollback</span>
+              </button>
+              <button
+                disabled={Boolean(isIntervening)}
+                onClick={() => handleIntervention("promote")}
+                className="flex items-center gap-1.5 rounded-md border border-emerald-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 shadow-2xs transition-colors disabled:opacity-50"
+              >
+                <FastForward className="size-3.5 text-emerald-600" />
+                <span>Fast-Track / Promote</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {interventionFeedback && (
+          <div className="mt-2 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1">
+            {interventionFeedback}
+          </div>
+        )}
+
         {/* ── Accordion Toggle ── */}
         <div className="mt-3 flex justify-end">
           <button
             onClick={() => setExpanded(!expanded)}
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 font-medium transition-colors"
           >
-            <span>{expanded ? "Hide Details" : "View Breakdown & Math"}</span>
+            <span>{expanded ? "Hide AST Details" : "View AST Breakdown & Formula Math"}</span>
             {expanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
           </button>
         </div>
 
-        {/* ── Accordion Content ── */}
+        {/* ── Expanded AST Risk & Diff Inspector Drawer ── */}
         {expanded && (
-          <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-600 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
-              <h4 className="font-semibold text-slate-800 mb-1">Dynamic Calculation Breakdown</h4>
-              <p className="text-slate-600 mb-2 leading-relaxed">
-                CARF adjusts the rollback sensitivity ceiling based on the commit&apos;s change vector:
+          <div className="mt-3 border-t border-slate-100 pt-4 text-xs text-slate-600 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-lg bg-slate-50 p-4 border border-slate-100 space-y-2">
+              <h4 className="font-semibold text-slate-900 flex items-center gap-1.5">
+                <Layers className="size-4 text-blue-600" />
+                <span>Dynamic Sensitivity Math</span>
+              </h4>
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                Threshold formula evaluated by CARF&apos;s mathematical decision engine:
               </p>
-              <div className="space-y-1 font-mono text-[11px]">
+              <div className="space-y-1.5 font-mono text-[11px]">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Base Budget:</span>
-                  <span className="text-slate-900 font-semibold">5.0%</span>
+                  <span className="text-slate-500">Base Threshold:</span>
+                  <span className="text-slate-900 font-semibold">5.0% (code)</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Active Change Types:</span>
-                  <span className="text-slate-900">{commit.activeTypes.join(", ") || "None"}</span>
+                  <span className="text-slate-900 font-semibold">
+                    {commit.activeTypes.join(", ") || "none (safe baseline)"}
+                  </span>
                 </div>
-                <div className="flex justify-between border-t border-slate-200 pt-1">
-                  <span className="text-slate-700 font-medium">Final Dynamic Ceiling:</span>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Observation Duration:</span>
+                  <span className="text-slate-900 font-semibold">{commit.finalWindow ?? 180} seconds</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200 pt-1.5">
+                  <span className="text-slate-700 font-medium">Final Calibrated Error Budget:</span>
                   <span className="text-emerald-700 font-bold">{thresholdPct}</span>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg bg-slate-50 p-3 border border-slate-100">
-              <h4 className="font-semibold text-slate-800 mb-1">Rollout Safety Summary</h4>
-              <p className="text-slate-600 leading-relaxed mb-2">
-                {outcome.description}
+            <div className="rounded-lg bg-slate-50 p-4 border border-slate-100 space-y-2">
+              <h4 className="font-semibold text-slate-900 flex items-center gap-1.5">
+                <Terminal className="size-4 text-slate-700" />
+                <span>CLI & Webhook Verification</span>
+              </h4>
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                Query this commit&apos;s threshold directly from Argo Rollouts or CI scripts:
               </p>
-              <div className="font-mono text-[11px] text-slate-500 space-y-0.5">
-                <div>Commit SHA: {commit.sha}</div>
-                <div>Recorded: {new Date(commit.createdAt).toLocaleString()}</div>
+              <div className="rounded bg-slate-900 p-2 text-emerald-400 font-mono text-[10px] break-all select-all">
+                curl -s &quot;https://carf.indevs.in/v1/threshold?commit={commit.sha}&quot;
               </div>
+              <p className="text-slate-500 text-[10px] pt-1">
+                Recorded: {new Date(commit.createdAt).toLocaleString()} · Scoped to {commit.owner}/{commit.repo}
+              </p>
             </div>
           </div>
         )}
