@@ -9,6 +9,7 @@ import { GitOpsAdapter } from "./adapters/gitops.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
+import { PrometheusAdapter } from "./adapters/prometheus.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import { recordRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
@@ -79,6 +80,13 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
   if (adapterConfig.kind === "dockerSwarm") {
     // Swarm tracks the previous spec itself, like kubectl -- no baseSha needed. See issue #53.
     return new DockerSwarmAdapter();
+  }
+  if (adapterConfig.kind === "prometheus") {
+    return new PrometheusAdapter({
+      prometheusUrl: adapterConfig.prometheusUrl,
+      query: adapterConfig.query,
+      rollbackCommand: adapterConfig.rollbackCommand,
+    });
   }
   // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
   // stale the moment a new commit lands anyway, since "previous" changes every deploy) --

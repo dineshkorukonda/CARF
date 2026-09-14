@@ -4,9 +4,12 @@ import { registerGithubWebhookRoute, type GithubWebhookRouteOptions } from "./ro
 import { registerGithubStatusRoute, type GithubStatusRouteOptions } from "./routes/githubStatus.js";
 import { registerInstallationApiKeyRoute, type InstallationApiKeyRouteOptions } from "./routes/installationApiKey.js";
 import { registerCommitsRoute, type CommitsRouteOptions } from "./routes/commits.js";
+import { registerReportRoute, type ReportRouteOptions } from "./routes/report.js";
+import { registerMetricsRoute } from "./routes/metrics.js";
 
 export interface BuildAppOptions {
   threshold?: ThresholdRouteOptions;
+  report?: ReportRouteOptions;
   webhook?: GithubWebhookRouteOptions;
   githubStatus?: GithubStatusRouteOptions;
   installationApiKey?: InstallationApiKeyRouteOptions;
@@ -19,9 +22,11 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.get("/healthz", async () => ({ status: "ok" }));
 
   void registerThresholdRoute(app, options.threshold);
+  void registerReportRoute(app, options.report);
   void registerGithubStatusRoute(app, options.githubStatus);
   void registerInstallationApiKeyRoute(app, options.installationApiKey);
   void registerCommitsRoute(app, options.commits);
+  void registerMetricsRoute(app);
   if (options.webhook) {
     void registerGithubWebhookRoute(app, options.webhook);
   }
