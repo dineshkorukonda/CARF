@@ -28,7 +28,7 @@ export default async function StatusPage({ params }: { params: Promise<{ install
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
       <RepoNavigationTabs
         installationId={installationId}
         repoName={installation.targetLogin}
@@ -36,9 +36,9 @@ export default async function StatusPage({ params }: { params: Promise<{ install
       />
 
       <div>
-        <h1 className="text-xl font-semibold">Live Rollout Status</h1>
-        <p className="text-sm text-muted-foreground">
-          Recent commits classified with dynamic error budgets and observation windows.
+        <h1 className="text-xl font-bold text-slate-900">Live Rollout Status</h1>
+        <p className="text-sm text-slate-500">
+          Recent commits classified with dynamic error budgets and active observation watchdogs.
         </p>
       </div>
 
