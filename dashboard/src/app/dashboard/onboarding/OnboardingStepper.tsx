@@ -129,7 +129,7 @@ export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
                 <span className="text-sm font-semibold text-foreground">3. Compatibility & Stack Detection</span>
                 {status.step3.completed && <Badge variant="secondary" className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20">Completed</Badge>}
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">Scans repository tree for PM2, Docker Compose, Kubernetes, or GitOps deployment artifacts.</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">Scans repository tree for PM2, Docker Compose, Kubernetes, or Serverless/CI deployment artifacts.</p>
               <div className="pt-2">
                 {status.step3.report ? (
                   <div className="rounded-sm border border-border bg-muted/30 p-3 text-xs space-y-1">
@@ -159,7 +159,7 @@ export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
                 {status.step4.completed && <Badge variant="secondary" className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20">Completed</Badge>}
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">Pre-fills mode and adapter recommendations and commits .carf.yml directly to the repository via GitHub App.</p>
-              <div className="pt-2 flex items-center gap-3">
+              <div className="pt-2 flex flex-wrap items-center gap-3">
                 {status.installationId ? (
                   <Button render={<a href={"/dashboard/config/" + status.installationId + (status.repo ? "?repo=" + encodeURIComponent(status.repo) : "")} />} size="sm">
                     <span>{status.step4.completed ? "Edit Configuration" : "Configure Mode & Adapter"}</span>
@@ -169,6 +169,12 @@ export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
                   <span className="text-xs text-muted-foreground">Requires installation</span>
                 )}
                 {status.step4.completed && <span className="text-xs font-mono text-emerald-500">.carf.yml committed</span>}
+                <Link
+                  href="/dashboard/testing"
+                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
+                >
+                  Testing on PM2, Serverless, or Local? View Testing Playbook →
+                </Link>
               </div>
             </div>
           </div>
