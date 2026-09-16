@@ -5,14 +5,14 @@ describe("sendPasswordResetEmail", () => {
   it("sends to the given address with the reset URL in both bodies", async () => {
     const sendMail = vi.fn().mockResolvedValue(undefined);
 
-    await sendPasswordResetEmail("a@example.com", "https://dashboard.carf.indevs.in/reset-password?token=abc", sendMail);
-
+    await sendPasswordResetEmail("a@example.com", "https://carf.indevs.in/reset-password?token=abc", sendMail);
+    expect(sendMail).toHaveBeenCalledTimes(1);
     expect(sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "a@example.com",
-        subject: expect.stringContaining("Reset"),
-        text: expect.stringContaining("https://dashboard.carf.indevs.in/reset-password?token=abc"),
-        html: expect.stringContaining("https://dashboard.carf.indevs.in/reset-password?token=abc"),
+        subject: "Reset your CARF password",
+        text: expect.stringContaining("https://carf.indevs.in/reset-password?token=abc"),
+        html: expect.stringContaining("https://carf.indevs.in/reset-password?token=abc"),
       })
     );
   });
