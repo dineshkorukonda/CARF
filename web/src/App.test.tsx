@@ -14,15 +14,15 @@ describe("CARF Minimal Showcase SPA", () => {
     
     // Check Sign In link
     const signInLinks = screen.getAllByRole("link", { name: /sign in/i });
-    expect(signInLinks.some(link => link.getAttribute("href") === "https://dashboard.carf.indevs.in/login")).toBe(true);
+    expect(signInLinks.some(link => link.getAttribute("href") === "https://carf.indevs.in/login")).toBe(true);
 
     // Check Sign Up / Get Started link
     const signUpLinks = screen.getAllByRole("link", { name: /get started|create account/i });
-    expect(signUpLinks.some(link => link.getAttribute("href") === "https://dashboard.carf.indevs.in/signup")).toBe(true);
+    expect(signUpLinks.some(link => link.getAttribute("href") === "https://carf.indevs.in/signup")).toBe(true);
 
     // Check Dashboard link
     const dashboardLinks = screen.getAllByRole("link", { name: /open dashboard|dashboard/i });
-    expect(dashboardLinks.some(link => link.getAttribute("href") === "https://dashboard.carf.indevs.in/dashboard")).toBe(true);
+    expect(dashboardLinks.some(link => link.getAttribute("href") === "https://carf.indevs.in/dashboard")).toBe(true);
   });
 
   it("strictly omits paper and repository links", () => {

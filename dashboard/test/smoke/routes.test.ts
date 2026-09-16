@@ -52,6 +52,7 @@ const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["dashboard/installations", () => import("../../src/app/dashboard/installations/page")],
   ["dashboard/status/[installationId]", () => import("../../src/app/dashboard/status/[installationId]/page")],
   ["dashboard/verify/[installationId]", () => import("../../src/app/dashboard/verify/[installationId]/page")],
+  ["dashboard/testing", () => import("../../src/app/dashboard/testing/page")],
 ];
 
 const LAYOUT_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [

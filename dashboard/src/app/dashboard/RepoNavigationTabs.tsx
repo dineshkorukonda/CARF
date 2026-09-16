@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Radio, Settings2, Sliders, FlaskConical } from "lucide-react";
+import { BarChart3, Radio, Settings2, Sliders, FlaskConical, BookOpen } from "lucide-react";
 import { ApiKeyCopyButton } from "./installations/ApiKeyCopyButton";
 
 interface RepoNavigationTabsProps {
@@ -54,6 +54,12 @@ export function RepoNavigationTabs({
       href: `/dashboard/analytics/${installationId}`,
       active: isAnalytics,
       icon: BarChart3,
+    },
+    {
+      label: "Testing Playbook",
+      href: `/dashboard/testing`,
+      active: pathname === "/dashboard/testing",
+      icon: BookOpen,
     },
   ];
 

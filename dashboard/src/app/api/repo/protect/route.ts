@@ -79,26 +79,36 @@ export async function POST(request: NextRequest) {
     filesCommitted.push(".carf.yml");
 
     // 2. Commit GitHub Actions Watchdog workflow if requested
+    let warning: string | undefined;
     if (includeWorkflow) {
-      const workflowPath = ".github/workflows/carf.yml";
-      const existingWorkflow = await getRepoFile(owner, repo, workflowPath, token);
-      const workflowYaml = generateWatchdogWorkflowYaml();
-      await putRepoFile(
-        owner,
-        repo,
-        workflowPath,
-        workflowYaml,
-        "ci(carf): add dynamic canary watchdog workflow (.github/workflows/carf.yml)",
-        token,
-        existingWorkflow?.sha
-      );
-      filesCommitted.push(workflowPath);
+      try {
+        const workflowPath = ".github/workflows/carf.yml";
+        const existingWorkflow = await getRepoFile(owner, repo, workflowPath, token);
+        const workflowYaml = generateWatchdogWorkflowYaml();
+        await putRepoFile(
+          owner,
+          repo,
+          workflowPath,
+          workflowYaml,
+          "ci(carf): add dynamic canary watchdog workflow (.github/workflows/carf.yml)",
+          token,
+          existingWorkflow?.sha
+        );
+        filesCommitted.push(workflowPath);
+      } catch (workflowErr: unknown) {
+        if (workflowErr instanceof GitHubContentsError && workflowErr.status === 403) {
+          warning = "GitHub App is missing 'Workflows: Read and write' permissions. .carf.yml was committed, but the workflow file could not be added.";
+        } else {
+          throw workflowErr;
+        }
+      }
     }
 
     return NextResponse.json({
       success: true,
       repo: `${owner}/${repo}`,
       filesCommitted,
+      warning,
       message: `Repository ${owner}/${repo} successfully protected with CARF dynamic thresholds.`,
     });
   } catch (error: unknown) {

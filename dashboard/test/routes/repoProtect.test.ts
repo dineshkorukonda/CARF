@@ -168,6 +168,52 @@ describe("POST /api/repo/protect", () => {
     );
     expect(putRepoFile).not.toHaveBeenCalled();
   });
+
+  it("handles workflow 403 gracefully by returning partial success with warning", async () => {
+    const { GitHubContentsError } = await import("../../src/adapters/github/contentsClient");
+    putRepoFile.mockRejectedValue(new GitHubContentsError(403, '{"message":"Resource not accessible by integration"}'));
+
+    const req = new NextRequest(`${BASE_URL}/api/repo/protect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId: "99999",
+        owner: "acme",
+        repo: "frontend",
+        preset: "standard",
+        includeWorkflow: true,
+      }),
+    });
+
+    const res = await protectRepo(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.filesCommitted).toEqual([".carf.yml"]);
+    expect(body.warning).toContain("Workflows: Read and write");
+  });
+
+  it("returns 403 when .carf.yml itself fails with permissions error", async () => {
+    const { GitHubContentsError } = await import("../../src/adapters/github/contentsClient");
+    putCarfConfigFile.mockRejectedValue(new GitHubContentsError(403, '{"message":"Resource not accessible by integration"}'));
+
+    const req = new NextRequest(`${BASE_URL}/api/repo/protect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId: "99999",
+        owner: "acme",
+        repo: "frontend",
+        preset: "standard",
+        includeWorkflow: true,
+      }),
+    });
+
+    const res = await protectRepo(req);
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toContain("Contents: Read and write");
+  });
 });
 
 describe("GET /api/repo/status", () => {

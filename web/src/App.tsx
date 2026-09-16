@@ -134,13 +134,13 @@ export default function App() {
 
           <nav className="flex items-center gap-4">
             <a
-              href="https://dashboard.carf.indevs.in/login"
+              href="https://carf.indevs.in/login"
               className="font-['Inter',system-ui,sans-serif] text-[13px] font-medium text-[#666] hover:text-[#0a0a0a] transition-colors px-2 py-1"
             >
               Sign In
             </a>
             <a
-              href="https://dashboard.carf.indevs.in/signup"
+              href="https://carf.indevs.in/signup"
               className="font-['Inter',system-ui,sans-serif] text-[13px] font-medium bg-[#0a0a0a] hover:bg-[#262626] text-white px-3.5 py-1.5 rounded-[4px] transition-colors"
             >
               Get Started
@@ -513,14 +513,14 @@ export default function App() {
         {/* Hero Actions / Auth CTAs */}
         <div className="flex flex-wrap items-center gap-3">
           <a
-            href="https://dashboard.carf.indevs.in/dashboard"
+            href="https://carf.indevs.in/dashboard"
             className="inline-flex items-center gap-2 bg-[#0a0a0a] hover:bg-[#262626] text-white font-['Inter',system-ui,sans-serif] text-[14px] font-medium px-5 py-2.5 rounded-[5px] transition-colors shadow-xs"
           >
             <span>Open Dashboard</span>
             <ArrowRight className="w-4 h-4" />
           </a>
           <a
-            href="https://dashboard.carf.indevs.in/signup"
+            href="https://carf.indevs.in/signup"
             className="inline-flex items-center bg-white hover:bg-[#f7f7f7] border border-[#e0e0e0] text-[#111] font-['Inter',system-ui,sans-serif] text-[14px] font-medium px-4 py-2.5 rounded-[5px] transition-colors"
           >
             Create Account

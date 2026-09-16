@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, FlaskConical } from "lucide-react";
+import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, FlaskConical, BookOpen } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
 
@@ -163,6 +163,9 @@ export function SidebarShell({
           <nav className="flex flex-col gap-0.5 px-3">
             <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
               Overview
+            </NavLink>
+            <NavLink href="/dashboard/testing" collapsed={collapsed} icon={<BookOpen className="size-4 shrink-0 text-amber-500" />}>
+              Testing Playbook
             </NavLink>
             <NavLink href="/dashboard/eval" collapsed={collapsed} icon={<FlaskConical className="size-4 shrink-0 text-emerald-600" />}>
               Research Benchmark
