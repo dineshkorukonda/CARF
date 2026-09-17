@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { RadioGroup, RadioGroupItem } from "../../../../components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Button } from "../../../../components/ui/button";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
-import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2, BookOpen } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2 } from "lucide-react";
 
 interface ConfigModeFormProps {
   installationId: string;
@@ -207,15 +206,6 @@ export function ConfigModeForm({
             CARF dynamically scores each commit diff and computes custom risk thresholds and observation windows.
             Rollback monitoring and execution are handled by your external orchestrator (Argo Rollouts, Flagger, or CI/CD script) querying <code className="rounded bg-muted px-1 py-0.5">GET /v1/threshold</code> with your installation key.
           </p>
-          <div className="pt-1">
-            <Link
-              href="/dashboard/testing"
-              className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium text-xs"
-            >
-              <BookOpen className="size-3.5" />
-              <span>How to test Serverless & CI/CD canary deployments in Testing Playbook →</span>
-            </Link>
-          </div>
         </div>
       ) : (
         <fieldset className="flex flex-col gap-4 rounded-sm border border-border p-4 bg-card">
@@ -331,15 +321,6 @@ export function ConfigModeForm({
                   <pre className="p-2.5 rounded bg-muted font-mono text-[11px] overflow-x-auto text-foreground leading-relaxed">
                     {guide.sampleYml(adapterTarget)}
                   </pre>
-                  <div className="pt-1">
-                    <Link
-                      href="/dashboard/testing"
-                      className="inline-flex items-center gap-1.5 text-primary hover:underline font-medium text-[11px]"
-                    >
-                      <BookOpen className="size-3" />
-                      <span>Step-by-step PM2 / Docker testing & rollback recipes in Testing Playbook →</span>
-                    </Link>
-                  </div>
                 </div>
               </div>
             )}

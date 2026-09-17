@@ -3,7 +3,6 @@ import Image from "next/image";
 import { GitBranch, Activity, Cpu, RotateCcw } from "lucide-react";
 import { getCurrentAccount } from "../lib/auth";
 import { Button } from "../components/ui/button";
-import { ThemeToggle } from "../components/ThemeToggle";
 import { CompatChecker } from "./CompatChecker";
 import { InteractiveSimulator } from "./InteractiveSimulator";
 
@@ -60,7 +59,6 @@ export default async function HomePage() {
             <span>CARF</span>
           </Link>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             {account ? (
               <Button size="sm" render={<a href="/dashboard" />}>
                 Go to dashboard →

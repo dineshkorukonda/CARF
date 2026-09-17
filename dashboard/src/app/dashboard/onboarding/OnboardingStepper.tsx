@@ -169,12 +169,6 @@ export function OnboardingStepper({ initial }: { initial: OnboardingStatus }) {
                   <span className="text-xs text-muted-foreground">Requires installation</span>
                 )}
                 {status.step4.completed && <span className="text-xs font-mono text-emerald-500">.carf.yml committed</span>}
-                <Link
-                  href="/dashboard/testing"
-                  className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4"
-                >
-                  Testing on PM2, Serverless, or Local? View Testing Playbook →
-                </Link>
               </div>
             </div>
           </div>
