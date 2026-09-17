@@ -52,12 +52,6 @@ export function RepoNavigationTabs({
       icon: BarChart3,
       activeColor: "text-slate-900",
     },
-    {
-      label: "Testing Playbook",
-      href: `/dashboard/testing`,
-      active: pathname === "/dashboard/testing",
-      icon: BookOpen,
-    },
   ];
 
   return (
