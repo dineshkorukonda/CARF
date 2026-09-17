@@ -56,30 +56,32 @@ export default async function ConfigPage({
 
   if (!selectedFullName) {
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
         <RepoNavigationTabs
           installationId={installationId}
           repoName={installation.targetLogin}
           apiKey={apiKey}
         />
-        <div>
-          <h1 className="text-xl font-semibold">Choose a repository</h1>
-          <p className="text-sm text-muted-foreground">
-            Installation <code className="rounded bg-muted px-1 py-0.5">{installationId}</code> covers {repos.length}{" "}
-            repositories.
-          </p>
-        </div>
-        <div className="flex flex-col gap-2">
-          {repos.map((r) => (
-            <a
-              key={r.id}
-              href={`/dashboard/config/${installationId}?repo=${encodeURIComponent(r.full_name)}`}
-              className="rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:bg-muted font-medium flex items-center justify-between"
-            >
-              <span>{r.full_name}</span>
-              <span className="text-xs text-muted-foreground">Configure →</span>
-            </a>
-          ))}
+        <div className="max-w-2xl flex flex-col gap-6">
+          <div>
+            <h1 className="text-xl font-semibold">Choose a repository</h1>
+            <p className="text-sm text-muted-foreground">
+              Installation <code className="rounded bg-muted px-1 py-0.5">{installationId}</code> covers {repos.length}{" "}
+              repositories.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            {repos.map((r) => (
+              <a
+                key={r.id}
+                href={`/dashboard/config/${installationId}?repo=${encodeURIComponent(r.full_name)}`}
+                className="rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:bg-muted font-medium flex items-center justify-between"
+              >
+                <span>{r.full_name}</span>
+                <span className="text-xs text-muted-foreground">Configure →</span>
+              </a>
+            ))}
+          </div>
         </div>
       </main>
     );
@@ -90,19 +92,20 @@ export default async function ConfigPage({
   const existing = (file ? (load(file.content) as ExistingModeAdapter | undefined) : undefined) ?? {};
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
       <RepoNavigationTabs
         installationId={installationId}
-        repoName={selectedFullName}
+        repoName={installation.targetLogin}
         apiKey={apiKey}
       />
 
-      <div>
-        <h1 className="text-xl font-semibold">Deployment & Rollback Engine</h1>
-        <p className="text-sm text-muted-foreground">
-          {selectedFullName} — changes are committed directly to <code className="font-mono text-xs">.carf.yml</code>.
-        </p>
-      </div>
+      <div className="max-w-3xl flex flex-col gap-6">
+        <div>
+          <h1 className="text-xl font-semibold">Deployment & Rollback Engine</h1>
+          <p className="text-sm text-muted-foreground">
+            {selectedFullName} — changes are committed directly to <code className="font-mono text-xs">.carf.yml</code>.
+          </p>
+        </div>
 
       {error && (
         <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -146,6 +149,7 @@ export default async function ConfigPage({
         defaultAdapterKind={(existing.adapter?.kind as AdapterKind) ?? LIVE_ADAPTER_KINDS[0]}
         defaultAdapterTarget={existing.adapter?.target ?? ""}
       />
+      </div>
     </main>
   );
 }

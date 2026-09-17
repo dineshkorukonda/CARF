@@ -85,27 +85,29 @@ export default async function RulesPage({
 
   if (!selectedFullName) {
     return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
         <RepoNavigationTabs
           installationId={installationId}
           repoName={installation.targetLogin}
           apiKey={apiKey}
         />
-        <div>
-          <h1 className="text-xl font-semibold">Choose a repository</h1>
-          <p className="text-sm text-muted-foreground">Select a repository to tune classification rules and thresholds.</p>
-        </div>
-        <div className="flex flex-col gap-2">
-          {repos.map((r) => (
-            <a
-              key={r.id}
-              href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(r.full_name)}`}
-              className="rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:bg-muted font-medium flex items-center justify-between"
-            >
-              <span>{r.full_name}</span>
-              <span className="text-xs text-muted-foreground">Tune Rules →</span>
-            </a>
-          ))}
+        <div className="max-w-3xl flex flex-col gap-6">
+          <div>
+            <h1 className="text-xl font-semibold">Choose a repository</h1>
+            <p className="text-sm text-muted-foreground">Select a repository to tune classification rules and thresholds.</p>
+          </div>
+          <div className="flex flex-col gap-2">
+            {repos.map((r) => (
+              <a
+                key={r.id}
+                href={`/dashboard/config/${installationId}/rules?repo=${encodeURIComponent(r.full_name)}`}
+                className="rounded-sm border border-border px-4 py-3 text-sm transition-colors hover:bg-muted font-medium flex items-center justify-between"
+              >
+                <span>{r.full_name}</span>
+                <span className="text-xs text-muted-foreground">Tune Rules →</span>
+              </a>
+            ))}
+          </div>
         </div>
       </main>
     );
@@ -116,19 +118,20 @@ export default async function RulesPage({
   const existing = (file ? (load(file.content) as ExistingClassificationThreshold | undefined) : undefined) ?? {};
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
       <RepoNavigationTabs
         installationId={installationId}
-        repoName={selectedFullName}
+        repoName={installation.targetLogin}
         apiKey={apiKey}
       />
 
-      <div>
-        <h1 className="text-xl font-semibold">Classification & Dynamic Threshold Rules</h1>
-        <p className="text-sm text-muted-foreground">
-          {selectedFullName} — configure file patterns, base error thresholds, and observation windows.
-        </p>
-      </div>
+      <div className="max-w-4xl flex flex-col gap-6">
+        <div>
+          <h1 className="text-xl font-semibold">Classification & Dynamic Threshold Rules</h1>
+          <p className="text-sm text-muted-foreground">
+            {selectedFullName} — configure file patterns, base error thresholds, and observation windows.
+          </p>
+        </div>
 
       {error && (
         <p className="rounded-sm bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -158,6 +161,7 @@ export default async function RulesPage({
       )}
 
       <RulesForm installationId={installationId} owner={owner!} repo={repoName!} initial={toFormInitial(existing)} />
+      </div>
     </main>
   );
 }

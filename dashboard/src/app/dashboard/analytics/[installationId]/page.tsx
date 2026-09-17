@@ -55,7 +55,7 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
   const totalTypeHits = byType.reduce((sum, item) => sum + item.count, 0);
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-8">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
       <RepoNavigationTabs
         installationId={installationId}
         repoName={installation.targetLogin}
