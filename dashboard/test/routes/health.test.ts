@@ -10,7 +10,7 @@ describe("GET /api/health", () => {
   });
 
   it("returns 200 healthy when database and core-api are reachable", async () => {
-    vi.spyOn(prismaModule.prisma, "$queryRaw").mockResolvedValue([{ "?column?": 1 }] as any);
+    vi.spyOn(prismaModule.prisma, "$queryRaw").mockResolvedValue([{ "?column?": 1 }] as unknown as [{ "?column?": number }]);
     vi.spyOn(envModule.env, "coreApiBaseUrl").mockReturnValue("http://127.0.0.1:14101");
     vi.spyOn(coreApiClient, "fetchCoreApiVersion").mockResolvedValue({
       status: "ok",
@@ -30,7 +30,7 @@ describe("GET /api/health", () => {
   });
 
   it("returns 503 degraded when core-api is unreachable", async () => {
-    vi.spyOn(prismaModule.prisma, "$queryRaw").mockResolvedValue([{ "?column?": 1 }] as any);
+    vi.spyOn(prismaModule.prisma, "$queryRaw").mockResolvedValue([{ "?column?": 1 }] as unknown as [{ "?column?": number }]);
     vi.spyOn(envModule.env, "coreApiBaseUrl").mockReturnValue("http://127.0.0.1:14101");
     vi.spyOn(coreApiClient, "fetchCoreApiVersion").mockRejectedValue(new Error("Connection refused"));
 
