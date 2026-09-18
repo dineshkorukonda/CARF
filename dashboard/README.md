@@ -37,13 +37,13 @@ In GitHub -> **Settings** -> **Developer Settings** -> **GitHub Apps** -> Select
    - Check/enable: **"Request user authorization (OAuth) during installation"**.
    - **Callback URL**:
      - Local Dev: `http://localhost:3000/api/auth/callback/github`
-     - Production: `https://dashboard.carf.indevs.in/api/auth/callback/github`
+     - Production: `https://carf.indevs.in/api/auth/callback/github`
      *(If registering multiple environments under one app or testing locally, ensure the active dashboard origin matches the registered callback).*
    - **Expire user authorization tokens**: Optional (standard Auth.js flow uses the OAuth identity).
 3. **App Installation URLs**:
    - **Setup URL (optional)**:
      - Local Dev: `http://localhost:3000/api/github-app/install/callback`
-     - Production: `https://dashboard.carf.indevs.in/api/github-app/install/callback`
+     - Production: `https://carf.indevs.in/api/github-app/install/callback`
    - Check/enable: **"Redirect on update"**.
 4. **App Identification & Private Key**:
    - Copy **App ID** -> set as `GITHUB_APP_ID`.
@@ -67,7 +67,7 @@ Ensure your GitHub App has:
 
 | Variable | Description | Example / Notes |
 | :--- | :--- | :--- |
-| `DASHBOARD_BASE_URL` | Public origin of the dashboard | `http://localhost:3000` (dev) / `https://dashboard.carf.indevs.in` (prod) |
+| `DASHBOARD_BASE_URL` | Public origin of the dashboard | `http://localhost:3000` (dev) / `https://carf.indevs.in` (prod) |
 | `DATABASE_URL` | Neon pooled connection string | `postgresql://user:pass@ep-...-pooler.neon.tech/carf_dashboard?sslmode=require` |
 | `DIRECT_URL` | Neon unpooled connection string (for migrations) | `postgresql://user:pass@ep-...neon.tech/carf_dashboard?sslmode=require` |
 | `AUTH_SECRET` | NextAuth v5 session secret | Generate via `openssl rand -hex 32` or `npx auth secret` |
@@ -76,7 +76,7 @@ Ensure your GitHub App has:
 | `GITHUB_APP_SLUG` | GitHub App Slug | e.g. `carf-cp` |
 | `GITHUB_APP_ID` | GitHub App ID | e.g. `123456` |
 | `GITHUB_APP_PRIVATE_KEY` | GitHub App Private Key | `-----BEGIN RSA PRIVATE KEY-----\n...` |
-| `CORE_API_BASE_URL` | Base URL of CARF Core API | `http://localhost:3001` (dev) / `https://api.carf.indevs.in` (prod) |
+| `CORE_API_BASE_URL` | Base URL of CARF Core API | `http://localhost:3001` (dev) / `https://carf.indevs.in/v1` (prod) |
 
 ---
 
