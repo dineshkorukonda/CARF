@@ -26,7 +26,7 @@ function installation(overrides: Partial<InstallationRow> = {}): InstallationRow
   return {
     id: "row-1",
     installationId: "55555",
-    accountId: "account-1",
+    userId: "user-1",
     targetLogin: "acme",
     targetType: "Organization",
     repositorySelection: "all",
@@ -42,7 +42,6 @@ function fakePrisma(): DashboardPrismaClient & { updates: Array<{ installationId
   const updates: Array<{ installationId: string; coreApiKey: string }> = [];
   return {
     updates,
-    account: {} as DashboardPrismaClient["account"],
     installation: {
       update: async (args: { where: { installationId: string }; data: { coreApiKey: string } }) => {
         updates.push({ installationId: args.where.installationId, coreApiKey: args.data.coreApiKey });

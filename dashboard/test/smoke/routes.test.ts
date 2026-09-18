@@ -19,12 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@prisma/client", () => ({ PrismaClient: class {} }));
 
 const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise<unknown>]> = [
-  ["api/account/change-password", ["POST"], () => import("../../src/app/api/account/change-password/route")],
-  ["api/auth/forgot-password", ["POST"], () => import("../../src/app/api/auth/forgot-password/route")],
-  ["api/auth/login", ["POST"], () => import("../../src/app/api/auth/login/route")],
-  ["api/auth/logout", ["POST"], () => import("../../src/app/api/auth/logout/route")],
-  ["api/auth/reset-password", ["POST"], () => import("../../src/app/api/auth/reset-password/route")],
-  ["api/auth/signup", ["POST"], () => import("../../src/app/api/auth/signup/route")],
+  ["api/auth/[...nextauth]", ["GET", "POST"], () => import("../../src/app/api/auth/[...nextauth]/route")],
   ["api/compat-check", ["POST"], () => import("../../src/app/api/compat-check/route")],
   ["api/config/save", ["POST"], () => import("../../src/app/api/config/save/route")],
   ["api/config/save-rules", ["POST"], () => import("../../src/app/api/config/save-rules/route")],
@@ -39,10 +34,7 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
 
 const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["/", () => import("../../src/app/page")],
-  ["(auth)/forgot-password", () => import("../../src/app/(auth)/forgot-password/page")],
   ["(auth)/login", () => import("../../src/app/(auth)/login/page")],
-  ["(auth)/reset-password", () => import("../../src/app/(auth)/reset-password/page")],
-  ["(auth)/signup", () => import("../../src/app/(auth)/signup/page")],
   ["dashboard", () => import("../../src/app/dashboard/page")],
   ["dashboard/onboarding", () => import("../../src/app/dashboard/onboarding/page")],
   ["dashboard/account", () => import("../../src/app/dashboard/account/page")],

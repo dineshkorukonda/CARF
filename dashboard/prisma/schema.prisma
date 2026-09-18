@@ -1,70 +1,88 @@
-// Dashboard's own tenancy tables -- distinct from core-api's schema.prisma but able to
-// share the same Postgres instance (model names Account/Installation don't collide with
-// core-api's Commit/ChangeVector/Threshold/etc.). See issue #61.
+// Dashboard's tenancy and authentication tables -- managed by Auth.js v5 (@auth/prisma-adapter)
+// and CARF installation mapping. See issue #61.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// A dashboard user, authenticated with the dashboard's own email/password -- separate
-// from the CARF GitHub App installation, which is authorized independently (see
-// Installation below) and isn't tied to a specific human signer-in.
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String?         @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  installations Installation[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
 model Account {
-  id                  String                @id @default(cuid())
-  email               String                @unique
-  passwordHash        String
-  // Bumped on every password change. The signed session cookie carries the value it was
-  // minted with, and getCurrentAccount rejects a cookie whose version is behind this one.
-  // Without it a stolen cookie outlived the password reset meant to revoke it, for the
-  // full 30-day SESSION_TTL_MS. Costs no extra query -- getCurrentAccount already loads
-  // this row.
-  sessionVersion      Int                   @default(0)
-  installations       Installation[]
-  passwordResetTokens PasswordResetToken[]
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
-// A "forgot password" request. Only a SHA-256 hash of the token is stored (never the raw
-// value, same reasoning as Account.passwordHash) -- the raw token only ever exists in the
-// emailed link and the requester's memory. `usedAt` makes it single-use even though it's
-// already within `expiresAt`, closing the replay window between send and click.
-model PasswordResetToken {
-  id        String    @id @default(cuid())
-  tokenHash String    @unique
-  account   Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  accountId String
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime  @default(now())
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([accountId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
-// A GitHub App installation, linked back to the Account that installed it. `installationId`
-// is the tenancy key core-api's Commit/ChangeVector/Threshold/RolloutOutcome rows are (or
-// will be, per issue #65) scoped by -- this table is where that id first gets minted a
-// real owner.
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// A GitHub App installation, linked back to the User that installed it. `installationId`
+// is the tenancy key core-api's Commit/ChangeVector/Threshold/RolloutOutcome rows are scoped by.
 model Installation {
-  id                   String   @id @default(cuid())
-  installationId       String   @unique
-  account              Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  accountId            String
-  targetLogin          String
-  targetType           String
-  repositorySelection  String
+  id                  String   @id @default(cuid())
+  installationId      String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId              String
+  targetLogin         String
+  targetType          String
+  repositorySelection String
   // core-api's per-installation bearer credential (issue #65), fetched lazily on first
-  // use of the status view (#64) via GET /v1/installations/:id/api-key and cached here --
-  // core-api only ever stores a hash, so this is the one place the plaintext lives
-  // long-term. Re-fetched (rotating the old one) if ever lost/cleared.
-  coreApiKey           String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  // use of the status view (#64) via GET /v1/installations/:id/api-key and cached here.
+  coreApiKey          String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  @@index([accountId])
+  @@index([userId])
 }

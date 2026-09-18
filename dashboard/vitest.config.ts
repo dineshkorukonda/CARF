@@ -8,9 +8,15 @@ export default defineConfig({
       // only mattered once test/smoke/routes.test.ts started importing page and layout
       // modules, which reach shadcn/ui components that import "@/lib/utils".
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "next/server": fileURLToPath(new URL("./node_modules/next/server.js", import.meta.url)),
     },
   },
   test: {
+    server: {
+      deps: {
+        inline: ["next-auth"],
+      },
+    },
     include: ["test/**/*.test.ts"],
     environment: "node",
   },

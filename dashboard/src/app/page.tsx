@@ -64,14 +64,9 @@ export default async function HomePage() {
                 Go to dashboard →
               </Button>
             ) : (
-              <>
-                <Button variant="ghost" size="sm" render={<a href="/login" />}>
-                  Sign in
-                </Button>
-                <Button size="sm" render={<a href="/signup" />}>
-                  Sign up
-                </Button>
-              </>
+              <Button size="sm" render={<a href="/login" />}>
+                Sign in with GitHub →
+              </Button>
             )}
           </div>
         </div>
@@ -167,8 +162,8 @@ export default async function HomePage() {
             <p className="text-sm font-medium">Ready to connect a repo?</p>
             <p className="text-xs text-muted-foreground">Sign in with GitHub — it takes under a minute.</p>
           </div>
-          <Button render={<a href={account ? "/dashboard" : "/signup"} />}>
-            {account ? "Go to dashboard →" : "Sign up →"}
+          <Button render={<a href={account ? "/dashboard" : "/login"} />}>
+            {account ? "Go to dashboard →" : "Sign in with GitHub →"}
           </Button>
         </div>
       </div>

@@ -1,66 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  createAccount,
-  EmailAlreadyRegisteredError,
   getInstallationForAccount,
   linkInstallation,
   listInstallationsForAccount,
   saveCoreApiKey,
-  updatePassword,
-  verifyCredentials,
-  type AccountRow,
+  InstallationAlreadyLinkedError,
   type DashboardPrismaClient,
   type InstallationRow,
 } from "../../src/lib/accountService";
 import type { GithubInstallation } from "../../src/adapters/github/appInstallClient";
 
 class FakeDashboardPrismaClient implements DashboardPrismaClient {
-  accounts = new Map<string, AccountRow>();
   installations = new Map<string, InstallationRow>();
   private nextId = 1;
 
-  account = {
-    create: async (args: { data: { email: string; passwordHash: string } }) => {
-      const row: AccountRow = {
-        id: `account-${this.nextId++}`,
-        sessionVersion: 0,
-        createdAt: new Date(),
-        ...args.data,
-      };
-      this.accounts.set(row.id, row);
-      return row;
-    },
-    findUnique: async (args: { where: { email: string } }) =>
-      [...this.accounts.values()].find((a) => a.email === args.where.email) ?? null,
-    // Applies `{ increment: n }` the way Prisma does rather than spreading it in, so the
-    // fake can't quietly store an object where the schema has an Int.
-    update: async (args: {
-      where: { id: string };
-      data: { passwordHash: string; sessionVersion: { increment: number } };
-    }) => {
-      const existing = this.accounts.get(args.where.id);
-      if (!existing) throw new Error(`no account ${args.where.id}`);
-      const { sessionVersion, ...rest } = args.data;
-      const updated: AccountRow = {
-        ...existing,
-        ...rest,
-        sessionVersion: existing.sessionVersion + (sessionVersion?.increment ?? 0),
-      };
-      this.accounts.set(existing.id, updated);
-      return updated;
-    },
-  };
-
   installation = {
-    findFirst: async (args: { where: { accountId: string; installationId: string } }) =>
+    findUnique: async (args: { where: { installationId: string } }) =>
+      [...this.installations.values()].find((i) => i.installationId === args.where.installationId) ?? null,
+    findFirst: async (args: { where: { userId?: string; accountId?: string; installationId: string } }) =>
       [...this.installations.values()].find(
-        (i) => i.accountId === args.where.accountId && i.installationId === args.where.installationId
+        (i) => (i.userId === args.where.userId || i.userId === args.where.accountId) && i.installationId === args.where.installationId
       ) ?? null,
     upsert: async (args: {
       where: { installationId: string };
       create: {
         installationId: string;
-        accountId: string;
+        userId: string;
         targetLogin: string;
         targetType: string;
         repositorySelection: string;
@@ -69,7 +34,7 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
     }) => {
       const existing = [...this.installations.values()].find((i) => i.installationId === args.where.installationId);
       if (existing) {
-        const updated = { ...existing, ...args.update };
+        const updated: InstallationRow = { ...existing, ...args.update };
         this.installations.set(existing.id, updated);
         return updated;
       }
@@ -82,66 +47,19 @@ class FakeDashboardPrismaClient implements DashboardPrismaClient {
       this.installations.set(row.id, row);
       return row;
     },
-    findMany: async (args: { where: { accountId: string } }) =>
-      [...this.installations.values()].filter((i) => i.accountId === args.where.accountId),
+    findMany: async (args: { where: { userId?: string; accountId?: string } }) =>
+      [...this.installations.values()].filter(
+        (i) => i.userId === (args.where.userId ?? args.where.accountId)
+      ),
     update: async (args: { where: { installationId: string }; data: { coreApiKey: string } }) => {
       const existing = [...this.installations.values()].find((i) => i.installationId === args.where.installationId);
       if (!existing) throw new Error(`no installation ${args.where.installationId}`);
-      const updated = { ...existing, ...args.data };
+      const updated: InstallationRow = { ...existing, ...args.data };
       this.installations.set(existing.id, updated);
       return updated;
     },
   };
 }
-
-describe("createAccount / verifyCredentials", () => {
-  it("creates a new Account with a hashed (not plaintext) password", async () => {
-    const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
-    expect(account.email).toBe("person@example.com");
-    expect(account.passwordHash).not.toBe("correct horse battery");
-  });
-
-  it("rejects signup with an email that's already registered", async () => {
-    const prisma = new FakeDashboardPrismaClient();
-    await createAccount(prisma, "person@example.com", "correct horse battery");
-    await expect(createAccount(prisma, "person@example.com", "another password")).rejects.toBeInstanceOf(
-      EmailAlreadyRegisteredError
-    );
-  });
-
-  it("verifies correct credentials and returns the account", async () => {
-    const prisma = new FakeDashboardPrismaClient();
-    const created = await createAccount(prisma, "person@example.com", "correct horse battery");
-    const verified = await verifyCredentials(prisma, "person@example.com", "correct horse battery");
-    expect(verified?.id).toBe(created.id);
-  });
-
-  it("returns null for a wrong password", async () => {
-    const prisma = new FakeDashboardPrismaClient();
-    await createAccount(prisma, "person@example.com", "correct horse battery");
-    expect(await verifyCredentials(prisma, "person@example.com", "wrong password")).toBeNull();
-  });
-
-  it("returns null for an unknown email", async () => {
-    const prisma = new FakeDashboardPrismaClient();
-    expect(await verifyCredentials(prisma, "nobody@example.com", "whatever")).toBeNull();
-  });
-});
-
-describe("updatePassword", () => {
-  it("replaces the stored hash so the new password verifies and the old one no longer does", async () => {
-    const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
-
-    await updatePassword(prisma, account.id, "new password entirely");
-
-    expect(await verifyCredentials(prisma, "person@example.com", "new password entirely")).toMatchObject({
-      id: account.id,
-    });
-    expect(await verifyCredentials(prisma, "person@example.com", "correct horse battery")).toBeNull();
-  });
-});
 
 describe("linkInstallation / listInstallationsForAccount", () => {
   const installation: GithubInstallation = {
@@ -150,17 +68,17 @@ describe("linkInstallation / listInstallationsForAccount", () => {
     repository_selection: "all",
   };
 
-  it("links a new installation to the account", async () => {
+  it("links a new installation to the user", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
+    const userId = "user-123";
 
-    await linkInstallation(prisma, account.id, installation);
-    const installations = await listInstallationsForAccount(prisma, account.id);
+    await linkInstallation(prisma, userId, installation);
+    const installations = await listInstallationsForAccount(prisma, userId);
 
     expect(installations).toHaveLength(1);
     expect(installations[0]).toMatchObject({
       installationId: "999",
-      accountId: account.id,
+      userId: "user-123",
       targetLogin: "acme",
       targetType: "Organization",
       repositorySelection: "all",
@@ -169,22 +87,31 @@ describe("linkInstallation / listInstallationsForAccount", () => {
 
   it("re-linking the same installationId updates the existing row instead of duplicating it", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
+    const userId = "user-123";
 
-    await linkInstallation(prisma, account.id, installation);
-    await linkInstallation(prisma, account.id, { ...installation, repository_selection: "selected" });
+    await linkInstallation(prisma, userId, installation);
+    await linkInstallation(prisma, userId, { ...installation, repository_selection: "selected" });
 
-    const installations = await listInstallationsForAccount(prisma, account.id);
+    const installations = await listInstallationsForAccount(prisma, userId);
     expect(installations).toHaveLength(1);
     expect(installations[0]?.repositorySelection).toBe("selected");
   });
 
-  it("falls back to 'unknown' when GitHub reports no installation account (rare, e.g. a deleted org)", async () => {
+  it("rejects linking an installation already claimed by another user", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
+    await linkInstallation(prisma, "user-1", installation);
 
-    await linkInstallation(prisma, account.id, { ...installation, account: null });
-    const installations = await listInstallationsForAccount(prisma, account.id);
+    await expect(linkInstallation(prisma, "user-2", installation)).rejects.toBeInstanceOf(
+      InstallationAlreadyLinkedError
+    );
+  });
+
+  it("falls back to 'unknown' when GitHub reports no installation account", async () => {
+    const prisma = new FakeDashboardPrismaClient();
+    const userId = "user-123";
+
+    await linkInstallation(prisma, userId, { ...installation, account: null });
+    const installations = await listInstallationsForAccount(prisma, userId);
 
     expect(installations[0]).toMatchObject({ targetLogin: "unknown", targetType: "unknown" });
   });
@@ -197,36 +124,33 @@ describe("getInstallationForAccount", () => {
     repository_selection: "all",
   };
 
-  it("returns the installation when it belongs to the given account", async () => {
+  it("returns the installation when it belongs to the given user", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
-    await linkInstallation(prisma, account.id, installation);
+    const userId = "user-123";
+    await linkInstallation(prisma, userId, installation);
 
-    const found = await getInstallationForAccount(prisma, account.id, "999");
-    expect(found).toMatchObject({ installationId: "999", accountId: account.id });
+    const found = await getInstallationForAccount(prisma, userId, "999");
+    expect(found).toMatchObject({ installationId: "999", userId });
   });
 
-  it("returns null when the installation belongs to a different account", async () => {
+  it("returns null when the installation belongs to a different user", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const ownerAccount = await createAccount(prisma, "person@example.com", "correct horse battery");
-    const otherAccount = await createAccount(prisma, "someone-else@example.com", "another password");
-    await linkInstallation(prisma, ownerAccount.id, installation);
+    await linkInstallation(prisma, "user-1", installation);
 
-    expect(await getInstallationForAccount(prisma, otherAccount.id, "999")).toBeNull();
+    expect(await getInstallationForAccount(prisma, "user-2", "999")).toBeNull();
   });
 
   it("returns null for an unknown installationId", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
-    expect(await getInstallationForAccount(prisma, account.id, "does-not-exist")).toBeNull();
+    expect(await getInstallationForAccount(prisma, "user-1", "does-not-exist")).toBeNull();
   });
 });
 
 describe("saveCoreApiKey", () => {
   it("persists the key on the installation row", async () => {
     const prisma = new FakeDashboardPrismaClient();
-    const account = await createAccount(prisma, "person@example.com", "correct horse battery");
-    await linkInstallation(prisma, account.id, {
+    const userId = "user-123";
+    await linkInstallation(prisma, userId, {
       id: 999,
       account: { login: "acme", type: "Organization" },
       repository_selection: "all",
@@ -234,7 +158,7 @@ describe("saveCoreApiKey", () => {
 
     await saveCoreApiKey(prisma, "999", "carf_the-key");
 
-    const found = await getInstallationForAccount(prisma, account.id, "999");
+    const found = await getInstallationForAccount(prisma, userId, "999");
     expect(found?.coreApiKey).toBe("carf_the-key");
   });
 });
