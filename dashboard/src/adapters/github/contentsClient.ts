@@ -157,3 +157,50 @@ export async function putCarfConfigFile(
 ): Promise<void> {
   return putRepoFile(owner, repo, CONFIG_PATH, yamlContent, commitMessage, installationToken, previousSha, fetchFn);
 }
+
+/**
+ * `DELETE /repos/{owner}/{repo}/contents/{path}` -- deletes a file in GitHub.
+ */
+export async function deleteRepoFile(
+  owner: string,
+  repo: string,
+  path: string,
+  commitMessage: string,
+  sha: string,
+  installationToken: string,
+  fetchFn: FetchFn = fetch
+): Promise<void> {
+  const cleanPath = path.replace(/^\/+/, "");
+  const response = await fetchFn(`${GITHUB_API_BASE}/repos/${owner}/${repo}/contents/${cleanPath}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${installationToken}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message: commitMessage,
+      sha,
+    }),
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const errorBody = typeof response.text === "function" ? await response.text().catch(() => "") : "";
+    throw new GitHubContentsError(response.status, errorBody);
+  }
+}
+
+/**
+ * `DELETE /repos/{owner}/{repo}/contents/.carf.yml` -- deletes the .carf.yml file to unlink the project.
+ */
+export async function deleteCarfConfigFile(
+  owner: string,
+  repo: string,
+  commitMessage: string,
+  sha: string,
+  installationToken: string,
+  fetchFn: FetchFn = fetch
+): Promise<void> {
+  return deleteRepoFile(owner, repo, CONFIG_PATH, commitMessage, sha, installationToken, fetchFn);
+}
