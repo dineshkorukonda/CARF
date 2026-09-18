@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronUp,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import {
@@ -41,6 +42,7 @@ import type { InstallationRepo } from "../../../../adapters/github/reposClient";
 import { classifyRolloutOutcome } from "../../../../lib/outcomeClassifier";
 import { PipelineStageTracker } from "../../PipelineStageTracker";
 import { LinkProjectModal } from "./LinkProjectModal";
+import { UnlinkConfirmModal } from "./UnlinkConfirmModal";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -423,6 +425,7 @@ export function StatusTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [unlinkTargetRepo, setUnlinkTargetRepo] = useState<{ owner: string; name: string; fullName: string } | null>(null);
 
   // ── Deployment / fault-tolerance info keyed by repo fullName or name ──────
   const [deploymentMap, setDeploymentMap] = useState<Record<string, DeploymentInfo>>({});
@@ -762,16 +765,31 @@ export function StatusTable({
                         </TableCell>
 
                         <TableCell className="py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRepoFilter(p.fullName);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs"
-                          >
-                            <span>View Commits &rarr;</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedRepoFilter(p.fullName);
+                              }}
+                              className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs"
+                            >
+                              <span>View Commits &rarr;</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const [owner, repoName] = p.fullName.includes("/") ? p.fullName.split("/") : [p.owner || "", p.name];
+                                setUnlinkTargetRepo({ owner: owner || "", name: repoName || p.name, fullName: p.fullName });
+                              }}
+                              title={`Unlink ${p.fullName} from CARF`}
+                              className="inline-flex items-center justify-center size-6.5 rounded-md border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1054,6 +1072,20 @@ export function StatusTable({
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    const fullName = activeProject ? activeProject.fullName : selectedRepoFilter;
+                    const [owner, repoName] = fullName.includes("/")
+                      ? fullName.split("/")
+                      : [activeProject?.owner || "", activeProject?.name || fullName];
+                    setUnlinkTargetRepo({ owner: owner || "", name: repoName || fullName, fullName });
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50/50 px-2.5 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-colors"
+                >
+                  <Trash2 className="size-3" />
+                  <span>Unlink</span>
+                </button>
+                <button
+                  type="button"
                   onClick={fetchStatus}
                   disabled={isRefreshing}
                   className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50"
@@ -1331,6 +1363,24 @@ export function StatusTable({
         onProjectLinked={(repoFullName) => {
           loadDeployment();
           setSelectedRepoFilter(repoFullName);
+        }}
+      />
+
+      {/* ── Unlink Confirmation Modal ── */}
+      <UnlinkConfirmModal
+        isOpen={!!unlinkTargetRepo}
+        onClose={() => setUnlinkTargetRepo(null)}
+        installationId={installationId}
+        repo={unlinkTargetRepo}
+        onUnlinked={() => {
+          loadDeployment();
+          if (
+            unlinkTargetRepo &&
+            (selectedRepoFilter === unlinkTargetRepo.fullName ||
+              selectedRepoFilter === unlinkTargetRepo.name)
+          ) {
+            setSelectedRepoFilter("all");
+          }
         }}
       />
     </div>
