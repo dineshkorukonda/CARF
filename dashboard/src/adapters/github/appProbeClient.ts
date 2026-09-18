@@ -348,7 +348,10 @@ export async function runGithubAppProbe({
   if (env.coreApiBaseUrl) {
     const t4 = Date.now();
     try {
-      const res = await fetchFn(`${env.coreApiBaseUrl}/health`);
+      let res = await fetchFn(`${env.coreApiBaseUrl}/health`);
+      if (!res.ok) {
+        res = await fetchFn(`${env.coreApiBaseUrl}/healthz`);
+      }
       if (res.ok) {
         coreApiCheck = {
           status: "ok",
