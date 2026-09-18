@@ -29,6 +29,14 @@ function normalizePrivateKey(value: string): string {
   return value.includes("\\n") ? value.replace(/\\n/g, "\n") : value;
 }
 
+function normalizeCoreApiUrl(value: string): string {
+  let u = value.trim().replace(/\/+$/, "");
+  if (u.endsWith("/v1")) {
+    u = u.slice(0, -3);
+  }
+  return u;
+}
+
 export const env = {
   /** Public origin the dashboard is served from, used to build OAuth/App-install redirect URIs. */
   baseUrl: () => requireEnv("DASHBOARD_BASE_URL"),
@@ -42,5 +50,5 @@ export const env = {
   githubAppId: () => requireEnv("GITHUB_APP_ID"),
   githubAppPrivateKey: () => normalizePrivateKey(requireEnv("GITHUB_APP_PRIVATE_KEY")),
   /** Base URL of the core-api instance this dashboard reads status data from (issue #64). */
-  coreApiBaseUrl: () => requireEnv("CORE_API_BASE_URL"),
+  coreApiBaseUrl: () => normalizeCoreApiUrl(requireEnv("CORE_API_BASE_URL")),
 };
