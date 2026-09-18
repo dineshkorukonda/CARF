@@ -40,3 +40,4 @@ export async function GET(request: NextRequest) {
   response.cookies.delete(GITHUB_APP_INSTALL_STATE_COOKIE);
   return response;
 }
+
