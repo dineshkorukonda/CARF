@@ -1,75 +1,100 @@
 # CARF Dashboard
-
-Team-facing dashboard for onboarding onto CARF: sign up/sign in, install the CARF
-GitHub App on your repo(s), and (in later issues) configure mode/adapter, classification
-and threshold rules, and view live rollback status.
-
+ 
+Team-facing dashboard for onboarding onto CARF: sign in with GitHub via Auth.js, install the CARF
+GitHub App on your repository or organization, configure mode/adapter, classification, and
+threshold rules, and view live rollback status.
+ 
 ## Setup
 
 ```bash
-npm install
-cp .env.example .env.local   # fill in real values, see comments in .env.example
+npm install --legacy-peer-deps
+cp .env.example .env.local   # fill in real values, see instructions below
 npm run db:generate
-npm run db:migrate:dev       # creates the Account/Installation tables
+npm run db:migrate:dev       # applies Auth.js and Installation migrations
 npm run dev
 ```
 
-- `npm run dev` — start the Next.js dev server
+- `npm run dev` — start the Next.js dev server (default `http://localhost:3000`)
 - `npm test` — run the Vitest suite
 - `npm run typecheck` — `tsc --noEmit`
 - `npm run lint` — ESLint
 - `npm run build` / `npm start` — compile and run the production build
-- `npm run db:migrate:deploy` — apply migrations against a prod database (no prompts,
-  unlike `db:migrate:dev`)
+- `npm run db:migrate:deploy` — apply migrations against a prod database (no prompts)
+ 
+---
 
-## Deploying (e.g. to Vercel)
+## GitHub App Configuration Guide
 
-Set every var from `.env.example` in the platform's project settings (see comments in
-that file for what each one is / where it comes from). Two Vercel-specific things:
+The dashboard uses the same CARF GitHub App for both **User Authentication (OAuth via Auth.js)** and **Repository Access / Installations**.
 
-- **Migrations run automatically, production only.** `package.json`'s `vercel-build`
-  script (`scripts/vercel-build.mjs`) runs `prisma migrate deploy` before `next build`,
-  but only when `VERCEL_ENV === "production"` -- Vercel prefers the `vercel-build` script
-  name over plain `build` automatically. Preview builds (every PR/branch) skip the
-  migration step entirely and don't need `DATABASE_URL` set at all: they neither have,
-  nor should have, access to the production database. `prisma migrate deploy` only
-  applies migrations that haven't run yet, so this is safe on every production build.
-- **If `DATABASE_URL` is marked "Sensitive"** in Vercel's env var settings, its value
-  can't be read back via `vercel env pull` or the dashboard UI (this is by design) --
-  don't rely on pulling it locally to run migrations by hand. The `vercel-build` step
-  above is what actually applies migrations in that case, since Vercel injects the real
-  value at build time regardless of the Sensitive flag.
-- A first deploy with `DATABASE_URL` newly set (nothing yet migrated) works fine --
-  `vercel-build` creates the tables from scratch on that very deploy.
+### 1. General App Settings
+In GitHub -> **Settings** -> **Developer Settings** -> **GitHub Apps** -> Select your CARF App:
 
-## Login + App install flow (issue #61)
+1. **Client Credentials**:
+   - Copy **Client ID** -> set as `AUTH_GITHUB_ID`.
+   - Click **Generate a new client secret** -> copy the secret -> set as `AUTH_GITHUB_SECRET`.
+2. **User Authorization (OAuth)**:
+   - Check/enable: **"Request user authorization (OAuth) during installation"**.
+   - **Callback URL**:
+     - Local Dev: `http://localhost:3000/api/auth/callback/github`
+     - Production: `https://dashboard.carf.indevs.in/api/auth/callback/github`
+     *(If registering multiple environments under one app or testing locally, ensure the active dashboard origin matches the registered callback).*
+   - **Expire user authorization tokens**: Optional (standard Auth.js flow uses the OAuth identity).
+3. **App Installation URLs**:
+   - **Setup URL (optional)**:
+     - Local Dev: `http://localhost:3000/api/github-app/install/callback`
+     - Production: `https://dashboard.carf.indevs.in/api/github-app/install/callback`
+   - Check/enable: **"Redirect on update"**.
+4. **App Identification & Private Key**:
+   - Copy **App ID** -> set as `GITHUB_APP_ID`.
+   - Copy App slug -> set as `GITHUB_APP_SLUG` (e.g. `carf-cp`).
+   - Generate a private key (`.pem`) -> set base64 / PEM string as `GITHUB_APP_PRIVATE_KEY`.
 
-Dashboard login is fully separate from the CARF GitHub App -- an `Account` is just an
-email/password pair in this package's own database, not tied to any GitHub identity. The
-GitHub App is the only thing that needs GitHub configuration:
+### 2. Permissions & Events
+Ensure your GitHub App has:
+- **Repository permissions**:
+  - `Contents: Read and write` (to commit `.carf.yml` configuration updates)
+  - `Metadata: Read-only` (default)
+  - `Commit statuses: Read and write` / `Deployments: Read and write` (for core-api rollback operations)
+- **Account permissions**:
+  - `Email addresses: Read-only` (allows GitHub OAuth to fetch primary verified email)
+- **Subscribe to events**:
+  - `Installation`, `Installation target`, `Push`, `Status`, `Deployment status`
 
-- **The CARF GitHub App** — the same App `core-api` already uses for webhooks and
-  installation tokens (see `core-api/README.md`/`core-api/.env.example`). Its "Setup URL
-  (optional)" must point at `$DASHBOARD_BASE_URL/api/github-app/install/callback` (with
-  "Redirect on update" enabled) so a fresh install lands back in the dashboard with an
-  `installation_id`. `GITHUB_APP_SLUG`/`GITHUB_APP_ID`/`GITHUB_APP_PRIVATE_KEY` go in env.
+---
 
-Flow, end to end:
+## Environment Variables
 
-- `GET /signup` / `GET /login` → `POST /api/auth/signup` or `POST /api/auth/login` create
-  or verify an `Account` row (password hashed with bcrypt) and set a signed session cookie.
-- `GET /dashboard` (session-protected) → "Install the CARF GitHub App" →
-  `GET /api/github-app/install/start` redirects to
-  `https://github.com/apps/<slug>/installations/new` (state-nonce cookie for CSRF
-  protection) → GitHub redirects back to `GET /api/github-app/install/callback` with the
-  new `installation_id`, which the route looks up via the GitHub App's own JWT (no
-  installation token needed for this call) and links to the logged-in `Account` as an
-  `Installation` row.
+| Variable | Description | Example / Notes |
+| :--- | :--- | :--- |
+| `DASHBOARD_BASE_URL` | Public origin of the dashboard | `http://localhost:3000` (dev) / `https://dashboard.carf.indevs.in` (prod) |
+| `DATABASE_URL` | Neon pooled connection string | `postgresql://user:pass@ep-...-pooler.neon.tech/carf_dashboard?sslmode=require` |
+| `DIRECT_URL` | Neon unpooled connection string (for migrations) | `postgresql://user:pass@ep-...neon.tech/carf_dashboard?sslmode=require` |
+| `AUTH_SECRET` | NextAuth v5 session secret | Generate via `openssl rand -hex 32` or `npx auth secret` |
+| `AUTH_GITHUB_ID` | GitHub App Client ID | From GitHub App Settings |
+| `AUTH_GITHUB_SECRET` | GitHub App Client Secret | From GitHub App Settings |
+| `GITHUB_APP_SLUG` | GitHub App Slug | e.g. `carf-cp` |
+| `GITHUB_APP_ID` | GitHub App ID | e.g. `123456` |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App Private Key | `-----BEGIN RSA PRIVATE KEY-----\n...` |
+| `CORE_API_BASE_URL` | Base URL of CARF Core API | `http://localhost:3001` (dev) / `https://api.carf.indevs.in` (prod) |
 
-`prisma/schema.prisma`'s `Account`/`Installation` models are this package's own tables
-(sharable Postgres instance with `core-api`, no table-name collisions) -- see
-`src/lib/accountService.ts` for the persistence logic and `src/adapters/github/` for the
-GitHub API clients (both unit-tested against fakes, no real network/DB in tests).
+---
+
+## Authentication & Installation Architecture
+
+1. **Authentication (Auth.js v5 + GitHub Provider)**:
+   - Eliminates custom password hashing, reset tokens, and verification flows.
+   - Powered by NextAuth v5 (`@auth/prisma-adapter`) using GitHub provider.
+   - User sessions and accounts are backed by Prisma `User` and `Account` models.
+   - Existing users are linked seamlessly by email (`allowDangerousEmailAccountLinking: true`). A dry-run migration script is provided at `scripts/link-existing-users.mjs`.
+   - Numeric GitHub ID is extracted from `Account.providerAccountId` and preserved in session context.
+2. **Middleware Route Protection**:
+   - `src/middleware.ts` guards all private `/dashboard/*` and `/api/config/*` routes while permitting public assets and auth endpoints (`/login`, `/api/auth/*`).
+3. **Installation Linking**:
+   - Authenticated users install the GitHub App via `GET /api/github-app/install/start` (with CSRF cookie).
+   - GitHub returns to `GET /api/github-app/install/callback` with `installation_id`.
+   - The dashboard mints a GitHub App JWT, verifies installation metadata, and links the installation to `userId`.
+   - Installation records prevent cross-account hijacking via ownership verification in `accountService.ts`.
 
 ## Mode + adapter configuration (issue #62)
 

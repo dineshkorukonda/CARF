@@ -1,22 +1,26 @@
-import { cookies } from "next/headers";
-import { env } from "../config/env";
+import { auth } from "../auth";
 import { prisma } from "./prisma";
-import { SESSION_COOKIE_NAME, verifySessionCookieValue } from "./session";
 import type { AccountRow } from "./accountService";
 
-/** Reads and verifies the session cookie for the current request; null if not logged in. */
+/** Reads and verifies the session for the current request; null if not logged in. */
 export async function getCurrentAccount(): Promise<AccountRow | null> {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const session = verifySessionCookieValue(env.sessionSecret(), raw);
-  if (!session) return null;
+  const session = await auth();
+  if (!session?.user?.id) return null;
 
-  const account = await prisma.account.findUnique({ where: { id: session.accountId } });
-  if (!account) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: { accounts: true },
+  });
+  if (!user) return null;
 
-  // A cookie minted before the account's last password change is revoked. The row is
-  // already loaded, so this costs no extra query.
-  if (account.sessionVersion !== session.sessionVersion) return null;
+  const githubAccount = user.accounts.find((a) => a.provider === "github");
 
-  return account;
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    name: user.name ?? null,
+    image: user.image ?? null,
+    githubId: githubAccount?.providerAccountId ?? ((session.user as { githubId?: string }).githubId ?? null),
+    createdAt: user.createdAt,
+  };
 }

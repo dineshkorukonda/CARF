@@ -26,6 +26,18 @@ describe("env.githubAppSlug", () => {
   });
 });
 
+describe("env.auth", () => {
+  it("reads AUTH_SECRET, AUTH_GITHUB_ID, and AUTH_GITHUB_SECRET", () => {
+    process.env.AUTH_SECRET = "secret-123456789012345678901234";
+    process.env.AUTH_GITHUB_ID = "gh-client-id";
+    process.env.AUTH_GITHUB_SECRET = "gh-client-secret";
+
+    expect(env.authSecret()).toBe("secret-123456789012345678901234");
+    expect(env.authGithubId()).toBe("gh-client-id");
+    expect(env.authGithubSecret()).toBe("gh-client-secret");
+  });
+});
+
 describe("env.githubAppPrivateKey", () => {
   const originalValue = process.env.GITHUB_APP_PRIVATE_KEY;
 

@@ -26,10 +26,9 @@ vi.mock("../../src/config/env", () => ({
 }));
 
 import { getCurrentAccount } from "../../src/lib/auth";
-import { listInstallationsForAccount, type InstallationRow } from "../../src/lib/accountService";
+import { listInstallationsForAccount, type InstallationRow, type AccountRow } from "../../src/lib/accountService";
 import { runGithubAppProbe } from "../../src/adapters/github/appProbeClient";
 import { GET } from "../../src/app/api/github-app/probe/route";
-import type { Account } from "@prisma/client";
 
 describe("GET /api/github-app/probe", () => {
   beforeEach(() => {
@@ -46,12 +45,12 @@ describe("GET /api/github-app/probe", () => {
   });
 
   it("executes probe and returns probe report for authenticated account", async () => {
-    const mockAccount: Partial<Account> = {
+    const mockAccount: AccountRow = {
       id: "acc-123",
       email: "test@example.com",
       createdAt: new Date(),
     };
-    vi.mocked(getCurrentAccount).mockResolvedValue(mockAccount as Account);
+    vi.mocked(getCurrentAccount).mockResolvedValue(mockAccount);
 
     const mockInstallations: Partial<InstallationRow>[] = [
       {

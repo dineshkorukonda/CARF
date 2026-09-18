@@ -31,7 +31,6 @@ type TabKey = "local-vs-hosted" | "serverless" | "pm2" | "containers";
 
 export function TestingPlaybookView({
   installations,
-  accountEmail: _accountEmail,
 }: TestingPlaybookViewProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("local-vs-hosted");
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});

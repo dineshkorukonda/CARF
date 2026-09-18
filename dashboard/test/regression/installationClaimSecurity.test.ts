@@ -10,8 +10,6 @@ import type { GithubInstallation } from "../../src/adapters/github/appInstallCli
 class FakeSecurityPrismaClient implements DashboardPrismaClient {
   public installations = new Map<string, InstallationRow>();
 
-  account = {} as DashboardPrismaClient["account"];
-
   installation = {
     findUnique: vi.fn(async ({ where }: { where: { installationId: string } }) => {
       return this.installations.get(where.installationId) ?? null;
@@ -27,7 +25,7 @@ class FakeSecurityPrismaClient implements DashboardPrismaClient {
       const row: InstallationRow = {
         id: "inst-row-id",
         installationId: create.installationId,
-        accountId: create.accountId,
+        userId: create.userId,
         targetLogin: create.targetLogin,
         targetType: create.targetType,
         repositorySelection: create.repositorySelection,
@@ -49,34 +47,34 @@ describe("Regression: GitHub Installation Claim Security & Anti-Hijacking", () =
     repository_selection: "all",
   };
 
-  it("permits legitimate claim by Account A", async () => {
+  it("permits legitimate claim by User A", async () => {
     const prisma = new FakeSecurityPrismaClient();
-    const row = await linkInstallation(prisma, "account-A", installation);
+    const row = await linkInstallation(prisma, "user-A", installation);
 
-    expect(row.accountId).toBe("account-A");
+    expect(row.userId).toBe("user-A");
     expect(row.installationId).toBe("998877");
-    expect(prisma.installations.get("998877")?.accountId).toBe("account-A");
+    expect(prisma.installations.get("998877")?.userId).toBe("user-A");
   });
 
-  it("permits idempotency: Account A re-linking its own installation succeeds", async () => {
+  it("permits idempotency: User A re-linking its own installation succeeds", async () => {
     const prisma = new FakeSecurityPrismaClient();
-    await linkInstallation(prisma, "account-A", installation);
-    const row = await linkInstallation(prisma, "account-A", installation);
+    await linkInstallation(prisma, "user-A", installation);
+    const row = await linkInstallation(prisma, "user-A", installation);
 
-    expect(row.accountId).toBe("account-A");
+    expect(row.userId).toBe("user-A");
   });
 
-  it("strictly prevents Account B from hijacking Account A's installation", async () => {
+  it("strictly prevents User B from hijacking User A's installation", async () => {
     const prisma = new FakeSecurityPrismaClient();
-    // Claimed first by Account A
-    await linkInstallation(prisma, "account-A", installation);
+    // Claimed first by User A
+    await linkInstallation(prisma, "user-A", installation);
 
-    // Account B attempts to claim the same installationId
-    await expect(linkInstallation(prisma, "account-B", installation)).rejects.toThrow(
+    // User B attempts to claim the same installationId
+    await expect(linkInstallation(prisma, "user-B", installation)).rejects.toThrow(
       InstallationAlreadyLinkedError
     );
 
-    // Ensure the installation still belongs to Account A
-    expect(prisma.installations.get("998877")?.accountId).toBe("account-A");
+    // Ensure the installation still belongs to User A
+    expect(prisma.installations.get("998877")?.userId).toBe("user-A");
   });
 });
