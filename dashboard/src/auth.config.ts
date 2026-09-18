@@ -24,6 +24,13 @@ declare module "@auth/core/jwt" {
   }
 }
 
+if (!process.env.AUTH_URL && process.env.DASHBOARD_BASE_URL) {
+  process.env.AUTH_URL = process.env.DASHBOARD_BASE_URL;
+}
+if (!process.env.NEXTAUTH_URL && process.env.DASHBOARD_BASE_URL) {
+  process.env.NEXTAUTH_URL = process.env.DASHBOARD_BASE_URL;
+}
+
 export const authConfig: NextAuthConfig = {
   trustHost: true,
   providers: [
