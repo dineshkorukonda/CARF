@@ -16,6 +16,15 @@ import {
   Check,
   Search,
   ArrowLeft,
+  Terminal,
+  Container,
+  Server,
+  GitBranch,
+  ArrowUpRight,
+  ShieldCheck,
+  Info,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import {
@@ -40,6 +49,356 @@ function formatWindow(seconds: number | null): string {
   return `${seconds}s (${minutes}m)`;
 }
 
+// ── Shared adapter label / icon helpers ──────────────────────────────────────
+function adapterLabel(kind: string | undefined): string {
+  switch (kind) {
+    case "pm2":          return "PM2 Process Manager";
+    case "dockerCompose": return "Docker Compose";
+    case "dockerSwarm":  return "Docker Swarm";
+    case "kubernetes":   return "Kubernetes (kubectl)";
+    case "gitops":       return "GitOps (Argo CD)";
+    default:             return kind ?? "Unknown";
+  }
+}
+
+function adapterIcon(kind: string | undefined, className = "size-3 shrink-0") {
+  switch (kind) {
+    case "pm2":           return <Terminal className={className} />;
+    case "dockerCompose":
+    case "dockerSwarm":   return <Container className={className} />;
+    case "kubernetes":    return <Server className={className} />;
+    case "gitops":        return <GitBranch className={className} />;
+    default:              return null;
+  }
+}
+
+interface DeploymentInfo {
+  mode?: string;
+  adapterKind?: string;
+  adapterTarget?: string;
+  isProtected?: boolean;
+}
+
+function DeploymentBadge({ info }: { info: DeploymentInfo | undefined }) {
+  if (!info?.isProtected) {
+    return <span className="text-slate-400 font-mono text-[11px]">—</span>;
+  }
+  if (info.mode === "augment") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+        <ArrowUpRight className="size-3 shrink-0" />
+        <span>Augment</span>
+      </span>
+    );
+  }
+  if (info.mode === "standalone" && info.adapterKind) {
+    const short =
+      info.adapterKind === "pm2" ? "PM2" :
+      info.adapterKind === "dockerCompose" ? "Docker Compose" :
+      info.adapterKind === "dockerSwarm" ? "Docker Swarm" :
+      info.adapterKind === "kubernetes" ? "Kubernetes" :
+      info.adapterKind === "gitops" ? "GitOps" :
+      info.adapterKind;
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700"
+        title={`Standalone • ${short} → ${info.adapterTarget ?? "—"}`}
+      >
+        {adapterIcon(info.adapterKind)}
+        <span>{short}</span>
+        {info.adapterTarget && (
+          <span className="font-mono text-emerald-600 opacity-75">· {info.adapterTarget}</span>
+        )}
+      </span>
+    );
+  }
+  if (info.mode === "standalone") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">
+        <AlertTriangle className="size-3 shrink-0" />
+        <span>No adapter</span>
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+      <span>{info.mode ?? "Default"}</span>
+    </span>
+  );
+}
+
+function rollbackCommand(kind: string | undefined, target: string, previousSha = "<baseSha>"): string {
+  switch (kind) {
+    case "pm2":
+      return `ln -sfn /var/www/releases/${previousSha} /var/www/current\npm2 reload ${target}`;
+    case "dockerCompose":
+      return `IMAGE_TAG=${previousSha} docker compose up -d ${target}`;
+    case "dockerSwarm":
+      return `docker service update --rollback ${target}`;
+    case "kubernetes":
+      return `kubectl rollout undo deployment/${target}`;
+    case "gitops":
+      return `argocd app rollback ${target}`;
+    default:
+      return "—";
+  }
+}
+
+function ecosystemSnippet(kind: string | undefined, target: string): string | null {
+  if (kind === "pm2") {
+    return `// ecosystem.config.js
+module.exports = {
+  apps: [{
+    name: "${target}",
+    script: "/var/www/current/dist/index.js",
+    instances: "max",   // cluster mode — zero-downtime pm2 reload
+    exec_mode: "cluster",
+    watch: false,
+    env_production: { NODE_ENV: "production" }
+  }]
+};`;
+  }
+  if (kind === "dockerCompose") {
+    return `# docker-compose.yml (relevant snippet)
+services:
+  ${target}:
+    image: my-registry.com/app:\${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3`;
+  }
+  return null;
+}
+
+function FaultTolerancePanel({
+  info,
+  installationId,
+  fullName,
+}: {
+  info: DeploymentInfo | undefined;
+  installationId: string;
+  fullName: string;
+}) {
+  const [showSnippet, setShowSnippet] = useState(false);
+  const configHref = `/dashboard/config/${installationId}?repo=${encodeURIComponent(fullName)}`;
+
+  // ── Unconfigured ──────────────────────────────────────────────────────────
+  if (!info?.isProtected) {
+    return (
+      <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/40 p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-900">Fault Tolerance Not Configured</p>
+            <p className="mt-1 text-xs text-amber-700 leading-relaxed">
+              No <code className="font-mono bg-amber-100 px-1 rounded">.carf.yml</code> found in this
+              repository. CARF is watching with built-in defaults but cannot trigger automatic
+              rollbacks without a deployment adapter.
+            </p>
+            <a
+              href={configHref}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+            >
+              Configure Adapter &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Augment Mode ──────────────────────────────────────────────────────────
+  if (info.mode === "augment") {
+    return (
+      <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-5">
+        <div className="flex items-start gap-3">
+          <ArrowUpRight className="size-5 text-blue-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold text-blue-900">Augment Mode Active</p>
+              <span className="rounded-full bg-blue-100 border border-blue-200 px-2 py-0.5 text-[10px] font-medium text-blue-700">External Orchestrator</span>
+            </div>
+            <p className="mt-1 text-xs text-blue-700 leading-relaxed">
+              CARF provides dynamic risk thresholds. Your CI/CD pipeline (Argo Rollouts, Flagger,
+              GitHub Actions) queries the threshold and drives rollback independently.
+            </p>
+            <div className="mt-3 rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-emerald-400 break-all select-all">
+              curl -s &quot;https://carf.indevs.in/v1/threshold?commit=$SHA&quot;
+            </div>
+            <p className="mt-2 text-[11px] text-blue-600">
+              Point Argo Rollouts / Flagger / your CI script at this endpoint.{" "}
+              <a href={configHref} className="underline underline-offset-2 font-medium">Switch to Standalone</a> to let CARF drive rollback directly.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standalone — no adapter ───────────────────────────────────────────────
+  if (info.mode === "standalone" && !info.adapterKind) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-5">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="size-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-900">Standalone Mode — Adapter Not Set</p>
+            <p className="mt-1 text-xs text-amber-700 leading-relaxed">
+              <code className="font-mono bg-amber-100 px-1 rounded">.carf.yml</code> sets{" "}
+              <code className="font-mono bg-amber-100 px-1 rounded">mode: standalone</code> but
+              no <code className="font-mono bg-amber-100 px-1 rounded">adapter.kind</code> is
+              configured. CARF cannot trigger automatic rollbacks without a target.
+            </p>
+            <a
+              href={configHref}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+            >
+              Set Deployment Adapter &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standalone + adapter fully configured ────────────────────────────────
+  if (info.mode === "standalone" && info.adapterKind) {
+    const target = info.adapterTarget ?? "<target>";
+    const rbCmd = rollbackCommand(info.adapterKind, target);
+    const snippet = ecosystemSnippet(info.adapterKind, target);
+    const label = adapterLabel(info.adapterKind);
+
+    return (
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/30 p-5 space-y-4">
+        {/* Header */}
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-emerald-900">Fault Tolerance Active</p>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 border border-emerald-300 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                {adapterIcon(info.adapterKind, "size-3")}
+                <span>{label}</span>
+              </span>
+              {info.adapterTarget && (
+                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+                  target: {info.adapterTarget}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-emerald-700 leading-relaxed">
+              CARF is running in Standalone mode. If the error rate breaches the dynamic threshold
+              during the observation window, CARF automatically executes the rollback command below
+              with zero human intervention.
+            </p>
+          </div>
+        </div>
+
+        {/* How it works grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="rounded-lg bg-white border border-emerald-100 p-3 space-y-1">
+            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <Info className="size-3.5 text-slate-500" /> Health Check
+            </p>
+            <p className="text-slate-500 leading-relaxed">
+              {info.adapterKind === "pm2"
+                ? "pm2 jlist — fraction of processes with status ≠ \"online\""
+                : info.adapterKind === "dockerCompose"
+                ? "docker compose ps — unhealthy / exited containers"
+                : info.adapterKind === "dockerSwarm"
+                ? "docker service ps — failed task replicas"
+                : info.adapterKind === "kubernetes"
+                ? "kubectl rollout status — unavailable replicas"
+                : "Adapter-specific health probe"}
+            </p>
+          </div>
+          <div className="rounded-lg bg-white border border-emerald-100 p-3 space-y-1">
+            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <Clock className="size-3.5 text-slate-500" /> Observation Window
+            </p>
+            <p className="text-slate-500 leading-relaxed">
+              Dynamic — calibrated per commit by AST diff scoring. Low-risk commits get
+              a short window; infra changes get a longer soak.
+            </p>
+          </div>
+          <div className="rounded-lg bg-white border border-emerald-100 p-3 space-y-1">
+            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <CheckCircle2 className="size-3.5 text-emerald-600" /> Zero Downtime
+            </p>
+            <p className="text-slate-500 leading-relaxed">
+              {info.adapterKind === "pm2"
+                ? "pm2 reload cycles cluster workers one-by-one — no dropped requests"
+                : info.adapterKind === "dockerCompose"
+                ? "Image tag swap restarts only the affected service"
+                : info.adapterKind === "kubernetes"
+                ? "kubectl rollout undo restores previous ReplicaSet"
+                : "Adapter handles rollback atomically"}
+            </p>
+          </div>
+        </div>
+
+        {/* Rollback command */}
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-slate-700">Automated Rollback Command (on threshold breach):</p>
+          <pre className="rounded-lg bg-slate-900 p-3 font-mono text-[11px] text-emerald-400 overflow-x-auto whitespace-pre-wrap">
+            {rbCmd}
+          </pre>
+        </div>
+
+        {/* Ecosystem / compose snippet (collapsible) */}
+        {snippet && (
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              onClick={() => setShowSnippet((v) => !v)}
+              className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              {showSnippet ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+              <span>
+                {info.adapterKind === "pm2" ? "ecosystem.config.js" : "docker-compose.yml"} snippet
+              </span>
+            </button>
+            {showSnippet && (
+              <pre className="rounded-lg bg-slate-100 border border-slate-200 p-3 font-mono text-[11px] text-slate-800 overflow-x-auto whitespace-pre">
+                {snippet}
+              </pre>
+            )}
+          </div>
+        )}
+
+        <div className="pt-1 border-t border-emerald-100 flex items-center justify-between">
+          <p className="text-[11px] text-emerald-600">
+            CARF monitors every push to this repo and auto-rolls back if needed.
+          </p>
+          <a
+            href={configHref}
+            className="text-[11px] font-medium text-slate-600 hover:text-slate-900 underline underline-offset-2 transition-colors"
+          >
+            Edit configuration →
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback for legacy modes (balanced / conservative / aggressive)
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex items-center gap-3">
+      <Info className="size-4 text-slate-400 shrink-0" />
+      <p className="text-xs text-slate-500">
+        Mode: <span className="font-mono font-medium text-slate-700">{info.mode ?? "balanced"}</span> —
+        this is a legacy threshold-only mode. No adapter is configured for automatic rollbacks.{" "}
+        <a href={configHref} className="underline underline-offset-2 font-medium text-slate-700">
+          Upgrade to Standalone →
+        </a>
+      </p>
+    </div>
+  );
+}
+
 export function StatusTable({
   installationId,
   initial,
@@ -62,10 +421,43 @@ export function StatusTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [currentTime, setCurrentTime] = useState<number>(0);
 
+  // ── Deployment / fault-tolerance info keyed by repo fullName or name ──────
+  const [deploymentMap, setDeploymentMap] = useState<Record<string, DeploymentInfo>>({});
+
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Fetch repo protection + adapter info once on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDeployment() {
+      try {
+        const res = await fetch(`/api/repo/status?installationId=${installationId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.statuses && Array.isArray(data.statuses) && isMounted) {
+          const map: Record<string, DeploymentInfo> = {};
+          for (const s of data.statuses) {
+            const entry: DeploymentInfo = {
+              mode: s.mode,
+              adapterKind: s.adapterKind,
+              adapterTarget: s.adapterTarget,
+              isProtected: s.isProtected,
+            };
+            map[s.name] = entry;
+            map[s.fullName] = entry;
+          }
+          setDeploymentMap(map);
+        }
+      } catch {
+        // Non-fatal — deployment column just shows no info
+      }
+    }
+    loadDeployment();
+    return () => { isMounted = false; };
+  }, [installationId]);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -257,6 +649,7 @@ export function StatusTable({
                       <TableHead>Default Branch</TableHead>
                       <TableHead>Total Commits</TableHead>
                       <TableHead>Live Health & Watchdogs</TableHead>
+                      <TableHead>Deployment</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -311,6 +704,12 @@ export function StatusTable({
                           ) : (
                             <span className="text-slate-400 font-mono text-[11px]">No rollouts</span>
                           )}
+                        </TableCell>
+
+                        <TableCell className="py-3">
+                          <DeploymentBadge
+                            info={deploymentMap[p.fullName] ?? deploymentMap[p.name]}
+                          />
                         </TableCell>
 
                         <TableCell className="py-3 text-right">
@@ -642,6 +1041,13 @@ export function StatusTable({
               </div>
             </div>
           </div>
+
+          {/* ── Fault Tolerance Panel ── */}
+          <FaultTolerancePanel
+            info={deploymentMap[activeProject?.fullName ?? ""] ?? deploymentMap[activeProject?.name ?? ""]}
+            installationId={installationId}
+            fullName={activeProject?.fullName ?? selectedRepoFilter}
+          />
 
           {showLegend && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 rounded-xl border border-slate-200 bg-white p-4 text-xs">

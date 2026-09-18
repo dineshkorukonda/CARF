@@ -12,6 +12,12 @@ import {
   CheckCircle2,
   Sliders,
   Activity,
+  Terminal,
+  Container,
+  Server,
+  GitBranch,
+  ArrowUpRight,
+  AlertTriangle,
 } from "lucide-react";
 import type { InstallationRepo } from "../../adapters/github/reposClient";
 import type { RecentCommit } from "../../adapters/coreApi/client";
@@ -32,6 +38,8 @@ export interface RepoProtectionStatus {
   isProtected: boolean;
   hasWorkflow: boolean;
   mode?: string;
+  adapterKind?: string;
+  adapterTarget?: string;
 }
 
 export function OverviewView({
@@ -58,8 +66,15 @@ export function OverviewView({
         if (data.statuses && Array.isArray(data.statuses) && isMounted) {
           const map: Record<string, RepoProtectionStatus> = {};
           for (const s of data.statuses) {
-            map[s.name] = { isProtected: s.isProtected, hasWorkflow: s.hasWorkflow, mode: s.mode };
-            map[s.fullName] = { isProtected: s.isProtected, hasWorkflow: s.hasWorkflow, mode: s.mode };
+            const entry: RepoProtectionStatus = {
+              isProtected: s.isProtected,
+              hasWorkflow: s.hasWorkflow,
+              mode: s.mode,
+              adapterKind: s.adapterKind,
+              adapterTarget: s.adapterTarget,
+            };
+            map[s.name] = entry;
+            map[s.fullName] = entry;
           }
           setProtectionMap(map);
         }
@@ -105,6 +120,66 @@ export function OverviewView({
           100
         ).toFixed(1)
       : "5.0";
+
+  // ── Adapter icon helper ──────────────────────────────────────────────────
+  function adapterIcon(kind: string | undefined) {
+    switch (kind) {
+      case "pm2":          return <Terminal className="size-3 shrink-0" />;
+      case "dockerCompose":
+      case "dockerSwarm":  return <Container className="size-3 shrink-0" />;
+      case "kubernetes":   return <Server className="size-3 shrink-0" />;
+      case "gitops":       return <GitBranch className="size-3 shrink-0" />;
+      default:             return null;
+    }
+  }
+
+  function DeploymentBadge({ status }: { status: RepoProtectionStatus | undefined }) {
+    if (!status?.isProtected) {
+      return <span className="text-slate-400 font-mono text-[11px]">—</span>;
+    }
+    if (status.mode === "augment") {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+          <ArrowUpRight className="size-3 shrink-0" />
+          <span>Augment Mode</span>
+        </span>
+      );
+    }
+    if (status.mode === "standalone" && status.adapterKind) {
+      const label =
+        status.adapterKind === "pm2" ? "PM2" :
+        status.adapterKind === "dockerCompose" ? "Docker Compose" :
+        status.adapterKind === "dockerSwarm" ? "Docker Swarm" :
+        status.adapterKind === "kubernetes" ? "Kubernetes" :
+        status.adapterKind === "gitops" ? "GitOps" :
+        status.adapterKind;
+      return (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700"
+          title={`Standalone • ${label} → ${status.adapterTarget ?? "—"}`}
+        >
+          {adapterIcon(status.adapterKind)}
+          <span>{label}</span>
+          {status.adapterTarget && (
+            <span className="font-mono text-emerald-600 opacity-80">· {status.adapterTarget}</span>
+          )}
+        </span>
+      );
+    }
+    if (status.mode === "standalone") {
+      return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">
+          <AlertTriangle className="size-3 shrink-0" />
+          <span>No adapter set</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+        <span>{status.mode ?? "Default"}</span>
+      </span>
+    );
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 p-6 md:p-8">
@@ -245,6 +320,7 @@ export function OverviewView({
                   <TableHead>Repository</TableHead>
                   <TableHead>Default Branch</TableHead>
                   <TableHead>Protection Status</TableHead>
+                  <TableHead>Deployment</TableHead>
                   <TableHead>Last Push</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -289,6 +365,10 @@ export function OverviewView({
                             <span>Unconfigured (Defaults)</span>
                           </span>
                         )}
+                      </TableCell>
+
+                      <TableCell className="py-3">
+                        <DeploymentBadge status={status} />
                       </TableCell>
 
                       <TableCell className="py-3 text-slate-500 font-mono text-[11px]">
