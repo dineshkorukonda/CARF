@@ -434,36 +434,34 @@ export function StatusTable({
   }, []);
 
   // Fetch repo protection + adapter info
-  useEffect(() => {
-    let active = true;
-    async function loadDeployment() {
-      try {
-        const res = await fetch(`/api/repo/status?installationId=${installationId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (active && data.statuses && Array.isArray(data.statuses)) {
-          const map: Record<string, DeploymentInfo> = {};
-          for (const s of data.statuses) {
-            const entry: DeploymentInfo = {
-              mode: s.mode,
-              adapterKind: s.adapterKind,
-              adapterTarget: s.adapterTarget,
-              isProtected: s.isProtected,
-            };
-            map[s.name] = entry;
-            map[s.fullName] = entry;
-          }
-          setDeploymentMap(map);
+  const loadDeployment = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/repo/status?installationId=${installationId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.statuses && Array.isArray(data.statuses)) {
+        const map: Record<string, DeploymentInfo> = {};
+        for (const s of data.statuses) {
+          const entry: DeploymentInfo = {
+            mode: s.mode,
+            adapterKind: s.adapterKind,
+            adapterTarget: s.adapterTarget,
+            isProtected: s.isProtected,
+          };
+          map[s.name] = entry;
+          map[s.fullName] = entry;
         }
-      } catch {
-        // Non-fatal — deployment column just shows no info
+        setDeploymentMap(map);
       }
+    } catch {
+      // Non-fatal — deployment column just shows no info
     }
-    loadDeployment();
-    return () => {
-      active = false;
-    };
   }, [installationId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadDeployment();
+  }, [loadDeployment]);
 
   const fetchStatus = useCallback(async () => {
     try {
