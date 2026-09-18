@@ -6,6 +6,7 @@ export interface AccountRow {
   name?: string | null;
   image?: string | null;
   githubId?: string | null;
+  hasPassword?: boolean;
   createdAt: Date;
 }
 

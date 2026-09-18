@@ -21,6 +21,7 @@ export async function getCurrentAccount(): Promise<AccountRow | null> {
     name: user.name ?? null,
     image: user.image ?? null,
     githubId: githubAccount?.providerAccountId ?? ((session.user as { githubId?: string }).githubId ?? null),
+    hasPassword: Boolean(user.passwordHash),
     createdAt: user.createdAt,
   };
 }
