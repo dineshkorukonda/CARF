@@ -25,6 +25,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  Plus,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import {
@@ -39,6 +40,7 @@ import type { RecentCommit } from "../../../../adapters/coreApi/client";
 import type { InstallationRepo } from "../../../../adapters/github/reposClient";
 import { classifyRolloutOutcome } from "../../../../lib/outcomeClassifier";
 import { PipelineStageTracker } from "../../PipelineStageTracker";
+import { LinkProjectModal } from "./LinkProjectModal";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -420,6 +422,7 @@ export function StatusTable({
   const [showLegend, setShowLegend] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentTime, setCurrentTime] = useState<number>(0);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
 
   // ── Deployment / fault-tolerance info keyed by repo fullName or name ──────
   const [deploymentMap, setDeploymentMap] = useState<Record<string, DeploymentInfo>>({});
@@ -429,35 +432,34 @@ export function StatusTable({
     return () => clearInterval(t);
   }, []);
 
-  // Fetch repo protection + adapter info once on mount
-  useEffect(() => {
-    let isMounted = true;
-    async function loadDeployment() {
-      try {
-        const res = await fetch(`/api/repo/status?installationId=${installationId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.statuses && Array.isArray(data.statuses) && isMounted) {
-          const map: Record<string, DeploymentInfo> = {};
-          for (const s of data.statuses) {
-            const entry: DeploymentInfo = {
-              mode: s.mode,
-              adapterKind: s.adapterKind,
-              adapterTarget: s.adapterTarget,
-              isProtected: s.isProtected,
-            };
-            map[s.name] = entry;
-            map[s.fullName] = entry;
-          }
-          setDeploymentMap(map);
+  // Fetch repo protection + adapter info
+  const loadDeployment = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/repo/status?installationId=${installationId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.statuses && Array.isArray(data.statuses)) {
+        const map: Record<string, DeploymentInfo> = {};
+        for (const s of data.statuses) {
+          const entry: DeploymentInfo = {
+            mode: s.mode,
+            adapterKind: s.adapterKind,
+            adapterTarget: s.adapterTarget,
+            isProtected: s.isProtected,
+          };
+          map[s.name] = entry;
+          map[s.fullName] = entry;
         }
-      } catch {
-        // Non-fatal — deployment column just shows no info
+        setDeploymentMap(map);
       }
+    } catch {
+      // Non-fatal — deployment column just shows no info
     }
-    loadDeployment();
-    return () => { isMounted = false; };
   }, [installationId]);
+
+  useEffect(() => {
+    loadDeployment();
+  }, [loadDeployment]);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -562,11 +564,27 @@ export function StatusTable({
     });
   }, [repos, commits, currentTime]);
 
+  // Only show projects that are linked to CARF (.carf.yml active or recorded commits)
+  const linkedProjects = useMemo(() => {
+    return projects.filter((p) => {
+      const isProt = deploymentMap[p.fullName]?.isProtected ?? deploymentMap[p.name]?.isProtected;
+      return isProt === true || p.totalCommits > 0;
+    });
+  }, [projects, deploymentMap]);
+
+  // Unlinked repositories available for adding
+  const unlinkedRepos = useMemo(() => {
+    return repos.filter((r) => {
+      const isProt = deploymentMap[r.full_name]?.isProtected ?? deploymentMap[r.name]?.isProtected;
+      return isProt !== true;
+    });
+  }, [repos, deploymentMap]);
+
   const filteredProjects = useMemo(() => {
-    if (!searchQuery.trim()) return projects;
+    if (!searchQuery.trim()) return linkedProjects;
     const q = searchQuery.toLowerCase();
-    return projects.filter((p) => p.name.toLowerCase().includes(q) || p.fullName.toLowerCase().includes(q));
-  }, [projects, searchQuery]);
+    return linkedProjects.filter((p) => p.name.toLowerCase().includes(q) || p.fullName.toLowerCase().includes(q));
+  }, [linkedProjects, searchQuery]);
 
   // Filter commits based on selected project and status
   const filteredCommits = useMemo(() => {
@@ -614,31 +632,62 @@ export function StatusTable({
                 <div className="flex items-center gap-2">
                   <FolderGit2 className="size-4 text-slate-700" />
                   <h2 className="text-sm font-bold text-slate-900">
-                    Projects & Repositories ({projects.length})
+                    Linked Projects ({linkedProjects.length})
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Select any repository to view its dedicated rollout commits, risk scores, and watchdog telemetry.
+                  Active repositories configured with CARF fault tolerance and change-aware canary telemetry.
                 </p>
               </div>
 
-              {projects.length > 2 && (
-                <div className="relative w-full sm:w-64">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Filter repositories..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-md border border-slate-200 bg-slate-50/70 pl-8 pr-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
-                  />
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {linkedProjects.length > 2 && (
+                  <div className="relative w-full sm:w-56">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Filter projects..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full rounded-md border border-slate-200 bg-slate-50/70 pl-8 pr-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
+                    />
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setIsLinkModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs shrink-0"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Link Project</span>
+                </button>
+              </div>
             </div>
 
-            {filteredProjects.length === 0 ? (
+            {linkedProjects.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center my-4 space-y-3">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                  <FolderGit2 className="size-6 text-slate-500" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900">No Linked Projects Yet</h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Link a GitHub repository to configure deployment adapters (PM2, Docker Compose, Kubernetes) and start tracking fault-tolerant rollouts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsLinkModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Link Your First Project</span>
+                </button>
+              </div>
+            ) : filteredProjects.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
-                No repositories found matching &ldquo;{searchQuery}&rdquo;.
+                No linked projects found matching &ldquo;{searchQuery}&rdquo;.
               </div>
             ) : (
               <div className="mt-4 overflow-hidden rounded-lg border border-slate-200">
@@ -1272,6 +1321,18 @@ export function StatusTable({
           )}
         </div>
       )}
+
+      {/* ── Link Project Wizard Modal ── */}
+      <LinkProjectModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        installationId={installationId}
+        unlinkedRepos={unlinkedRepos}
+        onProjectLinked={(repoFullName) => {
+          loadDeployment();
+          setSelectedRepoFilter(repoFullName);
+        }}
+      />
     </div>
   );
 }
