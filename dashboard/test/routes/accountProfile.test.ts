@@ -10,7 +10,7 @@ describe("PATCH /api/account/profile", () => {
   });
 
   it("returns 401 when unauthorized", async () => {
-    vi.spyOn(authModule, "auth").mockResolvedValue(null as unknown as ReturnType<typeof authModule.auth> extends Promise<infer T> ? T : never);
+    (vi.spyOn(authModule, "auth") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue(null);
 
     const req = new NextRequest("http://localhost:3000/api/account/profile", {
       method: "PATCH",
@@ -22,10 +22,10 @@ describe("PATCH /api/account/profile", () => {
   });
 
   it("returns 400 for invalid email", async () => {
-    vi.spyOn(authModule, "auth").mockResolvedValue({
+    (vi.spyOn(authModule, "auth") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
       user: { id: "usr_123" },
       expires: "2099-01-01",
-    } as unknown as { user: { id: string }; expires: string });
+    });
 
     const req = new NextRequest("http://localhost:3000/api/account/profile", {
       method: "PATCH",
@@ -37,15 +37,15 @@ describe("PATCH /api/account/profile", () => {
   });
 
   it("returns 409 when email is already in use by another user", async () => {
-    vi.spyOn(authModule, "auth").mockResolvedValue({
+    (vi.spyOn(authModule, "auth") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
       user: { id: "usr_123" },
       expires: "2099-01-01",
-    } as unknown as { user: { id: string }; expires: string });
+    });
 
-    vi.spyOn(prismaModule.prisma.user, "findFirst").mockResolvedValue({
+    (vi.spyOn(prismaModule.prisma.user, "findFirst") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
       id: "usr_456",
       email: "taken@example.com",
-    } as unknown as { id: string; email: string; name: string | null; emailVerified: Date | null; image: string | null; passwordHash: string | null; createdAt: Date; updatedAt: Date });
+    });
 
     const req = new NextRequest("http://localhost:3000/api/account/profile", {
       method: "PATCH",
@@ -57,17 +57,17 @@ describe("PATCH /api/account/profile", () => {
   });
 
   it("updates and returns updated user on success", async () => {
-    vi.spyOn(authModule, "auth").mockResolvedValue({
+    (vi.spyOn(authModule, "auth") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
       user: { id: "usr_123" },
       expires: "2099-01-01",
-    } as unknown as { user: { id: string }; expires: string });
+    });
 
-    vi.spyOn(prismaModule.prisma.user, "findFirst").mockResolvedValue(null);
-    vi.spyOn(prismaModule.prisma.user, "update").mockResolvedValue({
+    (vi.spyOn(prismaModule.prisma.user, "findFirst") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue(null);
+    (vi.spyOn(prismaModule.prisma.user, "update") as unknown as { mockResolvedValue: (val: unknown) => void }).mockResolvedValue({
       id: "usr_123",
       email: "dineshkorukonda05@gmail.com",
       name: "Dinesh Korukonda",
-    } as unknown as { id: string; email: string; name: string | null; emailVerified: Date | null; image: string | null; passwordHash: string | null; createdAt: Date; updatedAt: Date });
+    });
 
     const req = new NextRequest("http://localhost:3000/api/account/profile", {
       method: "PATCH",
