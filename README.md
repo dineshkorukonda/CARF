@@ -15,5 +15,6 @@ Comprehensive step-by-step guides for testing CARF across project types are avai
 
 - Hosted Dashboard: [`https://carf.indevs.in`](https://carf.indevs.in)
 - Core API: [`https://carf.indevs.in/v1`](https://carf.indevs.in/v1)
+- **[Dashboard & GitHub App Setup Guide](dashboard/README.md)**: GitHub App OAuth settings, Auth.js credentials, Neon DB migrations, and installation callbacks.
 
 All rights reserved for CARF Team 2027

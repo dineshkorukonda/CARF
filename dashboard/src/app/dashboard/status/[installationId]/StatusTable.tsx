@@ -12,8 +12,6 @@ import {
   Layers,
   TableProperties,
   FolderGit2,
-  GitCommit,
-  Check,
   Search,
   ArrowLeft,
   Terminal,
