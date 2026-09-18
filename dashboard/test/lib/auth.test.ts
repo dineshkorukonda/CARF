@@ -54,6 +54,7 @@ describe("getCurrentAccount", () => {
       name: "Someone",
       image: "https://avatar.example.com",
       githubId: "12345678",
+      hasPassword: false,
       createdAt: USER.createdAt,
     });
     expect(userFindUnique).toHaveBeenCalledWith({
