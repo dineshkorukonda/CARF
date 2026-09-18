@@ -20,6 +20,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   const app = Fastify({ logger: true });
 
   app.get("/healthz", async () => ({ status: "ok" }));
+  app.get("/health", async () => ({ status: "ok" }));
 
   void registerThresholdRoute(app, options.threshold);
   void registerReportRoute(app, options.report);
