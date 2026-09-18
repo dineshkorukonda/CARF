@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
@@ -241,20 +242,19 @@ export function SidebarShell({
         <NavLink href="/dashboard/account" collapsed={collapsed} icon={<UserRound className="size-4 shrink-0" />}>
           <span className="truncate">{accountEmail}</span>
         </NavLink>
-        <form action="/api/auth/logout" method="POST">
-          <Button
-            type="submit"
-            variant="ghost"
-            title={collapsed ? "Sign out" : undefined}
-            className={
-              "w-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground " +
-              (collapsed ? "justify-center px-0" : "justify-start px-3")
-            }
-          >
-            <LogOut className="size-4 shrink-0" />
-            {!collapsed && <span className="ml-2.5 truncate">Sign out</span>}
-          </Button>
-        </form>
+        <Button
+          type="button"
+          variant="ghost"
+          title={collapsed ? "Sign out" : undefined}
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className={
+            "w-full text-sidebar-foreground/50 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground " +
+            (collapsed ? "justify-center px-0" : "justify-start px-3")
+          }
+        >
+          <LogOut className="size-4 shrink-0" />
+          {!collapsed && <span className="ml-2.5 truncate">Sign out</span>}
+        </Button>
       </div>
     </aside>
   );
