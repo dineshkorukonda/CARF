@@ -6,6 +6,7 @@ import { registerInstallationApiKeyRoute, type InstallationApiKeyRouteOptions } 
 import { registerCommitsRoute, type CommitsRouteOptions } from "./routes/commits.js";
 import { registerReportRoute, type ReportRouteOptions } from "./routes/report.js";
 import { registerMetricsRoute } from "./routes/metrics.js";
+import { registerVersionRoute } from "./routes/version.js";
 
 export interface BuildAppOptions {
   threshold?: ThresholdRouteOptions;
@@ -28,6 +29,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   void registerInstallationApiKeyRoute(app, options.installationApiKey);
   void registerCommitsRoute(app, options.commits);
   void registerMetricsRoute(app);
+  void registerVersionRoute(app);
   if (options.webhook) {
     void registerGithubWebhookRoute(app, options.webhook);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchInstallationApiKey, fetchRecentCommits } from "../../../src/adapters/coreApi/client";
+import { fetchCoreApiVersion, fetchInstallationApiKey, fetchRecentCommits } from "../../../src/adapters/coreApi/client";
 import type { FetchFn } from "../../../src/adapters/github/fetchTypes";
 
 describe("fetchRecentCommits", () => {
@@ -44,3 +44,33 @@ describe("fetchInstallationApiKey", () => {
     await expect(fetchInstallationApiKey("https://core-api.example.com", "42", "app-jwt", fetchFn)).rejects.toThrow(/status 404/);
   });
 });
+
+describe("fetchCoreApiVersion", () => {
+  it("returns the version info on success", async () => {
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "ok",
+        service: "carf-core-api",
+        version: "0.1.0",
+        uptime: 12.34,
+      }),
+    });
+
+    const info = await fetchCoreApiVersion("https://core-api.example.com", fetchFn);
+
+    expect(info.service).toBe("carf-core-api");
+    expect(info.version).toBe("0.1.0");
+    expect(fetchFn).toHaveBeenCalledWith(
+      "https://core-api.example.com/v1/version",
+      expect.objectContaining({ headers: { Accept: "application/json" } })
+    );
+  });
+
+  it("throws when the HTTP response is not ok", async () => {
+    const fetchFn: FetchFn = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    await expect(fetchCoreApiVersion("https://core-api.example.com", fetchFn)).rejects.toThrow(/status 500/);
+  });
+});
+

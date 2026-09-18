@@ -48,3 +48,30 @@ export async function fetchInstallationApiKey(
   const body = (await response.json()) as { apiKey: string };
   return body.apiKey;
 }
+
+export interface CoreApiVersionInfo {
+  status: string;
+  service: string;
+  version: string;
+  uptime?: number;
+  nodeVersion?: string;
+  timestamp?: string;
+}
+
+/**
+ * `GET {baseUrl}/v1/version` -- fetch core-api service status and version information.
+ */
+export async function fetchCoreApiVersion(
+  baseUrl: string,
+  fetchFn: FetchFn = fetch
+): Promise<CoreApiVersionInfo> {
+  const normalized = baseUrl.replace(/\/+$/, "").replace(/\/v1$/, "");
+  const response = await fetchFn(`${normalized}/v1/version`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`core-api version fetch failed (status ${response.status})`);
+  }
+  return (await response.json()) as CoreApiVersionInfo;
+}
+
