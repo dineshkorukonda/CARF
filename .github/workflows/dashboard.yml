@@ -51,6 +51,7 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql://ci:ci-local-only@localhost:5432/carf_dashboard_test?schema=public
+      DIRECT_URL: postgresql://ci:ci-local-only@localhost:5432/carf_dashboard_test?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -70,11 +71,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test]
     env:
-      DASHBOARD_BASE_URL: https://dashboard.example.invalid
-      SESSION_SECRET: ci-build-only-not-a-real-secret
+      DASHBOARD_BASE_URL: https://carf.example.invalid
+      AUTH_SECRET: ci-build-only-not-a-real-secret-32-chars
+      AUTH_GITHUB_ID: ci-build-only
+      AUTH_GITHUB_SECRET: ci-build-only
       DATABASE_URL: postgresql://ci:ci-local-only@localhost:5432/carf_dashboard_ci?schema=public
-      GITHUB_OAUTH_CLIENT_ID: ci-build-only
-      GITHUB_OAUTH_CLIENT_SECRET: ci-build-only
+      DIRECT_URL: postgresql://ci:ci-local-only@localhost:5432/carf_dashboard_ci?schema=public
       GITHUB_APP_SLUG: ci-build-only
       GITHUB_APP_ID: ci-build-only
       GITHUB_APP_PRIVATE_KEY: ci-build-only
