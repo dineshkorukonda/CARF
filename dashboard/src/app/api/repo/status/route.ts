@@ -54,9 +54,20 @@ export async function GET(request: NextRequest) {
           ]);
 
           let mode: string | undefined;
+          let adapterKind: string | undefined;
+          let adapterTarget: string | undefined;
+
           if (configFile?.content) {
-            const match = configFile.content.match(/mode:\s*([a-zA-Z0-9_-]+)/);
-            if (match) mode = match[1];
+            const modeMatch = configFile.content.match(/mode:\s*["']?([a-zA-Z0-9_-]+)["']?/);
+            if (modeMatch) mode = modeMatch[1];
+
+            // Parse adapter.kind: `kind: pm2` or `kind: "pm2"`
+            const kindMatch = configFile.content.match(/kind:\s*["']?([a-zA-Z0-9_-]+)["']?/);
+            if (kindMatch) adapterKind = kindMatch[1];
+
+            // Parse adapter.target: `target: api-server` or `target: "api-server"`
+            const targetMatch = configFile.content.match(/target:\s*["']?([a-zA-Z0-9_./:@-]+)["']?/);
+            if (targetMatch) adapterTarget = targetMatch[1];
           }
 
           return {
@@ -65,6 +76,8 @@ export async function GET(request: NextRequest) {
             isProtected: !!configFile,
             hasWorkflow: !!workflowFile,
             mode: mode ?? (configFile ? "balanced" : undefined),
+            adapterKind,
+            adapterTarget,
           };
         } catch {
           return {
