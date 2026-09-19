@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Info, HelpCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, CheckCircle2, ShieldAlert } from "lucide-react";
+import { Info, HelpCircle, ChevronDown, ChevronUp, BookOpen, Sparkles, CheckCircle2 } from "lucide-react";
 import { SetupGuideModal } from "./SetupGuideModal";
 
 export type TabKey = "status" | "adapter" | "rules" | "analytics";

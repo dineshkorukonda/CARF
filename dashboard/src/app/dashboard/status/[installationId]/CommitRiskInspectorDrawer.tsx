@@ -2,22 +2,13 @@
 
 import {
   X,
-  ShieldCheck,
   AlertTriangle,
   Flame,
   Code2,
-  GitCommit,
   ExternalLink,
-  Layers,
-  Database,
-  Terminal,
-  Activity,
   Calculator,
-  Clock,
   Sparkles,
-  Info,
   CheckCircle2,
-  FileCode2,
 } from "lucide-react";
 import type { RecentCommit } from "../../../../adapters/coreApi/client";
 
@@ -42,7 +33,6 @@ export function CommitRiskInspectorDrawer({
   const numThreshold = commit.finalThreshold ?? 0.05;
   const isHighRisk = numThreshold < 0.015;
   const isMediumRisk = numThreshold >= 0.015 && numThreshold < 0.035;
-  const isLowRisk = numThreshold >= 0.035;
 
   const windowSecs = commit.finalWindow ?? 180;
   const windowMins = Math.round(windowSecs / 60);

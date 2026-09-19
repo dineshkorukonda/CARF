@@ -22,6 +22,23 @@ interface StackRecognitionBannerProps {
   installationId: string;
 }
 
+function StackIcon({ stack, className }: { stack: string; className?: string }) {
+  switch (stack) {
+    case "vercel":
+      return <Globe className={className} />;
+    case "render":
+      return <Server className={className} />;
+    case "pm2":
+      return <Terminal className={className} />;
+    case "docker":
+      return <Container className={className} />;
+    case "k8s":
+      return <Layers className={className} />;
+    default:
+      return <Sparkles className={className} />;
+  }
+}
+
 export function StackRecognitionBanner({
   repoName,
   installationId,
@@ -31,25 +48,6 @@ export function StackRecognitionBanner({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const detected: StackDetectionResult = detectStackFromRepo(repoName);
-
-  const getStackIcon = (stack: string) => {
-    switch (stack) {
-      case "vercel":
-        return Globe;
-      case "render":
-        return Server;
-      case "pm2":
-        return Terminal;
-      case "docker":
-        return Container;
-      case "k8s":
-        return Layers;
-      default:
-        return Sparkles;
-    }
-  };
-
-  const Icon = getStackIcon(detected.stack);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(detected.sampleYml);
@@ -63,7 +61,7 @@ export function StackRecognitionBanner({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-xs">
-              <Icon className="size-4" />
+              <StackIcon stack={detected.stack} className="size-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">

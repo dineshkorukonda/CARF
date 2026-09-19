@@ -26,7 +26,6 @@ import {
   Plus,
   Trash2,
   Calculator,
-  Sparkles,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import {

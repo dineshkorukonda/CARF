@@ -10,11 +10,8 @@ import {
   Container,
   Layers,
   Sparkles,
-  ArrowRight,
   ShieldCheck,
-  AlertTriangle,
   Globe,
-  ExternalLink,
   Code2,
   FileCode2,
 } from "lucide-react";
@@ -22,7 +19,7 @@ import {
 interface SetupGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
-  installationId: string;
+  installationId?: string;
   repoName?: string;
 }
 
@@ -273,7 +270,6 @@ spec:
 export function SetupGuideModal({
   isOpen,
   onClose,
-  installationId,
   repoName,
 }: SetupGuideModalProps) {
   const [selectedStack, setSelectedStack] = useState<StackPreset>("pm2");
@@ -301,7 +297,7 @@ export function SetupGuideModal({
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                CARF Setup & Integration Guide
+                CARF Setup & Integration Guide {repoName ? `— ${repoName}` : ""}
               </h2>
               <p className="text-xs text-slate-500">
                 Choose your deployment stack to get customized configuration and workflow snippets.

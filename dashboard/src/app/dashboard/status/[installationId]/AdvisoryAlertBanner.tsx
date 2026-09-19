@@ -4,16 +4,12 @@ import { useState } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
-  CheckCircle2,
   Globe,
   Server,
   Terminal,
-  ExternalLink,
   ChevronDown,
   ChevronUp,
   Sparkles,
-  ArrowUpRight,
-  RotateCcw,
 } from "lucide-react";
 import type { RecentCommit } from "../../../../adapters/coreApi/client";
 
@@ -34,7 +30,6 @@ export function AdvisoryAlertBanner({
   const highRiskCommits = commits.filter(
     (c) => c.finalThreshold !== null && c.finalThreshold < 0.015
   );
-  const latestCommit = commits[0];
 
   const hasCriticalRisk = highRiskCommits.length > 0;
 
@@ -73,7 +68,7 @@ export function AdvisoryAlertBanner({
             <p className="text-xs text-slate-600">
               {hasCriticalRisk
                 ? `⚠️ Caution: ${highRiskCommits.length} recent commit(s) modify high-sensitivity paths (DB/Infra).`
-                : "CARF actively monitors AST risk budgets and surfaces real-time deployment alerts."}
+                : `CARF actively monitors AST risk budgets${repoFullName ? ` for ${repoFullName}` : ""} and surfaces real-time deployment alerts.`}
             </p>
           </div>
         </div>
