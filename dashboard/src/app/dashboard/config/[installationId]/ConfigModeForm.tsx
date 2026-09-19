@@ -7,7 +7,7 @@ import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Button } from "../../../../components/ui/button";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
-import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2, Globe, Sparkles, Code2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2, Globe, Sparkles } from "lucide-react";
 
 interface ConfigModeFormProps {
   installationId: string;
