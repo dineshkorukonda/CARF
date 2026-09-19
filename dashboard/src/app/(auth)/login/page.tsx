@@ -6,8 +6,10 @@ import { AuthVisualPanel } from "../../../components/AuthVisualPanel";
 import { signIn } from "../../../auth";
 
 const ERROR_MESSAGES: Record<string, string> = {
+  Configuration: "Server configuration issue with GitHub App credentials. Please verify AUTH_GITHUB_ID and AUTH_GITHUB_SECRET in your environment variables.",
+  AccessDenied: "Access was denied by GitHub. Please grant authorization to continue.",
   OAuthSignin: "Error starting GitHub authorization. Please try again.",
-  OAuthCallback: "Error during GitHub callback. Please try again.",
+  OAuthCallback: "Error during GitHub callback. Please check your GitHub App Authorization callback URL.",
   OAuthCreateAccount: "Could not create user account. Please try again.",
   EmailCreateAccount: "Could not link account with this email. Please try again.",
   Callback: "Authentication callback failed. Please try again.",
