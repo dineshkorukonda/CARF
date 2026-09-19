@@ -7,7 +7,6 @@ import {
   ExternalLink,
   ShieldCheck,
   Zap,
-  Clock,
   Search,
   CheckCircle2,
   Sliders,
@@ -20,7 +19,6 @@ import {
   AlertTriangle,
   Radio,
   Lock,
-  RefreshCw,
 } from "lucide-react";
 import type { InstallationRepo } from "../../adapters/github/reposClient";
 import type { RecentCommit } from "../../adapters/coreApi/client";
@@ -71,7 +69,7 @@ export function OverviewView({
   const [protectionMap, setProtectionMap] = useState<Record<string, RepoProtectionStatus>>({});
   const [wizardTargetRepo, setWizardTargetRepo] = useState<InstallationRepo | null>(null);
   const [health, setHealth] = useState<SystemHealthState>({ status: "loading" });
-  const [currentTime, setCurrentTime] = useState<number>(Date.now());
+  const [currentTime, setCurrentTime] = useState<number>(0);
 
   // 1. Load repository protection status from API
   useEffect(() => {
