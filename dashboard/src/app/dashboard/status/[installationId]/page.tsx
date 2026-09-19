@@ -11,6 +11,7 @@ import { StatusTable } from "./StatusTable";
 import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 import { TabExplainerBanner } from "../../TabExplainerBanner";
 import { StackRecognitionBanner } from "../../StackRecognitionBanner";
+import { OnboardingChecklist } from "../../OnboardingChecklist";
 
 export default async function StatusPage({
   params,
@@ -67,6 +68,12 @@ export default async function StatusPage({
       <StackRecognitionBanner
         repoName={activeRepoName}
         installationId={installationId}
+      />
+
+      <OnboardingChecklist
+        installationId={installationId}
+        repoName={activeRepoName}
+        totalCommits={commits.length}
       />
 
       <div>
