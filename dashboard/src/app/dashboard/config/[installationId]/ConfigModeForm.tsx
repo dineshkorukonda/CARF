@@ -7,7 +7,7 @@ import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Button } from "../../../../components/ui/button";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
-import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2, Globe, Sparkles, Code2 } from "lucide-react";
 
 interface ConfigModeFormProps {
   installationId: string;
@@ -197,15 +197,45 @@ export function ConfigModeForm({
       </fieldset>
 
       {mode === "augment" ? (
-        <div className="rounded-sm border border-border bg-muted/30 p-4 text-xs text-muted-foreground space-y-2">
-          <div className="flex items-center gap-1.5 font-medium text-foreground">
-            <Info className="size-3.5 text-primary shrink-0" />
-            <span>Augment Mode active</span>
+        <div className="space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 text-xs text-blue-900 space-y-2">
+            <div className="flex items-center gap-1.5 font-semibold text-blue-900">
+              <Info className="size-4 text-blue-600 shrink-0" />
+              <span>Augment / Advisory Mode Active</span>
+            </div>
+            <p className="text-blue-800 leading-relaxed">
+              CARF dynamically scores each commit diff and computes custom risk thresholds and observation windows.
+              Your deployment pipeline or PR check queries <code className="rounded bg-white px-1.5 py-0.5 font-mono text-blue-950 border border-blue-200">GET /v1/threshold?commit=$SHA</code> to monitor releases.
+            </p>
           </div>
-          <p>
-            CARF dynamically scores each commit diff and computes custom risk thresholds and observation windows.
-            Rollback monitoring and execution are handled by your external orchestrator (Argo Rollouts, Flagger, or CI/CD script) querying <code className="rounded bg-muted px-1 py-0.5">GET /v1/threshold</code> with your installation key.
-          </p>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
+            <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+              <Sparkles className="size-4 text-blue-600" />
+              <span>Quick Cloud Presets (Vercel · Render · PM2)</span>
+            </h4>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-xs">
+                  <Globe className="size-3.5 text-blue-600" />
+                  <span>Vercel / Next.js Preset</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  Runs as PR check badge and canary risk monitor. Query threshold in GitHub Actions.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-xs">
+                  <Server className="size-3.5 text-indigo-600" />
+                  <span>Render.com Preset</span>
+                </div>
+                <p className="text-[11px] text-slate-600">
+                  Trigger Deploy Hook and soak health endpoint for the calculated window duration.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       ) : (
         <fieldset className="flex flex-col gap-4 rounded-sm border border-border p-4 bg-card">

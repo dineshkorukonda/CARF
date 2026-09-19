@@ -44,6 +44,7 @@ import { PipelineStageTracker } from "../../PipelineStageTracker";
 import { LinkProjectModal } from "./LinkProjectModal";
 import { UnlinkConfirmModal } from "./UnlinkConfirmModal";
 import { CommitRiskInspectorDrawer } from "./CommitRiskInspectorDrawer";
+import { AdvisoryAlertBanner } from "./AdvisoryAlertBanner";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -1125,6 +1126,13 @@ export function StatusTable({
               </div>
             </div>
           </div>
+
+          {/* ── Advisory Alert Banner ── */}
+          <AdvisoryAlertBanner
+            commits={filteredCommits}
+            repoFullName={activeProject?.fullName ?? selectedRepoFilter}
+            onOpenSetupGuide={() => setIsLinkModalOpen(true)}
+          />
 
           {/* ── Fault Tolerance Panel ── */}
           <FaultTolerancePanel
