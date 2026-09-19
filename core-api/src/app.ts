@@ -22,6 +22,7 @@ export function buildApp(options: BuildAppOptions = {}) {
 
   app.get("/healthz", async () => ({ status: "ok" }));
   app.get("/health", async () => ({ status: "ok" }));
+  app.get("/v1/health", async () => ({ status: "ok", service: "carf-core-api" }));
 
   void registerThresholdRoute(app, options.threshold);
   void registerReportRoute(app, options.report);
