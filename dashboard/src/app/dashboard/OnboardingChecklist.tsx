@@ -8,8 +8,6 @@ import {
   ChevronDown,
   ChevronUp,
   FileCode2,
-  GitCommit,
-  Layers,
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
@@ -145,7 +143,7 @@ export function OnboardingChecklist({
         {/* Steps List */}
         {isExpanded && (
           <div className="grid gap-2 sm:grid-cols-2 pt-1">
-            {steps.map((step, idx) => (
+            {steps.map((step) => (
               <div
                 key={step.id}
                 className={`flex items-start gap-2.5 rounded-lg border p-2.5 text-xs transition-colors ${
