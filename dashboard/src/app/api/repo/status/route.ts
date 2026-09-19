@@ -38,8 +38,8 @@ export async function GET(request: NextRequest) {
       }
     } else {
       const allRepos = await listInstallationRepos(token);
-      // Cap at checking top 15 most recent repos to keep request snappy
-      repoList = allRepos.slice(0, 15).map((r) => ({
+      // Check all repositories granted to this installation (up to 50)
+      repoList = allRepos.slice(0, 50).map((r) => ({
         owner: r.owner.login,
         name: r.name,
       }));
