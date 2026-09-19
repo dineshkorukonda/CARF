@@ -12,6 +12,7 @@ import { ConfigModeForm } from "./ConfigModeForm";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
 import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { RepoNavigationTabs } from "../../RepoNavigationTabs";
+import { TabExplainerBanner } from "../../TabExplainerBanner";
 
 interface ExistingModeAdapter {
   mode?: string;
@@ -62,6 +63,11 @@ export default async function ConfigPage({
           repoName={installation.targetLogin}
           apiKey={apiKey}
         />
+        <TabExplainerBanner
+          tab="adapter"
+          installationId={installationId}
+          repoName={installation.targetLogin}
+        />
         <div className="max-w-2xl flex flex-col gap-6">
           <div>
             <h1 className="text-xl font-semibold">Choose a repository</h1>
@@ -97,6 +103,12 @@ export default async function ConfigPage({
         installationId={installationId}
         repoName={installation.targetLogin}
         apiKey={apiKey}
+      />
+
+      <TabExplainerBanner
+        tab="adapter"
+        installationId={installationId}
+        repoName={installation.targetLogin}
       />
 
       <div className="max-w-3xl flex flex-col gap-6">
