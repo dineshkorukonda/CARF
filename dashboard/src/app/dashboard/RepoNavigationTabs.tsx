@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Radio, Settings2, Sliders } from "lucide-react";
+import { BarChart3, Radio, Settings2, Sliders, Sparkles } from "lucide-react";
 import { ApiKeyCopyButton } from "./installations/ApiKeyCopyButton";
+import { SetupGuideModal } from "./SetupGuideModal";
 
 interface RepoNavigationTabsProps {
   installationId: string;
@@ -17,6 +19,7 @@ export function RepoNavigationTabs({
   apiKey,
 }: RepoNavigationTabsProps) {
   const pathname = usePathname();
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const isStatus = pathname.startsWith(`/dashboard/status/${installationId}`);
   const isRules = pathname.startsWith(`/dashboard/config/${installationId}/rules`);
@@ -55,44 +58,62 @@ export function RepoNavigationTabs({
   ];
 
   return (
-    <div className="flex flex-col gap-3 border-b border-slate-200 pb-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-sm font-semibold text-slate-900">
-            {repoName ? (repoName.startsWith("@") ? repoName : `@${repoName}`) : "Repository Workspace"}
-          </span>
-          <span className="font-mono text-xs text-slate-500">
-            (Integration #{installationId})
-          </span>
-        </div>
-        {apiKey && (
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <span>API Key:</span>
-            <ApiKeyCopyButton apiKey={apiKey} />
+    <>
+      <div className="flex flex-col gap-3 border-b border-slate-200 pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-sm font-semibold text-slate-900">
+              {repoName ? (repoName.startsWith("@") ? repoName : `@${repoName}`) : "Repository Workspace"}
+            </span>
+            <span className="font-mono text-xs text-slate-500">
+              (Integration #{installationId})
+            </span>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsGuideOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors shadow-2xs"
+            >
+              <Sparkles className="size-3 text-blue-600" />
+              <span>Setup Guide</span>
+            </button>
+            {apiKey && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span>API Key:</span>
+                <ApiKeyCopyButton apiKey={apiKey} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <nav className="flex items-center gap-1.5 overflow-x-auto">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <Link
+                key={tab.label}
+                href={tab.href}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                  tab.active
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                <Icon className={`size-3.5 shrink-0 ${tab.active ? "text-white" : tab.activeColor}`} />
+                <span>{tab.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      <nav className="flex items-center gap-1.5 overflow-x-auto">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <Link
-              key={tab.label}
-              href={tab.href}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
-                tab.active
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
-              }`}
-            >
-              <Icon className={`size-3.5 shrink-0 ${tab.active ? "text-white" : tab.activeColor}`} />
-              <span>{tab.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </div>
+      <SetupGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        installationId={installationId}
+        repoName={repoName}
+      />
+    </>
   );
 }
