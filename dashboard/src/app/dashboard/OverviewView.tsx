@@ -18,6 +18,9 @@ import {
   GitBranch,
   ArrowUpRight,
   AlertTriangle,
+  Radio,
+  Lock,
+  RefreshCw,
 } from "lucide-react";
 import type { InstallationRepo } from "../../adapters/github/reposClient";
 import type { RecentCommit } from "../../adapters/coreApi/client";
@@ -25,6 +28,8 @@ import type { InstallationRow } from "../../lib/accountService";
 import { RefreshReposButton } from "./RefreshReposButton";
 import { PipelineStageTracker } from "./PipelineStageTracker";
 import { RepoProtectionWizardModal } from "./RepoProtectionWizardModal";
+import { Badge } from "../../components/ui/badge";
+import { Input } from "../../components/ui/input";
 import {
   Table,
   TableBody,
@@ -42,6 +47,15 @@ export interface RepoProtectionStatus {
   adapterTarget?: string;
 }
 
+interface SystemHealthState {
+  status: "healthy" | "degraded" | "loading" | "unknown";
+  latencyMs?: number;
+  coreApiStatus?: string;
+  dbStatus?: string;
+}
+
+type RepoFilterTab = "all" | "protected" | "unconfigured" | "private";
+
 export function OverviewView({
   installation,
   repos,
@@ -53,9 +67,13 @@ export function OverviewView({
   accountEmail?: string;
 }) {
   const [repoSearch, setRepoSearch] = useState("");
+  const [activeTab, setActiveTab] = useState<RepoFilterTab>("all");
   const [protectionMap, setProtectionMap] = useState<Record<string, RepoProtectionStatus>>({});
   const [wizardTargetRepo, setWizardTargetRepo] = useState<InstallationRepo | null>(null);
+  const [health, setHealth] = useState<SystemHealthState>({ status: "loading" });
+  const [currentTime, setCurrentTime] = useState<number>(Date.now());
 
+  // 1. Load repository protection status from API
   useEffect(() => {
     let isMounted = true;
     async function loadStatuses() {
@@ -88,23 +106,73 @@ export function OverviewView({
     };
   }, [installation.installationId]);
 
+  // 2. Poll System Health API
+  useEffect(() => {
+    let isMounted = true;
+    async function checkHealth() {
+      try {
+        const res = await fetch("/api/health");
+        const data = await res.json();
+        if (isMounted) {
+          setHealth({
+            status: data.status === "healthy" ? "healthy" : "degraded",
+            latencyMs: data.coreApi?.latencyMs ?? data.latencyMs,
+            coreApiStatus: data.coreApi?.status ?? "unknown",
+            dbStatus: data.database?.status ?? "unknown",
+          });
+        }
+      } catch {
+        if (isMounted) {
+          setHealth({ status: "degraded", coreApiStatus: "unreachable" });
+        }
+      }
+    }
+    checkHealth();
+    const interval = setInterval(checkHealth, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
-  const filteredRepos = useMemo(() => {
-    if (!repoSearch.trim()) return repos;
-    const q = repoSearch.toLowerCase();
-    return repos.filter(
-      (r) => r.name.toLowerCase().includes(q) || r.full_name.toLowerCase().includes(q)
-    );
-  }, [repos, repoSearch]);
-
-  const [currentTime, setCurrentTime] = useState<number>(0);
-
+  // 3. Live timer for active observation windows
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Compute live overview metrics
+  // 4. Tab counts & Filtering
+  const protectedCount = useMemo(() => {
+    return repos.filter((r) => protectionMap[r.name]?.isProtected || protectionMap[r.full_name]?.isProtected).length;
+  }, [repos, protectionMap]);
+
+  const unconfiguredCount = repos.length - protectedCount;
+  const privateCount = useMemo(() => repos.filter((r) => r.private).length, [repos]);
+
+  const filteredRepos = useMemo(() => {
+    let result = repos;
+
+    // Filter by Tab
+    if (activeTab === "protected") {
+      result = result.filter((r) => protectionMap[r.name]?.isProtected || protectionMap[r.full_name]?.isProtected);
+    } else if (activeTab === "unconfigured") {
+      result = result.filter((r) => !protectionMap[r.name]?.isProtected && !protectionMap[r.full_name]?.isProtected);
+    } else if (activeTab === "private") {
+      result = result.filter((r) => r.private);
+    }
+
+    // Filter by Search
+    if (repoSearch.trim()) {
+      const q = repoSearch.toLowerCase();
+      result = result.filter(
+        (r) => r.name.toLowerCase().includes(q) || r.full_name.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [repos, protectionMap, activeTab, repoSearch]);
+
+  // 5. Compute live overview metrics
   const totalCommits = commits.length;
   const activeWatchdogs = commits.filter(
     (c) =>
@@ -135,11 +203,11 @@ export function OverviewView({
 
   function DeploymentBadge({ status }: { status: RepoProtectionStatus | undefined }) {
     if (!status?.isProtected) {
-      return <span className="text-slate-400 font-mono text-[11px]">—</span>;
+      return <span className="font-mono text-[11px] text-muted-foreground/60">—</span>;
     }
     if (status.mode === "augment") {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
           <ArrowUpRight className="size-3 shrink-0" />
           <span>Augment Mode</span>
         </span>
@@ -155,27 +223,27 @@ export function OverviewView({
         status.adapterKind;
       return (
         <span
-          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700"
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
           title={`Standalone • ${label} → ${status.adapterTarget ?? "—"}`}
         >
           {adapterIcon(status.adapterKind)}
           <span>{label}</span>
           {status.adapterTarget && (
-            <span className="font-mono text-emerald-600 opacity-80">· {status.adapterTarget}</span>
+            <span className="font-mono opacity-80">· {status.adapterTarget}</span>
           )}
         </span>
       );
     }
     if (status.mode === "standalone") {
       return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
           <AlertTriangle className="size-3 shrink-0" />
           <span>No adapter set</span>
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+      <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
         <span>{status.mode ?? "Default"}</span>
       </span>
     );
@@ -183,24 +251,58 @@ export function OverviewView({
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 p-6 md:p-8">
-      {/* ── Top Integration Summary Banner ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex items-start md:items-center gap-4">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-slate-900 text-white font-bold text-lg shadow-sm">
+      {/* ── Top Integration Command Header ── */}
+      <div className="flex flex-col justify-between gap-5 rounded-2xl border border-border bg-card p-6 shadow-xs md:flex-row md:items-center">
+        <div className="flex items-start gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-xl font-bold text-primary-foreground shadow-xs">
             C
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">
-                {installation.targetLogin}&apos;s Repositories
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-xl font-bold tracking-tight text-foreground">
+                @{installation.targetLogin}
               </h1>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 border border-emerald-200">
-                <CheckCircle2 className="size-3 text-emerald-600" />
-                Active & Protected
-              </span>
+              <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-3" />
+                Protected Workspace
+              </Badge>
+
+              {/* Live Health Indicator Pill */}
+              <div
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  health.status === "healthy"
+                    ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
+                    : health.status === "loading"
+                    ? "border-border bg-muted/40 text-muted-foreground"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                }`}
+                title={
+                  health.status === "healthy"
+                    ? `Core-API & DB connected (${health.latencyMs ?? 0}ms)`
+                    : "Connectivity warning"
+                }
+              >
+                <span
+                  className={`size-2 rounded-full ${
+                    health.status === "healthy"
+                      ? "bg-emerald-500 animate-pulse"
+                      : health.status === "loading"
+                      ? "bg-muted-foreground"
+                      : "bg-amber-500"
+                  }`}
+                />
+                <span>
+                  {health.status === "healthy"
+                    ? `Core-API Online (${health.latencyMs ?? 0}ms)`
+                    : health.status === "loading"
+                    ? "Checking Core-API..."
+                    : "Core-API Degraded"}
+                </span>
+              </div>
             </div>
-            <p className="mt-1 text-sm text-slate-500">
-              Connected via GitHub Integration #{installation.installationId} • {repos.length} repositories monitored
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              Integration #{installation.installationId} • {repos.length} total repositories connected • Autonomous change-aware rollback active
             </p>
           </div>
         </div>
@@ -211,118 +313,181 @@ export function OverviewView({
             href={`https://github.com/settings/installations/${installation.installationId}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-sm transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-xs transition-colors hover:bg-muted"
           >
-            <span>Configure on GitHub</span>
-            <ExternalLink className="size-3" />
+            <span>GitHub App Settings</span>
+            <ExternalLink className="size-3 text-muted-foreground" />
           </a>
         </div>
       </div>
 
       {/* ── High-Level Cross-Project Metrics ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Total Rollouts */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Metric 1: Total Commits Analyzed */}
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-              Total Commits Analyzed
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+              Commits Analyzed
             </span>
-            <Activity className="size-4 text-slate-400" />
+            <Activity className="size-4 text-primary/70" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">{totalCommits}</span>
-            <span className="text-xs text-slate-500">rollouts</span>
+            <span className="text-3xl font-bold tracking-tight text-foreground">{totalCommits}</span>
+            <span className="text-xs text-muted-foreground">rollouts</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">AST classified via Tier-1 & Tier-2</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">AST classified via Tier-1 & Tier-2</p>
         </div>
 
         {/* Metric 2: Active Watchdogs */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Active Watchdogs
             </span>
-            <Clock className="size-4 text-amber-500" />
+            <Radio className="size-4 text-amber-500" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">{activeWatchdogs}</span>
-            {activeWatchdogs > 0 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 animate-pulse">
-                Live
-              </span>
+            <span className="text-3xl font-bold tracking-tight text-foreground">{activeWatchdogs}</span>
+            {activeWatchdogs > 0 ? (
+              <Badge variant="secondary" className="animate-pulse bg-amber-500/10 text-[10px] text-amber-600 dark:text-amber-400">
+                Observing
+              </Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">idle</span>
             )}
           </div>
-          <p className="mt-1 text-xs text-slate-500">In observation window right now</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            {activeWatchdogs > 0
+              ? "Actively observing post-deploy health"
+              : "No active rollout observation windows"}
+          </p>
         </div>
 
         {/* Metric 3: Outages Prevented */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Prevented Outages
             </span>
-            <ShieldCheck className="size-4 text-emerald-600" />
+            <ShieldCheck className="size-4 text-emerald-500" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">{rollbacksTriggered}</span>
-            <span className="text-xs text-emerald-700 font-medium">auto-rollbacks</span>
+            <span className="text-3xl font-bold tracking-tight text-foreground">{rollbacksTriggered}</span>
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">auto-rollbacks</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Zero human intervention needed</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">Zero-human intervention triggered</p>
         </div>
 
         {/* Metric 4: Avg Dynamic Budget */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
               Avg Dynamic Budget
             </span>
             <Zap className="size-4 text-indigo-500" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-slate-900">{avgThreshold}%</span>
-            <span className="text-xs text-slate-500">error ceiling</span>
+            <span className="text-3xl font-bold tracking-tight text-foreground">{avgThreshold}%</span>
+            <span className="text-xs text-muted-foreground">error ceiling</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Calibrated to code churn risk</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">Calibrated to code churn risk</p>
         </div>
       </div>
 
       {/* ── Protected Repositories Directory ── */}
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-xs">
+        <div className="flex flex-col justify-between gap-4 border-b border-border pb-5 lg:flex-row lg:items-center">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Protected Repositories ({repos.length})</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Repositories monitored by CARF for change-aware rollbacks and dynamic error budgets.
+            <h2 className="text-base font-bold text-foreground">Repositories ({repos.length})</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Repositories monitored by CARF for dynamic error budgets and automated rollbacks.
             </p>
           </div>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search repositories..."
-              value={repoSearch}
-              onChange={(e) => setRepoSearch(e.target.value)}
-              className="w-full rounded-md border border-slate-200 bg-slate-50/50 pl-8 pr-3 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-slate-900"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            {/* Filter Tabs */}
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setActiveTab("all")}
+                className={`rounded-md px-2.5 py-1 transition-all ${
+                  activeTab === "all"
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All ({repos.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("protected")}
+                className={`rounded-md px-2.5 py-1 transition-all ${
+                  activeTab === "protected"
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Protected ({protectedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("unconfigured")}
+                className={`rounded-md px-2.5 py-1 transition-all ${
+                  activeTab === "unconfigured"
+                    ? "bg-background text-foreground shadow-xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Needs Setup ({unconfiguredCount})
+              </button>
+              {privateCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("private")}
+                  className={`rounded-md px-2.5 py-1 transition-all ${
+                    activeTab === "private"
+                      ? "bg-background text-foreground shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Private ({privateCount})
+                </button>
+              )}
+            </div>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search repositories..."
+                value={repoSearch}
+                onChange={(e) => setRepoSearch(e.target.value)}
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
           </div>
         </div>
 
         {filteredRepos.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-500">
-            No repositories found matching &ldquo;{repoSearch}&rdquo;.
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <FolderGit2 className="size-8 text-muted-foreground/40" />
+            <p className="mt-3 text-sm font-medium text-foreground">No repositories found</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {repoSearch ? `No matches for "${repoSearch}".` : "No repositories in this category."}
+            </p>
           </div>
         ) : (
-          <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50/70 hover:bg-slate-50/70 text-xs text-slate-700">
-                  <TableHead>Repository</TableHead>
-                  <TableHead>Default Branch</TableHead>
-                  <TableHead>Protection Status</TableHead>
-                  <TableHead>Deployment</TableHead>
-                  <TableHead>Last Push</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                <TableRow className="bg-muted/40 text-xs font-medium hover:bg-muted/40">
+                  <TableHead className="py-3">Repository</TableHead>
+                  <TableHead className="py-3">Default Branch</TableHead>
+                  <TableHead className="py-3">Protection Status</TableHead>
+                  <TableHead className="py-3">Deployment Adapter</TableHead>
+                  <TableHead className="py-3">Last Push</TableHead>
+                  <TableHead className="py-3 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -331,55 +496,56 @@ export function OverviewView({
                   const isProtected = status?.isProtected ?? false;
 
                   return (
-                    <TableRow key={repo.id} className="text-xs border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                      <TableCell className="py-3">
-                        <div className="flex items-center gap-2">
-                          <FolderGit2 className="size-4 text-slate-400 shrink-0" />
+                    <TableRow key={repo.id} className="text-xs transition-colors hover:bg-muted/30">
+                      <TableCell className="py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
                           <div className="flex flex-col">
-                            <span className="font-semibold text-slate-900 text-xs">{repo.name}</span>
-                            <span className="text-[11px] text-slate-400 font-mono">{repo.full_name}</span>
+                            <span className="font-semibold text-foreground text-xs">{repo.name}</span>
+                            <span className="font-mono text-[11px] text-muted-foreground">{repo.full_name}</span>
                           </div>
                           {repo.private && (
-                            <span className="ml-1.5 rounded bg-amber-50 border border-amber-200 px-1 py-0.2 text-[9px] font-medium text-amber-700">
+                            <Badge variant="outline" className="ml-1 gap-1 border-amber-500/30 bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-600 dark:text-amber-400">
+                              <Lock className="size-2.5" />
                               Private
-                            </span>
+                            </Badge>
                           )}
                         </div>
                       </TableCell>
 
-                      <TableCell className="py-3">
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-mono text-slate-700">
+                      <TableCell className="py-3.5">
+                        <span className="rounded-md border border-border bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-foreground">
                           {repo.default_branch}
                         </span>
                       </TableCell>
 
-                      <TableCell className="py-3">
+                      <TableCell className="py-3.5">
                         {isProtected ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                            <CheckCircle2 className="size-3 text-emerald-600" />
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="size-3 shrink-0" />
                             <span>Protected (.carf.yml active)</span>
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-                            <span className="size-1.5 rounded-full bg-slate-400" />
-                            <span>Unconfigured (Defaults)</span>
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/40 px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            <span className="size-1.5 rounded-full bg-muted-foreground/60" />
+                            <span>Unconfigured (Default Rules)</span>
                           </span>
                         )}
                       </TableCell>
 
-                      <TableCell className="py-3">
+                      <TableCell className="py-3.5">
                         <DeploymentBadge status={status} />
                       </TableCell>
 
-                      <TableCell className="py-3 text-slate-500 font-mono text-[11px]">
+                      <TableCell className="py-3.5 font-mono text-[11px] text-muted-foreground">
                         {repo.pushed_at ? new Date(repo.pushed_at).toLocaleDateString() : "--"}
                       </TableCell>
 
-                      <TableCell className="py-3 text-right">
+                      <TableCell className="py-3.5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Link
                             href={`/dashboard/status/${installation.installationId}?repo=${encodeURIComponent(repo.name)}`}
-                            className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800 transition-colors shadow-xs"
+                            className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
                           >
                             <span>Live Commits &rarr;</span>
                           </Link>
@@ -388,7 +554,7 @@ export function OverviewView({
                             <button
                               type="button"
                               onClick={() => setWizardTargetRepo(repo)}
-                              className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                              className="rounded-lg border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
                               title="Update CARF configuration"
                             >
                               Reprotect
@@ -397,16 +563,16 @@ export function OverviewView({
                             <button
                               type="button"
                               onClick={() => setWizardTargetRepo(repo)}
-                              className="inline-flex items-center gap-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+                              className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-500/20 dark:text-amber-400 transition-colors"
                             >
-                              <Zap className="size-3 text-amber-600" />
+                              <Zap className="size-3 text-amber-500" />
                               <span>1-Click Protect</span>
                             </button>
                           )}
 
                           <Link
                             href={`/dashboard/config/${installation.installationId}`}
-                            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                             title="Configure Adapter & Rules"
                           >
                             <Sliders className="size-3.5" />
@@ -423,17 +589,17 @@ export function OverviewView({
       </div>
 
       {/* ── Global Cross-Project Live Rollouts Feed ── */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Live Rollout Pipeline</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="text-base font-bold text-foreground">Live Rollout Pipeline</h2>
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Recent classified commits and active watchdogs across all protected repositories.
             </p>
           </div>
           <Link
             href={`/dashboard/status/${installation.installationId}`}
-            className="text-xs font-semibold text-slate-700 hover:text-slate-900 underline underline-offset-4"
+            className="text-xs font-semibold text-primary underline-offset-4 hover:underline"
           >
             Full Rollout Logs &rarr;
           </Link>
