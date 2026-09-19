@@ -25,6 +25,8 @@ import {
   ChevronUp,
   Plus,
   Trash2,
+  Calculator,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import {
@@ -41,6 +43,7 @@ import { classifyRolloutOutcome } from "../../../../lib/outcomeClassifier";
 import { PipelineStageTracker } from "../../PipelineStageTracker";
 import { LinkProjectModal } from "./LinkProjectModal";
 import { UnlinkConfirmModal } from "./UnlinkConfirmModal";
+import { CommitRiskInspectorDrawer } from "./CommitRiskInspectorDrawer";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -424,6 +427,7 @@ export function StatusTable({
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [unlinkTargetRepo, setUnlinkTargetRepo] = useState<{ owner: string; name: string; fullName: string } | null>(null);
+  const [inspectCommit, setInspectCommit] = useState<RecentCommit | null>(null);
 
   // ── Deployment / fault-tolerance info keyed by repo fullName or name ──────
   const [deploymentMap, setDeploymentMap] = useState<Record<string, DeploymentInfo>>({});
@@ -1250,6 +1254,7 @@ export function StatusTable({
                     <TableHead>Threshold</TableHead>
                     <TableHead>Window</TableHead>
                     <TableHead>Rollout Outcome</TableHead>
+                    <TableHead className="text-right">AST Analysis</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1257,21 +1262,28 @@ export function StatusTable({
                     const outcome = classifyRolloutOutcome(c);
 
                     return (
-                      <TableRow key={c.sha} className="text-xs border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                      <TableRow
+                        key={c.sha}
+                        onClick={() => setInspectCommit(c)}
+                        className="text-xs border-b border-slate-100 last:border-0 hover:bg-blue-50/40 cursor-pointer transition-colors"
+                      >
                         <TableCell className="font-mono text-xs py-3">
                           <div className="flex flex-col gap-0.5">
-                            <a
-                              href={`https://github.com/${c.owner}/${c.repo}/commit/${c.sha}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 font-semibold text-slate-900 hover:underline underline-offset-2"
-                              title={`Open commit ${c.sha} on GitHub`}
-                            >
-                              <span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-slate-900">
                                 {c.owner}/{c.repo}@{c.sha.slice(0, 7)}
                               </span>
-                              <ExternalLink className="size-3 shrink-0 opacity-40" />
-                            </a>
+                              <a
+                                href={`https://github.com/${c.owner}/${c.repo}/commit/${c.sha}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-slate-400 hover:text-blue-600"
+                                title={`Open commit ${c.sha} on GitHub`}
+                              >
+                                <ExternalLink className="size-3 shrink-0" />
+                              </a>
+                            </div>
                             <span className="text-[11px] text-slate-500">
                               {new Date(c.createdAt).toLocaleString()}
                             </span>
@@ -1343,6 +1355,20 @@ export function StatusTable({
                             </div>
                           )}
                         </TableCell>
+
+                        <TableCell className="py-3 text-right">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setInspectCommit(c);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors shadow-2xs"
+                          >
+                            <Calculator className="size-3 text-blue-600" />
+                            <span>Inspect AST</span>
+                          </button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -1352,6 +1378,12 @@ export function StatusTable({
           )}
         </div>
       )}
+
+      {/* ── Commit AST Risk Inspector Drawer ── */}
+      <CommitRiskInspectorDrawer
+        commit={inspectCommit}
+        onClose={() => setInspectCommit(null)}
+      />
 
       {/* ── Link Project Wizard Modal ── */}
       <LinkProjectModal
