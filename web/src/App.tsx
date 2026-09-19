@@ -8,12 +8,7 @@ import {
   Globe,
   Server,
   Terminal,
-  Container,
-  Layers,
-  Check,
-  Copy,
   Sparkles,
-  BookOpen,
 } from "lucide-react";
 
 interface ScenarioPreset {
