@@ -6,6 +6,7 @@ import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { fetchRecentCommits, type RecentCommit } from "../../../../adapters/coreApi/client";
 import { env } from "../../../../config/env";
 import { RepoNavigationTabs } from "../../RepoNavigationTabs";
+import { TabExplainerBanner } from "../../TabExplainerBanner";
 
 const RECENT_COMMITS_LIMIT = 20; // matches core-api's src/routes/commits.ts
 
@@ -60,6 +61,12 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
         installationId={installationId}
         repoName={installation.targetLogin}
         apiKey={apiKey}
+      />
+
+      <TabExplainerBanner
+        tab="analytics"
+        installationId={installationId}
+        repoName={installation.targetLogin}
       />
 
       <div>

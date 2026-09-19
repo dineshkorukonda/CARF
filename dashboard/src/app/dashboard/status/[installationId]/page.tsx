@@ -9,6 +9,7 @@ import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { listInstallationRepos, type InstallationRepo } from "../../../../adapters/github/reposClient";
 import { StatusTable } from "./StatusTable";
 import { RepoNavigationTabs } from "../../RepoNavigationTabs";
+import { TabExplainerBanner } from "../../TabExplainerBanner";
 
 export default async function StatusPage({
   params,
@@ -52,6 +53,12 @@ export default async function StatusPage({
         installationId={installationId}
         repoName={installation.targetLogin}
         apiKey={apiKey}
+      />
+
+      <TabExplainerBanner
+        tab="status"
+        installationId={installationId}
+        repoName={installation.targetLogin}
       />
 
       <div>
