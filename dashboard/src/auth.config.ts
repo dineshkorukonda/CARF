@@ -35,13 +35,24 @@ export const authConfig: NextAuthConfig = {
   trustHost: true,
   providers: [
     GitHub({
-      clientId: process.env.AUTH_GITHUB_ID,
-      clientSecret: process.env.AUTH_GITHUB_SECRET,
+      clientId:
+        process.env.AUTH_GITHUB_ID ||
+        process.env.GITHUB_ID ||
+        process.env.GITHUB_CLIENT_ID ||
+        process.env.AUTH_GITHUB_CLIENT_ID ||
+        "",
+      clientSecret:
+        process.env.AUTH_GITHUB_SECRET ||
+        process.env.GITHUB_SECRET ||
+        process.env.GITHUB_CLIENT_SECRET ||
+        process.env.AUTH_GITHUB_CLIENT_SECRET ||
+        "",
       allowDangerousEmailAccountLinking: true,
     }),
   ],
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
