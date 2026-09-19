@@ -1,5 +1,20 @@
 import { useState, useMemo } from "react";
-import { ArrowRight, ShieldCheck, GitBranch, Cpu, Sliders } from "lucide-react";
+import {
+  ArrowRight,
+  ShieldCheck,
+  GitBranch,
+  Cpu,
+  Sliders,
+  Globe,
+  Server,
+  Terminal,
+  Container,
+  Layers,
+  Check,
+  Copy,
+  Sparkles,
+  BookOpen,
+} from "lucide-react";
 
 interface ScenarioPreset {
   id: string;
@@ -505,6 +520,74 @@ export default function App() {
                 <div className="bg-[#f7f7f7] p-2 rounded border border-[#eaeaea] text-[#111] overflow-x-auto text-[11px]">
                   {`V = [code:${codeFiles}, test:${testFiles} (0.1x), infra:${infraFiles}, cfg:${configFiles}, db:${dbFiles}, fns:${functionsModified}, ΔCC:+${cyclomaticDelta}]`}
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Supported Deployment Stacks & 1-Click Integrations */}
+        <section className="mb-10 border border-[#eaeaea] bg-[#fafafa] rounded-[6px] p-5 sm:p-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 pb-4 border-b border-[#eaeaea]">
+            <div>
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#666] uppercase tracking-wider mb-1">
+                <Sparkles className="w-3.5 h-3.5 text-[#111]" />
+                1-Click Platform Presets
+              </div>
+              <h2 className="font-['Lora',Georgia,serif] text-[20px] font-semibold text-[#0a0a0a]">
+                Zero-Friction Protection for Modern Clouds
+              </h2>
+            </div>
+            <span className="text-[11px] text-[#666] font-mono bg-[#ffffff] px-2.5 py-1 rounded-[4px] border border-[#e0e0e0] self-start sm:self-auto">
+              Auto Stack Recognition
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Vercel Card */}
+            <div className="border border-[#e5e5e5] bg-white rounded-[6px] p-4 flex flex-col justify-between shadow-2xs hover:border-[#bbb] transition-all">
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-semibold text-[#111] text-[14px]">
+                  <Globe className="w-4 h-4 text-blue-600" />
+                  <span>Vercel (Next.js)</span>
+                </div>
+                <p className="text-[12px] text-[#666] leading-[1.6]">
+                  Advisory Mode generates real-time PR risk badges and preview soak checks without blocking production builds.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] font-mono text-[10px] text-blue-700 bg-blue-50/70 p-2 rounded">
+                curl -s https://carf.indevs.in/v1/threshold?commit=$SHA
+              </div>
+            </div>
+
+            {/* Render Card */}
+            <div className="border border-[#e5e5e5] bg-white rounded-[6px] p-4 flex flex-col justify-between shadow-2xs hover:border-[#bbb] transition-all">
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-semibold text-[#111] text-[14px]">
+                  <Server className="w-4 h-4 text-indigo-600" />
+                  <span>Render.com</span>
+                </div>
+                <p className="text-[12px] text-[#666] leading-[1.6]">
+                  Deploy Hook triggers and health endpoint polling for calculated soak duration before release sign-off.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] font-mono text-[10px] text-indigo-700 bg-indigo-50/70 p-2 rounded">
+                Deploy Hook + /healthz soak window
+              </div>
+            </div>
+
+            {/* PM2 Card */}
+            <div className="border border-[#e5e5e5] bg-white rounded-[6px] p-4 flex flex-col justify-between shadow-2xs hover:border-[#bbb] transition-all">
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-semibold text-[#111] text-[14px]">
+                  <Terminal className="w-4 h-4 text-emerald-600" />
+                  <span>PM2 (VPS / Node)</span>
+                </div>
+                <p className="text-[12px] text-[#666] leading-[1.6]">
+                  Capistrano release layout (/var/www/releases) with zero-downtime cluster reloads and instant symlink rollbacks.
+                </p>
+              </div>
+              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] font-mono text-[10px] text-emerald-700 bg-emerald-50/70 p-2 rounded">
+                ln -sfn releases/prev current && pm2 reload
               </div>
             </div>
           </div>
