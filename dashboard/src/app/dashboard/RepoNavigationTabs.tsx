@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Radio, Settings2, Sliders, Sparkles } from "lucide-react";
+import { BarChart3, Radio, Settings2, Sliders, Sparkles, Blocks } from "lucide-react";
 import { ApiKeyCopyButton } from "./installations/ApiKeyCopyButton";
 import { SetupGuideModal } from "./SetupGuideModal";
 
@@ -25,6 +25,7 @@ export function RepoNavigationTabs({
   const isRules = pathname.startsWith(`/dashboard/config/${installationId}/rules`);
   const isConfig = pathname.startsWith(`/dashboard/config/${installationId}`) && !isRules;
   const isAnalytics = pathname.startsWith(`/dashboard/analytics/${installationId}`);
+  const isIntegrations = pathname.startsWith(`/dashboard/integrations/${installationId}`);
 
   const tabs = [
     {
@@ -54,6 +55,13 @@ export function RepoNavigationTabs({
       active: isAnalytics,
       icon: BarChart3,
       activeColor: "text-slate-900",
+    },
+    {
+      label: "Integrations",
+      href: `/dashboard/integrations/${installationId}`,
+      active: isIntegrations,
+      icon: Blocks,
+      activeColor: "text-blue-600",
     },
   ];
 

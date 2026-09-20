@@ -131,11 +131,13 @@ export default async function RulesPage({
         apiKey={apiKey}
       />
 
-      <TabExplainerBanner
-        tab="rules"
-        installationId={installationId}
-        repoName={installation.targetLogin}
-      />
+      {!file && (
+        <TabExplainerBanner
+          tab="rules"
+          installationId={installationId}
+          repoName={installation.targetLogin}
+        />
+      )}
 
       <div className="max-w-4xl flex flex-col gap-6">
         <div>

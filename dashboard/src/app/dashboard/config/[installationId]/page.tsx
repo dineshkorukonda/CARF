@@ -105,11 +105,13 @@ export default async function ConfigPage({
         apiKey={apiKey}
       />
 
-      <TabExplainerBanner
-        tab="adapter"
-        installationId={installationId}
-        repoName={installation.targetLogin}
-      />
+      {!file && (
+        <TabExplainerBanner
+          tab="adapter"
+          installationId={installationId}
+          repoName={installation.targetLogin}
+        />
+      )}
 
       <div className="max-w-3xl flex flex-col gap-6">
         <div>
