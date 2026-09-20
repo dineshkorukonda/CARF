@@ -63,11 +63,13 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
         apiKey={apiKey}
       />
 
-      <TabExplainerBanner
-        tab="analytics"
-        installationId={installationId}
-        repoName={installation.targetLogin}
-      />
+      {commits.length === 0 && (
+        <TabExplainerBanner
+          tab="analytics"
+          installationId={installationId}
+          repoName={installation.targetLogin}
+        />
+      )}
 
       <div>
         <h1 className="text-xl font-semibold">Rollout Health & Analytics</h1>

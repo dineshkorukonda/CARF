@@ -5,14 +5,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound } from "lucide-react";
+import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, Blocks } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
 function activeInstallationId(pathname: string): string | null {
-  const match = pathname.match(/^\/dashboard\/(?:status|config|analytics)\/([^/]+)/);
+  const match = pathname.match(/^\/dashboard\/(?:status|config|analytics|integrations)\/([^/]+)/);
   return match ? match[1]! : null;
 }
 
@@ -230,6 +230,13 @@ export function SidebarShell({
                   icon={<BarChart3 className="size-4 shrink-0" />}
                 >
                   Rollout Analytics
+                </ContextNavLink>
+                <ContextNavLink
+                  href={`/dashboard/integrations/${active.installationId}`}
+                  collapsed={collapsed}
+                  icon={<Blocks className="size-4 shrink-0 text-blue-400" />}
+                >
+                  Integrations
                 </ContextNavLink>
               </nav>
             </div>
