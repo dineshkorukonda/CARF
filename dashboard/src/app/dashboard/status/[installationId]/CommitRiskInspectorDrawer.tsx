@@ -11,6 +11,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import type { RecentCommit } from "../../../../adapters/coreApi/client";
+import { CommitMetricGauges } from "../../../../components/telemetry/CommitMetricGauges";
+import { AstRiskBreakdownBar } from "../../../../components/telemetry/AstRiskBreakdownBar";
 
 interface CommitRiskInspectorDrawerProps {
   commit: RecentCommit | null;
@@ -146,12 +148,30 @@ export function CommitRiskInspectorDrawer({
             </div>
           </div>
 
-          {/* Contributing AST Categories */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
-            <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
-              <Code2 className="size-4 text-blue-600" />
-              <span>Tree-sitter AST & Diff Classification</span>
-            </h4>
+          {/* Live Telemetry & Error Budget Gauges */}
+          <CommitMetricGauges
+            finalThreshold={commit.finalThreshold}
+            finalWindow={commit.finalWindow}
+            finalErrorRate={commit.finalErrorRate}
+            rolledBack={commit.rolledBack}
+            createdAt={commit.createdAt}
+          />
+
+          {/* Contributing AST Categories & Visual Breakdown */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4.5 space-y-4 shadow-2xs">
+            <div>
+              <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
+                <Code2 className="size-4 text-blue-600" />
+                <span>Tree-sitter AST Risk Decomposition</span>
+              </h4>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                Weights and category contributions derived from AST structural analysis.
+              </p>
+            </div>
+
+            <AstRiskBreakdownBar activeTypes={commit.activeTypes} />
+
+            <div className="border-t border-slate-100 pt-3">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <div
                 className={`rounded-lg p-2.5 border text-xs ${
@@ -232,6 +252,7 @@ export function CommitRiskInspectorDrawer({
                   {hasDeps ? "Active (package/lock)" : "Clean"}
                 </div>
               </div>
+            </div>
             </div>
           </div>
 

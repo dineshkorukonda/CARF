@@ -44,6 +44,7 @@ import { LinkProjectModal } from "./LinkProjectModal";
 import { UnlinkConfirmModal } from "./UnlinkConfirmModal";
 import { CommitRiskInspectorDrawer } from "./CommitRiskInspectorDrawer";
 import { AdvisoryAlertBanner } from "./AdvisoryAlertBanner";
+import { CommitTrendChart } from "../../../../components/telemetry/CommitTrendChart";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -1164,6 +1165,12 @@ export function StatusTable({
               </div>
             </div>
           )}
+
+          {/* ── Rollout Risk & Tolerance Trend Chart ── */}
+          <CommitTrendChart
+            commits={filteredCommits}
+            onSelectCommit={(c) => setInspectCommit(c)}
+          />
 
           {/* Commits Filter & Controls */}
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

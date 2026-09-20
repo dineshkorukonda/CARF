@@ -50,6 +50,7 @@ export default async function StatusPage({
   }
 
   const activeRepoName = initialRepo || installation.targetLogin;
+  const isConfigured = commits.length > 0;
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
@@ -59,22 +60,26 @@ export default async function StatusPage({
         apiKey={apiKey}
       />
 
-      <TabExplainerBanner
-        tab="status"
-        installationId={installationId}
-        repoName={installation.targetLogin}
-      />
+      {!isConfigured && (
+        <>
+          <TabExplainerBanner
+            tab="status"
+            installationId={installationId}
+            repoName={installation.targetLogin}
+          />
 
-      <StackRecognitionBanner
-        repoName={activeRepoName}
-        installationId={installationId}
-      />
+          <StackRecognitionBanner
+            repoName={activeRepoName}
+            installationId={installationId}
+          />
 
-      <OnboardingChecklist
-        installationId={installationId}
-        repoName={activeRepoName}
-        totalCommits={commits.length}
-      />
+          <OnboardingChecklist
+            installationId={installationId}
+            repoName={activeRepoName}
+            totalCommits={commits.length}
+          />
+        </>
+      )}
 
       <div>
         <h1 className="text-xl font-bold text-slate-900">Live Rollout Status</h1>
