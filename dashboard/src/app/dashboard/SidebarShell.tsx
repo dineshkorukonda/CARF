@@ -5,9 +5,20 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, Settings2, Sliders, UserRound, Blocks } from "lucide-react";
+import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, UserRound, Blocks } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
+import {
+  INSTALLATION_SECTION_ITEMS,
+  installationSectionHref,
+  type InstallationSectionId,
+} from "../../lib/dashboardNav";
+
+const SECTION_ICONS: Record<InstallationSectionId, typeof Radio> = {
+  status: Radio,
+  analytics: BarChart3,
+  integrations: Blocks,
+};
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
@@ -203,41 +214,29 @@ export function SidebarShell({
               )}
 
               <nav className="flex flex-col gap-0.5 px-3">
-                <ContextNavLink
-                  href={`/dashboard/status/${active.installationId}`}
-                  collapsed={collapsed}
-                  icon={<Radio className="size-4 shrink-0 text-emerald-500" />}
-                >
-                  Live Status
-                </ContextNavLink>
-                <ContextNavLink
-                  href={`/dashboard/config/${active.installationId}`}
-                  collapsed={collapsed}
-                  icon={<Settings2 className="size-4 shrink-0" />}
-                >
-                  Deployment Adapter
-                </ContextNavLink>
-                <ContextNavLink
-                  href={`/dashboard/config/${active.installationId}/rules`}
-                  collapsed={collapsed}
-                  icon={<Sliders className="size-4 shrink-0" />}
-                >
-                  Threshold Rules
-                </ContextNavLink>
-                <ContextNavLink
-                  href={`/dashboard/analytics/${active.installationId}`}
-                  collapsed={collapsed}
-                  icon={<BarChart3 className="size-4 shrink-0" />}
-                >
-                  Rollout Analytics
-                </ContextNavLink>
-                <ContextNavLink
-                  href={`/dashboard/integrations/${active.installationId}`}
-                  collapsed={collapsed}
-                  icon={<Blocks className="size-4 shrink-0 text-blue-400" />}
-                >
-                  Integrations
-                </ContextNavLink>
+                {INSTALLATION_SECTION_ITEMS.map((item) => {
+                  const Icon = SECTION_ICONS[item.id];
+                  return (
+                    <ContextNavLink
+                      key={item.id}
+                      href={installationSectionHref(item.id, active.installationId)}
+                      collapsed={collapsed}
+                      icon={
+                        <Icon
+                          className={
+                            item.id === "status"
+                              ? "size-4 shrink-0 text-emerald-500"
+                              : item.id === "integrations"
+                                ? "size-4 shrink-0 text-blue-400"
+                                : "size-4 shrink-0"
+                          }
+                        />
+                      }
+                    >
+                      {item.label}
+                    </ContextNavLink>
+                  );
+                })}
               </nav>
             </div>
           </>

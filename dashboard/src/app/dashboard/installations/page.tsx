@@ -1,4 +1,4 @@
-import { Radio, Settings2, Sliders, BarChart3, Plus } from "lucide-react";
+import { Radio, BarChart3, Plus, Blocks } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
 import { Input } from "../../../components/ui/input";
@@ -103,25 +103,18 @@ export default async function InstallationsPage({
                   <span>Status</span>
                 </Link>
                 <Link
-                  href={`/dashboard/config/${installation.installationId}`}
-                  className="inline-flex items-center gap-1.5 rounded-sm bg-muted/60 hover:bg-muted text-foreground px-2.5 py-1.5 text-xs font-medium border border-border transition-colors"
-                >
-                  <Settings2 className="size-3" />
-                  <span>Adapter</span>
-                </Link>
-                <Link
-                  href={`/dashboard/config/${installation.installationId}/rules`}
-                  className="inline-flex items-center gap-1.5 rounded-sm bg-muted/60 hover:bg-muted text-foreground px-2.5 py-1.5 text-xs font-medium border border-border transition-colors"
-                >
-                  <Sliders className="size-3" />
-                  <span>Rules</span>
-                </Link>
-                <Link
                   href={`/dashboard/analytics/${installation.installationId}`}
                   className="inline-flex items-center gap-1.5 rounded-sm bg-muted/60 hover:bg-muted text-foreground px-2.5 py-1.5 text-xs font-medium border border-border transition-colors"
                 >
                   <BarChart3 className="size-3" />
                   <span>Analytics</span>
+                </Link>
+                <Link
+                  href={`/dashboard/integrations/${installation.installationId}`}
+                  className="inline-flex items-center gap-1.5 rounded-sm bg-muted/60 hover:bg-muted text-foreground px-2.5 py-1.5 text-xs font-medium border border-border transition-colors"
+                >
+                  <Blocks className="size-3 text-blue-500" />
+                  <span>Integrations</span>
                 </Link>
               </div>
             </div>

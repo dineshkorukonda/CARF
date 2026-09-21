@@ -10,9 +10,8 @@ import { listInstallationRepos } from "../../../../adapters/github/reposClient";
 import { getCarfConfigFile } from "../../../../adapters/github/contentsClient";
 import { ConfigModeForm } from "./ConfigModeForm";
 import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
-import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
-import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 import { TabExplainerBanner } from "../../TabExplainerBanner";
+import { ProjectBackLink } from "../../ProjectBackLink";
 
 interface ExistingModeAdapter {
   mode?: string;
@@ -43,13 +42,6 @@ export default async function ConfigPage({
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation) redirect("/dashboard?error=not_authorized");
 
-  let apiKey: string | null = null;
-  try {
-    apiKey = await ensureCoreApiKey(prisma, installation);
-  } catch {
-    // Non-fatal
-  }
-
   const token = await mintInstallationToken(installationId);
   const repos = await listInstallationRepos(token);
 
@@ -58,11 +50,6 @@ export default async function ConfigPage({
   if (!selectedFullName) {
     return (
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-        <RepoNavigationTabs
-          installationId={installationId}
-          repoName={installation.targetLogin}
-          apiKey={apiKey}
-        />
         <TabExplainerBanner
           tab="adapter"
           installationId={installationId}
@@ -99,11 +86,7 @@ export default async function ConfigPage({
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-      <RepoNavigationTabs
-        installationId={installationId}
-        repoName={installation.targetLogin}
-        apiKey={apiKey}
-      />
+      <ProjectBackLink installationId={installationId} repoFullName={selectedFullName} />
 
       {!file && (
         <TabExplainerBanner
