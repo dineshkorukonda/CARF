@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { RecentCommit } from "../../adapters/coreApi/client";
-import { Activity, ShieldCheck, AlertTriangle, Radio, TrendingDown, Info } from "lucide-react";
+import { Activity } from "lucide-react";
 
 export interface CommitTrendChartProps {
   commits: RecentCommit[];
@@ -183,7 +183,6 @@ export function CommitTrendChart({
             const errorRateY = commit.finalErrorRate != null ? getY(commit.finalErrorRate) : null;
             const isRolledBack = commit.rolledBack === true;
             const isClean = commit.rolledBack === false;
-            const isPending = commit.rolledBack === null;
 
             const pointColor = isRolledBack ? "#ef4444" : isClean ? "#10b981" : "#f59e0b";
 

@@ -20,7 +20,7 @@ export function CommitMetricGauges({
   createdAt,
   className = "",
 }: CommitMetricGaugesProps) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState<number>(0);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -29,8 +29,8 @@ export function CommitMetricGauges({
 
   const createdTime = useMemo(() => new Date(createdAt).getTime(), [createdAt]);
   const windowSecs = finalWindow ?? 180;
-  const elapsedSecs = Math.max(0, Math.floor((now - createdTime) / 1000));
-  const isObserving = rolledBack === null && elapsedSecs < windowSecs;
+  const elapsedSecs = now > 0 ? Math.max(0, Math.floor((now - createdTime) / 1000)) : 0;
+  const isObserving = rolledBack === null && (now > 0 ? elapsedSecs < windowSecs : true);
   const remainingSecs = Math.max(0, windowSecs - elapsedSecs);
   const soakProgressPct = Math.min(100, Math.round((elapsedSecs / windowSecs) * 100));
 

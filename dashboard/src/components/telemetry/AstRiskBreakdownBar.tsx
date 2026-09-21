@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Database, Server, Package, Sliders, Code2, AlertCircle } from "lucide-react";
+import { Database, Server, Package, Sliders, Code2 } from "lucide-react";
 
 export interface AstRiskBreakdownBarProps {
   activeTypes: string[];

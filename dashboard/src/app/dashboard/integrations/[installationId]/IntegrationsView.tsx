@@ -2,22 +2,16 @@
 
 import { useState, useMemo } from "react";
 import {
-  Layers,
   Terminal,
   Container,
   Server,
-  GitBranch,
   Copy,
   Check,
   ExternalLink,
-  Sparkles,
   Zap,
   Activity,
   ArrowUpRight,
-  ShieldCheck,
   Search,
-  Code2,
-  Cpu,
   RefreshCw,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
@@ -50,9 +44,7 @@ interface IntegrationCardDef {
 
 export function IntegrationsView({
   installationId,
-  targetLogin,
   apiKey,
-  repos = [],
 }: IntegrationsViewProps) {
   const [search, setSearch] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
