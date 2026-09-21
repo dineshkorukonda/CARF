@@ -5,7 +5,6 @@ import { prisma } from "../../../../lib/prisma";
 import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { listInstallationRepos, type InstallationRepo } from "../../../../adapters/github/reposClient";
-import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 import { IntegrationsView } from "./IntegrationsView";
 
 export default async function IntegrationsPage({
@@ -39,12 +38,6 @@ export default async function IntegrationsPage({
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-      <RepoNavigationTabs
-        installationId={installationId}
-        repoName={installation.targetLogin}
-        apiKey={apiKey}
-      />
-
       <IntegrationsView
         installationId={installationId}
         targetLogin={installation.targetLogin}

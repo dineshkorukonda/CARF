@@ -441,7 +441,7 @@ export function SetupGuideModal({
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-3.5">
           <p className="text-xs text-slate-500">
-            Need custom sensitivity rules? Visit the <strong>Threshold Rules</strong> tab anytime.
+            Need custom sensitivity rules? Open <strong>Thresholds</strong> from the project page.
           </p>
           <button
             onClick={onClose}

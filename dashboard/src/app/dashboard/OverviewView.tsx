@@ -27,6 +27,7 @@ import {
 import type { InstallationRepo } from "../../adapters/github/reposClient";
 import type { RecentCommit } from "../../adapters/coreApi/client";
 import type { InstallationRow } from "../../lib/accountService";
+import { projectThresholdsHref } from "../../lib/dashboardNav";
 import { RefreshReposButton } from "./RefreshReposButton";
 import { PipelineStageTracker } from "./PipelineStageTracker";
 import { RepoProtectionWizardModal } from "./RepoProtectionWizardModal";
@@ -673,9 +674,9 @@ export function OverviewView({
                       </button>
 
                       <Link
-                        href={`/dashboard/config/${installation.installationId}`}
+                        href={projectThresholdsHref(installation.installationId, repo.full_name) ?? `/dashboard/status/${installation.installationId}?repo=${encodeURIComponent(repo.full_name)}`}
                         className="rounded-lg border border-border bg-background p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        title="Configure Adapter & Rules"
+                        title="Tune threshold rules"
                       >
                         <Sliders className="size-3.5" />
                       </Link>

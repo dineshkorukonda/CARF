@@ -26,6 +26,7 @@ import {
   Plus,
   Trash2,
   Calculator,
+  Sliders,
 } from "lucide-react";
 import { Badge } from "../../../../components/ui/badge";
 import {
@@ -45,6 +46,7 @@ import { UnlinkConfirmModal } from "./UnlinkConfirmModal";
 import { CommitRiskInspectorDrawer } from "./CommitRiskInspectorDrawer";
 import { AdvisoryAlertBanner } from "./AdvisoryAlertBanner";
 import { CommitTrendChart } from "../../../../components/telemetry/CommitTrendChart";
+import { projectThresholdsHref } from "../../../../lib/dashboardNav";
 
 const POLL_INTERVAL_MS = 15_000;
 
@@ -627,6 +629,9 @@ export function StatusTable({
     );
   }, [projects, selectedRepoFilter]);
 
+  const activeProjectFullName = activeProject?.fullName ?? (selectedRepoFilter !== "all" ? selectedRepoFilter : "");
+  const thresholdsHref = projectThresholdsHref(installationId, activeProjectFullName);
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── CASE 1: All Projects Mode ── */}
@@ -1066,6 +1071,15 @@ export function StatusTable({
                 <p className="text-[11px] text-slate-400 font-mono hidden sm:inline">
                   Updated {lastUpdated.toLocaleTimeString()} · poll {POLL_INTERVAL_MS / 1000}s
                 </p>
+                {thresholdsHref && (
+                  <a
+                    href={thresholdsHref}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                  >
+                    <Sliders className="size-3" />
+                    <span>Thresholds</span>
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowLegend((v) => !v)}
