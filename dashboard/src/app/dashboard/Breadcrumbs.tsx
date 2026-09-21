@@ -19,20 +19,22 @@ function buildCrumbs(pathname: string, installations: InstallationRow[]): Crumb[
   if (pathname === "/dashboard/account") return [{ label: "Account" }];
   if (pathname === "/dashboard/installations") return [{ label: "All installations" }];
 
-  const match = pathname.match(/^\/dashboard\/(status|verify|config|analytics)\/([^/]+)(\/rules)?$/);
+  const match = pathname.match(/^\/dashboard\/(status|verify|config|analytics|integrations)\/([^/]+)(\/rules)?$/);
   if (match) {
     const [, section, installationId, rulesSuffix] = match;
     const installation = installations.find((i) => i.installationId === installationId);
     const repoLabel = installation?.targetLogin ?? installationId!;
     const sectionLabel = rulesSuffix
-      ? "Rules"
+      ? "Thresholds"
       : section === "status"
         ? "Status"
         : section === "verify"
           ? "Verify"
           : section === "config"
-            ? "Configure"
-            : "Analytics";
+            ? "Adapter"
+            : section === "integrations"
+              ? "Integrations"
+              : "Analytics";
 
     return [{ label: repoLabel, href: `/dashboard/status/${installationId}` }, { label: sectionLabel }];
   }

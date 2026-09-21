@@ -8,7 +8,6 @@ import { env } from "../../../../config/env";
 import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { listInstallationRepos, type InstallationRepo } from "../../../../adapters/github/reposClient";
 import { StatusTable } from "./StatusTable";
-import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 import { TabExplainerBanner } from "../../TabExplainerBanner";
 import { StackRecognitionBanner } from "../../StackRecognitionBanner";
 import { OnboardingChecklist } from "../../OnboardingChecklist";
@@ -54,12 +53,6 @@ export default async function StatusPage({
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-      <RepoNavigationTabs
-        installationId={installationId}
-        repoName={installation.targetLogin}
-        apiKey={apiKey}
-      />
-
       {!isConfigured && (
         <>
           <TabExplainerBanner

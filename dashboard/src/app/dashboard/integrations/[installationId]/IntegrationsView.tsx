@@ -290,15 +290,15 @@ scrape_configs:
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-foreground">
-              Integrations & Deployment Adapters
+              Integrations
             </h1>
             <Badge variant="outline" className="text-xs">
               {integrations.length} Platforms
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground max-w-2xl">
-            Connect CARF to your deployment orchestrators, CI/CD runners, and cloud platforms.
-            Configure autonomous rollback triggers or subscribe to dynamic risk budget webhooks.
+            Connect CARF to PM2, Docker, Kubernetes, Vercel, and other platforms.
+            Add standalone rollback targets here after a project is already linked.
           </p>
         </div>
 

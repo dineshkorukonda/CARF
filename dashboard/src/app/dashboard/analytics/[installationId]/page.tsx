@@ -5,7 +5,6 @@ import { prisma } from "../../../../lib/prisma";
 import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { fetchRecentCommits, type RecentCommit } from "../../../../adapters/coreApi/client";
 import { env } from "../../../../config/env";
-import { RepoNavigationTabs } from "../../RepoNavigationTabs";
 import { TabExplainerBanner } from "../../TabExplainerBanner";
 
 const RECENT_COMMITS_LIMIT = 20; // matches core-api's src/routes/commits.ts
@@ -57,12 +56,6 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ inst
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-      <RepoNavigationTabs
-        installationId={installationId}
-        repoName={installation.targetLogin}
-        apiKey={apiKey}
-      />
-
       {commits.length === 0 && (
         <TabExplainerBanner
           tab="analytics"

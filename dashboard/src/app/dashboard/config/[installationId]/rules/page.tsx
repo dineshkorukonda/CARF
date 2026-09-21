@@ -10,9 +10,8 @@ import { listInstallationRepos } from "../../../../../adapters/github/reposClien
 import { getCarfConfigFile } from "../../../../../adapters/github/contentsClient";
 import type { ThresholdChangeType } from "../../../../../lib/carfConfigSchema";
 import { RulesForm, type RulesFormInitial } from "./RulesForm";
-import { ensureCoreApiKey } from "../../../../../lib/coreApiAccess";
-import { RepoNavigationTabs } from "../../../RepoNavigationTabs";
 import { TabExplainerBanner } from "../../../TabExplainerBanner";
+import { ProjectBackLink } from "../../../ProjectBackLink";
 
 interface ExistingClassificationThreshold {
   classification?: { rules?: Array<{ type: string; patterns: string[] }> };
@@ -73,13 +72,6 @@ export default async function RulesPage({
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation) redirect("/dashboard?error=not_authorized");
 
-  let apiKey: string | null = null;
-  try {
-    apiKey = await ensureCoreApiKey(prisma, installation);
-  } catch {
-    // Non-fatal
-  }
-
   const token = await mintInstallationToken(installationId);
   const repos = await listInstallationRepos(token);
   const selectedFullName = repoParam ?? (repos.length === 1 ? repos[0]!.full_name : undefined);
@@ -87,11 +79,6 @@ export default async function RulesPage({
   if (!selectedFullName) {
     return (
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-        <RepoNavigationTabs
-          installationId={installationId}
-          repoName={installation.targetLogin}
-          apiKey={apiKey}
-        />
         <TabExplainerBanner
           tab="rules"
           installationId={installationId}
@@ -125,11 +112,7 @@ export default async function RulesPage({
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
-      <RepoNavigationTabs
-        installationId={installationId}
-        repoName={installation.targetLogin}
-        apiKey={apiKey}
-      />
+      <ProjectBackLink installationId={installationId} repoFullName={selectedFullName} />
 
       {!file && (
         <TabExplainerBanner
