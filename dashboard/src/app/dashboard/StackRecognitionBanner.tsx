@@ -24,6 +24,7 @@ interface StackRecognitionBannerProps {
 
 function StackIcon({ stack, className }: { stack: string; className?: string }) {
   switch (stack) {
+    case "nextjs":
     case "vercel":
       return <Globe className={className} />;
     case "render":

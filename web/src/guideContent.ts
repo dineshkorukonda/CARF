@@ -34,7 +34,7 @@ export const GETTING_STARTED = {
     },
     {
       title: "Link a project",
-      body: "On Live Status, choose Link Project. Pick the repository, then either Augment (CARF advises CI/CD) or Standalone (CARF drives health checks and rollback). Standalone asks for the process or compose adapter at this step.",
+      body: "On Live Status, choose Link Project. Pick the repository, then either Augment (CARF advises CI/CD) or Standalone (CARF drives health checks and rollback). Standalone asks for the rollback adapter at this step.",
     },
     {
       title: "Push a commit",
@@ -48,7 +48,7 @@ export const GUIDE_PLATFORMS: PlatformGuide[] = [
     id: "pm2",
     name: "PM2 (Node.js / VPS)",
     mode: "standalone",
-    badge: "Standalone adapter",
+    badge: "Standalone adapter (Active)",
     summary:
       "Zero-downtime cluster reload for Node apps on a VPS, EC2, or bare metal. CARF watches PM2 process health and reloads the previous release when the soak budget is breached.",
     whenToUse:
@@ -92,46 +92,6 @@ thresholds:
 };`,
   },
   {
-    id: "vercel",
-    name: "Vercel (Next.js / frontend)",
-    mode: "augment",
-    badge: "Augment / CI gate",
-    summary:
-      "CARF does not host the app. It scores each commit and exposes a dynamic threshold your Vercel build or GitHub Action can query before promoting a deployment.",
-    whenToUse:
-      "Use this for Next.js and frontend apps on Vercel where rollback is vercel rollback or a cancelled promotion, not a local process manager.",
-    steps: [
-      {
-        title: "Link the repo in Augment mode",
-        body: "No adapter.kind is required. CARF classifies pushes and shows risk on Live Status.",
-      },
-      {
-        title: "Query the threshold before promote",
-        body: "In GitHub Actions or the Vercel build command, call GET /v1/threshold?commit=$SHA with the installation API key.",
-      },
-      {
-        title: "Gate or warn",
-        body: "Fail the check, pause promotion, or post the budget on the PR. If production already shipped, roll back from the Vercel dashboard or CLI.",
-      },
-    ],
-    carfYml: `version: "1.0"
-mode: augment
-thresholds:
-  base_tolerance_pct: 0.5
-  max_tolerance_pct: 4.0
-  observation_window_seconds: 180
-rules:
-  - name: server-actions-and-api
-    pattern: "src/app/api/**/*.{ts,js}"
-    weight: 2.0`,
-    deploySnippetTitle: "GitHub Action / Vercel build probe",
-    deploySnippet: `THRESHOLD=$(curl -s -H "Authorization: Bearer $CARF_API_KEY" \\
-  "https://carf.indevs.in/v1/threshold?commit=$VERCEL_GIT_COMMIT_SHA" \\
-  | jq -r '.finalThreshold')
-
-echo "CARF dynamic risk threshold: $THRESHOLD"`,
-  },
-  {
     id: "render",
     name: "Render & Railway",
     mode: "augment",
@@ -169,52 +129,10 @@ WINDOW=$(echo "$RES" | jq -r '.finalWindow // 240')
 sleep "$WINDOW"`,
   },
   {
-    id: "docker",
-    name: "Docker Compose",
-    mode: "standalone",
-    badge: "Standalone adapter",
-    summary:
-      "Single-node container rollouts. CARF swaps IMAGE_TAG and brings the previous image back if the service becomes unhealthy during soak.",
-    whenToUse:
-      "Use this when compose is the deploy unit on a VM and the compose file already parameterizes the image tag.",
-    steps: [
-      {
-        title: "Link with dockerCompose",
-        body: "Standalone adapter kind dockerCompose. Target is the service name in docker-compose.yml (for example web).",
-      },
-      {
-        title: "Parameterize the image",
-        body: "The service image must use ${IMAGE_TAG:-latest} so CARF can roll back by tag.",
-      },
-      {
-        title: "Healthcheck the container",
-        body: "Compose healthchecks are what CARF treats as the soak signal. A restart loop during the window triggers rollback.",
-      },
-    ],
-    carfYml: `version: "1.0"
-mode: standalone
-adapter:
-  kind: dockerCompose
-  target: web-service
-thresholds:
-  base_tolerance_pct: 0.5
-  observation_window_seconds: 300`,
-    deploySnippetTitle: "docker-compose.yml (relevant service)",
-    deploySnippet: `services:
-  web-service:
-    image: my-registry.com/app:\${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 3`,
-  },
-  {
     id: "kubernetes",
     name: "Kubernetes & Argo Rollouts",
     mode: "augment",
-    badge: "Augment / analysis template",
+    badge: "Augment / analysis template (Preview)",
     summary:
       "CARF does not kubectl apply for you. Argo Rollouts (or Flagger) queries GET /v1/threshold and uses the returned budget as the canary analysis metric.",
     whenToUse:

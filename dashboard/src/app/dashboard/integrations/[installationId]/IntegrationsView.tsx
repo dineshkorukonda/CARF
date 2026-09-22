@@ -57,39 +57,6 @@ export function IntegrationsView({
   const integrations: IntegrationCardDef[] = useMemo(
     () => [
       {
-        id: "vercel",
-        name: "Vercel",
-        category: "Hosting & Serverless",
-        description:
-          "Enforce change-aware risk budgets on Next.js and frontend deployments. Cancels or pauses builds when AST risk exceeds allowable tolerance.",
-        mode: "Augment (Advisory / CI Gate)",
-        icon: ArrowUpRight,
-        badge: "Serverless & Frontend",
-        badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-        docsUrl: "https://vercel.com/docs",
-        snippets: {
-          carfYml: `# .carf.yml for Vercel / Next.js
-version: "1.0"
-mode: augment
-thresholds:
-  base_tolerance_pct: 0.5
-  max_tolerance_pct: 4.0
-  observation_window_seconds: 180
-rules:
-  - name: server-actions-and-api
-    pattern: "src/app/api/**/*.{ts,js}"
-    weight: 2.0`,
-          actionScript: `# In GitHub Actions or Vercel Build Command
-# Query CARF dynamic threshold before deployment promotion:
-THRESHOLD=$(curl -s -H "Authorization: Bearer ${apiKey ?? "<API_KEY>"}" \\
-  "${baseUrl}/v1/threshold?commit=\${VERCEL_GIT_COMMIT_SHA}" | jq -r '.finalThreshold')
-
-echo "CARF dynamic risk threshold: \${THRESHOLD}"`,
-          curlProbe: `curl -i -H "Authorization: Bearer ${apiKey ?? "<API_KEY>"}" \\
-  "${baseUrl}/v1/threshold?commit=HEAD"`,
-        },
-      },
-      {
         id: "pm2",
         name: "PM2 Process Manager",
         category: "Process Managers",
@@ -97,7 +64,7 @@ echo "CARF dynamic risk threshold: \${THRESHOLD}"`,
           "Autonomous zero-downtime rollback for Node.js apps on VPS, EC2, or bare metal. Automatically executes 'pm2 reload' upon threshold breach.",
         mode: "Standalone (Autonomous Rollback)",
         icon: Terminal,
-        badge: "Production Node.js VPS",
+        badge: "Active / Verified",
         badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
         docsUrl: "https://pm2.keymetrics.io/docs/usage/cluster-mode/",
         snippets: {
@@ -129,57 +96,6 @@ pm2 jlist | jq '.[].pm2_env.status'`,
         },
       },
       {
-        id: "render",
-        name: "Render & Railway",
-        category: "Hosting & Serverless",
-        description:
-          "Connect Render or Railway web services with CARF deployment webhooks and automatic deploy hook rollback on regression spikes.",
-        mode: "Augment (Advisory / CI Gate)",
-        icon: Zap,
-        badge: "Cloud PaaS",
-        badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
-        docsUrl: "https://render.com/docs/deploy-hooks",
-        snippets: {
-          carfYml: `# .carf.yml for Render / Railway
-version: "1.0"
-mode: augment
-thresholds:
-  base_tolerance_pct: 1.0
-  max_tolerance_pct: 3.5
-  observation_window_seconds: 240`,
-          actionScript: `# Deploy Hook Trigger with CARF verification
-curl -X POST "https://api.render.com/deploy/srv-xxxx?ref=\${COMMIT_SHA}"`,
-          curlProbe: `curl -s -H "Authorization: Bearer ${apiKey ?? "<API_KEY>"}" \\
-  "${baseUrl}/v1/commits"`,
-        },
-      },
-      {
-        id: "docker",
-        name: "Docker Compose",
-        category: "Containers & Orchestration",
-        description:
-          "Single-node container rollouts. Swaps image tags atomically and reverts to previous tag with zero downtime if container enters restart loop.",
-        mode: "Standalone (Autonomous Rollback)",
-        icon: Container,
-        badge: "Compose Containers",
-        badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-        docsUrl: "https://docs.docker.com/compose/",
-        snippets: {
-          carfYml: `# .carf.yml for Docker Compose
-version: "1.0"
-mode: standalone
-adapter:
-  kind: dockerCompose
-  target: web-service    # service name in docker-compose.yml
-thresholds:
-  base_tolerance_pct: 0.5
-  observation_window_seconds: 300`,
-          actionScript: `# Autonomous rollback command CARF executes on breach:
-IMAGE_TAG=\${PREVIOUS_SHA} docker compose up -d web-service`,
-          curlProbe: `docker compose ps --format json`,
-        },
-      },
-      {
         id: "kubernetes",
         name: "Kubernetes & Argo Rollouts",
         category: "Containers & Orchestration",
@@ -187,8 +103,8 @@ IMAGE_TAG=\${PREVIOUS_SHA} docker compose up -d web-service`,
           "Cloud-native canary rollouts. Argo Rollouts AnalysisTemplates query CARF's dynamic threshold endpoint to gate canary step promotion.",
         mode: "Augment (Advisory / CI Gate)",
         icon: Server,
-        badge: "K8s & Service Mesh",
-        badgeColor: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
+        badge: "Adapter Preview",
+        badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
         docsUrl: "https://argoproj.github.io/argo-rollouts/",
         snippets: {
           carfYml: `# .carf.yml for Kubernetes / Argo
@@ -217,6 +133,31 @@ spec:
         },
       },
       {
+        id: "render",
+        name: "Render & Railway",
+        category: "Hosting & Serverless",
+        description:
+          "Connect Render or Railway web services with CARF deployment webhooks and automatic deploy hook rollback on regression spikes.",
+        mode: "Augment (Advisory / CI Gate)",
+        icon: Zap,
+        badge: "Cloud PaaS",
+        badgeColor: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
+        docsUrl: "https://render.com/docs/deploy-hooks",
+        snippets: {
+          carfYml: `# .carf.yml for Render / Railway
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 1.0
+  max_tolerance_pct: 3.5
+  observation_window_seconds: 240`,
+          actionScript: `# Deploy Hook Trigger with CARF verification
+curl -X POST "https://api.render.com/deploy/srv-xxxx?ref=\${COMMIT_SHA}"`,
+          curlProbe: `curl -s -H "Authorization: Bearer ${apiKey ?? "<API_KEY>"}" \\
+  "${baseUrl}/v1/commits"`,
+        },
+      },
+      {
         id: "prometheus",
         name: "Prometheus & Observability",
         category: "Observability",
@@ -225,7 +166,7 @@ spec:
         mode: "Augment (Advisory / CI Gate)",
         icon: Activity,
         badge: "Metrics Exporter",
-        badgeColor: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+        badgeColor: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
         docsUrl: "https://prometheus.io/docs/introduction/overview/",
         snippets: {
           carfYml: `# Prometheus Exporter Endpoint
@@ -297,7 +238,7 @@ scrape_configs:
             </Badge>
           </div>
           <p className="mt-1 text-xs text-muted-foreground max-w-2xl">
-            Connect CARF to PM2, Docker, Kubernetes, Vercel, and other platforms.
+            Connect CARF to PM2 (Active), Kubernetes (Preview), Render, and Prometheus.
             Add standalone rollback targets here after a project is already linked.
           </p>
         </div>
@@ -306,7 +247,7 @@ scrape_configs:
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search platforms (Vercel, PM2, K8s...)"
+            placeholder="Search platforms (PM2, K8s, Render...)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 pl-8 text-xs"

@@ -6,8 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Button } from "../../../../components/ui/button";
-import { LIVE_ADAPTER_KINDS, type AdapterKind } from "../../../../lib/carfConfigSchema";
-import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Container, Box, Server, GitBranch, Loader2, Globe, Sparkles } from "lucide-react";
+import { AVAILABLE_ADAPTER_KINDS, ADAPTER_METADATA, type AdapterKind } from "../../../../lib/carfConfigSchema";
+import { Check, ChevronDown, ChevronUp, Copy, Info, Terminal, Server, GitBranch, Loader2, Globe, Sparkles } from "lucide-react";
 
 interface ConfigModeFormProps {
   installationId: string;
@@ -63,47 +63,10 @@ threshold:
       baseWindow: 600`,
     },
   },
-  dockerCompose: {
-    label: "Docker Compose Service Name",
-    placeholder: "e.g. web",
-    description: "CARF redeploys via 'IMAGE_TAG=<baseSha> docker compose up -d <target>'. Ensure your compose file uses ${IMAGE_TAG}.",
-    serverGuide: {
-      prerequisites: "Docker Engine and Compose v2 running on an EC2, Droplet, or on-prem Linux VM.",
-      layout: `services:
-  ${"<target>"}:
-    image: my-registry.com/app:\${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 3`,
-      command: "IMAGE_TAG=latest docker compose up -d <target>",
-      rollbackAction: "IMAGE_TAG=<baseSha> docker compose -f docker-compose.yml up -d <target>",
-      sampleYml: (target) => `mode: standalone
-adapter:
-  kind: dockerCompose
-  target: "${target || "web"}"`,
-    },
-  },
-  dockerSwarm: {
-    label: "Docker Swarm Service Name",
-    placeholder: "e.g. prod_web",
-    description: "CARF executes 'docker service update --rollback <target>'. Swarm tracks previous task specs natively.",
-    serverGuide: {
-      prerequisites: "Docker Swarm cluster initialized with active manager node.",
-      command: "docker service create --name <target> --rollback-config \"order=start-first\" my-app:latest",
-      rollbackAction: "docker service update --rollback <target>",
-      sampleYml: (target) => `mode: standalone
-adapter:
-  kind: dockerSwarm
-  target: "${target || "prod_web"}"`,
-    },
-  },
   kubernetes: {
-    label: "Kubernetes Deployment Name",
+    label: "Kubernetes Deployment Name (Preview)",
     placeholder: "e.g. api-deployment",
-    description: "CARF executes 'kubectl rollout undo deployment/<target>' when the dynamic error threshold is breached.",
+    description: "CARF executes 'kubectl rollout undo deployment/<target>' when dynamic error threshold is breached (Preview / In-Development).",
     serverGuide: {
       prerequisites: "Kubernetes cluster with kubectl configured and deployment resource created.",
       command: "kubectl apply -f deployment.yaml",
@@ -115,9 +78,9 @@ adapter:
     },
   },
   gitops: {
-    label: "Argo CD Application Name",
+    label: "Argo CD Application Name (Preview)",
     placeholder: "e.g. production-app",
-    description: "CARF rolls back the specified Argo CD application to the base revision via the Argo CD API.",
+    description: "CARF rolls back specified Argo CD application via Argo CD API / Git commit revert (Preview / In-Development).",
     serverGuide: {
       prerequisites: "Argo CD GitOps repository tracking deployment manifests.",
       command: "argocd app sync <target>",
@@ -139,13 +102,13 @@ export function ConfigModeForm({
   defaultAdapterTarget,
 }: ConfigModeFormProps) {
   const [mode, setMode] = useState<"standalone" | "augment">(defaultMode);
-  const [adapterKind, setAdapterKind] = useState<AdapterKind>(defaultAdapterKind);
+  const [adapterKind, setAdapterKind] = useState<AdapterKind>(defaultAdapterKind === "pm2" ? "pm2" : "pm2");
   const [adapterTarget, setAdapterTarget] = useState(defaultAdapterTarget);
   const [showGuide, setShowGuide] = useState(true);
   const [copiedYml, setCopiedYml] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const currentAdapter = ADAPTER_DETAILS[adapterKind] ?? ADAPTER_DETAILS.kubernetes;
+  const currentAdapter = ADAPTER_DETAILS[adapterKind] ?? ADAPTER_DETAILS.pm2;
   const guide = currentAdapter.serverGuide;
 
   const handleCopyYml = async () => {
@@ -212,26 +175,26 @@ export function ConfigModeForm({
           <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
             <h4 className="text-xs font-semibold text-slate-900 flex items-center gap-1.5">
               <Sparkles className="size-4 text-blue-600" />
-              <span>Quick Cloud Presets (Vercel · Render · PM2)</span>
+              <span>CI/CD Integration Presets</span>
             </h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
                 <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-xs">
                   <Globe className="size-3.5 text-blue-600" />
-                  <span>Vercel / Next.js Preset</span>
+                  <span>GitHub Actions PR Check</span>
                 </div>
                 <p className="text-[11px] text-slate-600">
-                  Runs as PR check badge and canary risk monitor. Query threshold in GitHub Actions.
+                  Runs as a PR check badge and canary risk monitor before promoting releases.
                 </p>
               </div>
 
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
                 <div className="flex items-center gap-1.5 font-semibold text-slate-800 text-xs">
                   <Server className="size-3.5 text-indigo-600" />
-                  <span>Render.com Preset</span>
+                  <span>External Canary / Deploy Hooks</span>
                 </div>
                 <p className="text-[11px] text-slate-600">
-                  Trigger Deploy Hook and soak health endpoint for the calculated window duration.
+                  Trigger canary analysis or soak probes for the calculated window duration.
                 </p>
               </div>
             </div>
@@ -254,15 +217,26 @@ export function ConfigModeForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {LIVE_ADAPTER_KINDS.map((kind: AdapterKind) => (
-                  <SelectItem key={kind} value={kind}>
-                    {kind === "pm2" ? "PM2 Process Manager (Node / VPS)" :
-                     kind === "dockerCompose" ? "Docker Compose (Single VM)" :
-                     kind === "dockerSwarm" ? "Docker Swarm (Cluster)" :
-                     kind === "kubernetes" ? "Kubernetes (kubectl)" :
-                     kind === "gitops" ? "GitOps (Argo CD)" : kind}
-                  </SelectItem>
-                ))}
+                {AVAILABLE_ADAPTER_KINDS.map((kind: AdapterKind) => {
+                  const meta = ADAPTER_METADATA[kind];
+                  return (
+                    <SelectItem key={kind} value={kind} disabled={meta.disabled}>
+                      <div className="flex items-center justify-between w-full gap-2">
+                        <span>{meta.label}</span>
+                        {meta.status === "preview" && (
+                          <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                            Preview
+                          </span>
+                        )}
+                        {meta.status === "active" && (
+                          <span className="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -292,8 +266,6 @@ export function ConfigModeForm({
             >
               <div className="flex items-center gap-2">
                 {adapterKind === "pm2" ? <Terminal className="size-3.5 text-primary shrink-0" /> :
-                 adapterKind === "dockerCompose" ? <Container className="size-3.5 text-primary shrink-0" /> :
-                 adapterKind === "dockerSwarm" ? <Box className="size-3.5 text-primary shrink-0" /> :
                  adapterKind === "kubernetes" ? <Server className="size-3.5 text-primary shrink-0" /> :
                  <GitBranch className="size-3.5 text-primary shrink-0" />}
                 <span>Setup Guide for {currentAdapter.label.split(" ")[0]}</span>

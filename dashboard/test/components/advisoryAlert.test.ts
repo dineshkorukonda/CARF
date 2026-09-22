@@ -34,11 +34,11 @@ describe("Advisory Alert Mode & Cloud Presets", () => {
     expect(highRisk[0]?.sha).toBe("abc1234");
   });
 
-  it("verifies cloud presets include Vercel and Render commands", () => {
-    const vercelRollbackCmd = "vercel rollback";
+  it("verifies presets include CI probe and Render commands", () => {
+    const thresholdProbeCmd = "curl /v1/threshold?commit=$SHA";
     const renderDeployHookPrefix = "https://api.render.com/deploy/";
 
-    expect(vercelRollbackCmd).toContain("rollback");
+    expect(thresholdProbeCmd).toContain("threshold");
     expect(renderDeployHookPrefix).toContain("api.render.com");
   });
 });

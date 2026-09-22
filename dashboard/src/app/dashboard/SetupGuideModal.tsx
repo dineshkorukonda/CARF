@@ -23,7 +23,7 @@ interface SetupGuideModalProps {
   repoName?: string;
 }
 
-type StackPreset = "pm2" | "vercel" | "render" | "docker" | "k8s";
+type StackPreset = "pm2" | "k8s" | "render";
 
 interface PresetDetails {
   title: string;
@@ -40,7 +40,7 @@ interface PresetDetails {
 const PRESETS: Record<StackPreset, PresetDetails> = {
   pm2: {
     title: "PM2 Process Manager (Node.js / VPS)",
-    badge: "Standalone or Augment",
+    badge: "Active / Verified",
     icon: Terminal,
     description:
       "Ideal for self-hosted Node.js servers, EC2, or VPS deployments running with PM2 and immutable release directories.",
@@ -48,7 +48,10 @@ const PRESETS: Record<StackPreset, PresetDetails> = {
       "CARF dynamically tunes error tolerance for each commit. When deploying with PM2, CARF monitors `pm2 jlist` during the soak window and runs zero-downtime `pm2 reload` to the previous release if errors exceed threshold.",
     carfYml: `# .carf.yml (Place in repository root)
 version: "1.0"
-mode: augment
+mode: standalone
+adapter:
+  kind: pm2
+  target: api-server
 thresholds:
   base_tolerance_pct: 0.5         # 0.5% base error tolerance for sensitive changes
   max_tolerance_pct: 3.5          # Up to 3.5% for minor UI/test edits
@@ -58,181 +61,32 @@ rules:
   - name: sensitive-routes
     pattern: "src/{routes,controllers,auth}/**/*.{ts,js}"
     weight: 1.8
-  - name: db-migrations
-    pattern: "**/{migrations,prisma}/**"
-    weight: 2.5
 `,
-    deploySnippetTitle: "PM2 Deployment Script (deploy.sh or CI)",
-    deploySnippet: `#!/usr/bin/env bash
-set -e
+    deploySnippetTitle: "ecosystem.config.cjs & symlink deploy pattern",
+    deploySnippet: `// 1. Release directories structure:
+// /var/www/my-app/
+// ├── current -> releases/<currentSha>
+// └── releases/
+//     ├── <previousSha>/
+//     └── <currentSha>/
 
-# 1. Fetch CARF dynamic risk threshold for new commit
-COMMIT_SHA=$(git rev-parse HEAD)
-CARF_DATA=$(curl -s "https://carf.indevs.in/v1/threshold?commit=\${COMMIT_SHA}")
-THRESHOLD=$(echo "\$CARF_DATA" | jq -r '.finalThreshold // 0.03')
-WINDOW=$(echo "\$CARF_DATA" | jq -r '.finalWindow // 300')
+// 2. Start PM2 cluster:
+pm2 start /var/www/my-app/current/dist/index.js --name "api-server" -i max
 
-echo "🚀 Deploying \${COMMIT_SHA} (Tolerance: \${THRESHOLD}, Soak: \${WINDOW}s)..."
-
-# 2. Build and reload with PM2
-npm run build
-pm2 reload api-server
-
-# 3. Observe health for soak duration
-sleep 5
-if ! pm2 show api-server | grep -q "online"; then
-  echo "🚨 Threshold breached or process crashed! Rolling back..."
-  git checkout HEAD~1
-  npm run build
-  pm2 reload api-server
-  exit 1
-fi
-echo "✅ Rollout verified stable."
+// 3. CARF automated rollback on threshold breach:
+// ln -sfn /var/www/my-app/releases/<baseSha> /var/www/my-app/current
+// pm2 reload api-server
 `,
     verificationSteps: [
-      "Commit `.carf.yml` to the root of your repository.",
-      "Push a commit to GitHub — CARF will immediately classify the AST diff on the Live Status dashboard.",
-      "Run your deployment script on your server or in CI.",
-      "Simulate a failure (e.g. process crash) to verify automated rollback to previous release.",
-    ],
-  },
-  vercel: {
-    title: "Vercel (Next.js / Frontend / Serverless)",
-    badge: "Advisory / Augment Mode",
-    icon: Globe,
-    description:
-      "Designed for Vercel-hosted web applications, Next.js apps, and serverless functions where preview and production health checks are needed.",
-    modeExplanation:
-      "Vercel manages hosting automatically. CARF runs in Advisory/Augment mode: it assesses commit risk on every PR/push, surfaces risk alerts on your CARF Dashboard, and provides automated GitHub PR risk check badges.",
-    carfYml: `# .carf.yml (Place in repository root)
-version: "1.0"
-mode: augment
-thresholds:
-  base_tolerance_pct: 0.5
-  max_tolerance_pct: 4.0
-  observation_window_seconds: 180
-
-rules:
-  - name: api-endpoints
-    pattern: "src/app/api/**/*.{ts,js}"
-    weight: 1.5
-  - name: ui-components
-    pattern: "src/components/**/*.{tsx,jsx}"
-    weight: 0.2
-`,
-    deploySnippetTitle: ".github/workflows/vercel-carf-check.yml",
-    deploySnippet: `name: Vercel CARF Risk & Health Check
-on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
-
-jobs:
-  carf-risk-assessment:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Query CARF Risk Calibration
-        run: |
-          RES=$(curl -s "https://carf.indevs.in/v1/threshold?commit=\${{ github.sha }}")
-          echo "CARF Analysis: \$RES"
-          THRESHOLD=$(echo \$RES | jq -r '.finalThreshold')
-          echo "Commit Risk Threshold: \$THRESHOLD"
-          # View in dashboard at: https://carf.indevs.in/dashboard
-`,
-    verificationSteps: [
-      "Add `.carf.yml` to your Vercel project repository.",
-      "Push a PR — CARF calculates AST risk score without touching your Vercel production build.",
-      "Check the Live Status dashboard to see the risk breakdown.",
-      "If a rollback is needed on Vercel, run `vercel rollback` via CLI or Vercel dashboard.",
-    ],
-  },
-  render: {
-    title: "Render (Web Services & Background Workers)",
-    badge: "Advisory / Augment Mode",
-    icon: Server,
-    description:
-      "Designed for apps hosted on Render.com using Render Webhooks, Deploy Hooks, and health endpoint monitoring.",
-    modeExplanation:
-      "Render executes builds via Deploy Hooks. CARF calculates dynamic error budgets so you can monitor your Render `/healthz` endpoint for the calculated soak window before marking the release clean.",
-    carfYml: `# .carf.yml (Place in repository root)
-version: "1.0"
-mode: augment
-thresholds:
-  base_tolerance_pct: 0.5
-  max_tolerance_pct: 3.0
-  observation_window_seconds: 240
-
-rules:
-  - name: backend-core
-    pattern: "server/**/*.{ts,js,py,go}"
-    weight: 1.6
-`,
-    deploySnippetTitle: "Render Deploy Script with CARF Soak Check",
-    deploySnippet: `#!/usr/bin/env bash
-# Trigger Render Deploy Hook
-curl -X POST "https://api.render.com/deploy/srv-xxxx?key=yyyy"
-
-# Fetch CARF threshold
-RES=$(curl -s "https://carf.indevs.in/v1/threshold?commit=$(git rev-parse HEAD)")
-WINDOW=$(echo \$RES | jq -r '.finalWindow // 240')
-
-echo "Waiting \${WINDOW}s to soak Render service..."
-sleep 15
-# Verify Render service health endpoint
-HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://my-app.onrender.com/healthz)
-if [ "\$HTTP_STATUS" -ne 200 ]; then
-  echo "🚨 Render healthcheck failed (\$HTTP_STATUS). Check logs!"
-  exit 1
-fi
-echo "✅ Render service healthy."
-`,
-    verificationSteps: [
-      "Commit `.carf.yml` into your Render repository.",
-      "Configure your Render Deploy Hook or CI action.",
-      "Observe the Live Status tab on CARF dashboard as commits are pushed.",
-    ],
-  },
-  docker: {
-    title: "Docker Compose / Docker Swarm",
-    badge: "Standalone or Augment",
-    icon: Container,
-    description:
-      "For containerized applications deployed on Linux VMs or Docker Swarm clusters with tagged image releases.",
-    modeExplanation:
-      "CARF tracks container health via `docker compose ps` and can execute automated rollback by deploying the previous image tag (`IMAGE_TAG=<previousSha> docker compose up -d`).",
-    carfYml: `# .carf.yml
-version: "1.0"
-mode: standalone
-adapter:
-  kind: dockerCompose
-  target: web
-thresholds:
-  base_tolerance_pct: 0.5
-  max_tolerance_pct: 3.5
-  observation_window_seconds: 180
-`,
-    deploySnippetTitle: "docker-compose.yml snippet",
-    deploySnippet: `services:
-  web:
-    image: my-registry/app:\${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-`,
-    verificationSteps: [
-      "Ensure docker-compose uses `${IMAGE_TAG}` variable for images.",
-      "Place `.carf.yml` in repository.",
-      "Deploy new image and observe CARF watchdog monitoring.",
+      "Set up PM2 cluster mode with release symlinks on your server.",
+      "Add `.carf.yml` with `mode: standalone` and `adapter.kind: pm2`.",
+      "Push a commit and observe CARF watchdog monitor PM2 process health.",
+      "Simulate an error spike to verify automated reload back to previous release.",
     ],
   },
   k8s: {
     title: "Kubernetes & Argo Rollouts",
-    badge: "Augment / Webhook",
+    badge: "Adapter Preview / In-Development",
     icon: Layers,
     description:
       "For production Kubernetes clusters using Argo Rollouts or Flagger for progressive canary traffic routing.",
@@ -260,9 +114,54 @@ spec:
         jsonPath: "{$.finalThreshold}"
 `,
     verificationSteps: [
-      "Add `AnalysisTemplate` to your Kubernetes manifests.",
-      "Reference `carf-dynamic-threshold` in your Rollout spec.",
-      "Argo automatically queries CARF and adjusts canary sensitivity.",
+      "Add AnalysisTemplate to your Argo Rollouts canary spec.",
+      "Push `.carf.yml` with `mode: augment`.",
+      "Argo Rollouts will automatically query CARF to evaluate promotion thresholds.",
+    ],
+  },
+  render: {
+    title: "Render (Web Services & Deploy Hooks)",
+    badge: "Augment / Webhook Mode",
+    icon: Server,
+    description:
+      "Designed for apps hosted on Render.com using Render Webhooks, Deploy Hooks, and health endpoint monitoring.",
+    modeExplanation:
+      "Render executes builds via Deploy Hooks. CARF calculates dynamic error budgets so you can monitor your Render `/healthz` endpoint for the calculated soak window before marking the release clean.",
+    carfYml: `# .carf.yml (Place in repository root)
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 3.0
+  observation_window_seconds: 240
+
+rules:
+  - name: backend-core
+    pattern: "server/**/*.{ts,js,py,go}"
+    weight: 1.6
+`,
+    deploySnippetTitle: "Render Deploy Script with CARF Soak Check",
+    deploySnippet: `#!/usr/bin/env bash
+# Trigger Render Deploy Hook
+curl -X POST "https://api.render.com/deploy/srv-xxxx?key=yyyy"
+
+# Fetch CARF threshold
+RES=$(curl -s "https://carf.indevs.in/v1/threshold?commit=$(git rev-parse HEAD)")
+WINDOW=$(echo $RES | jq -r '.finalWindow // 240')
+
+echo "Waiting \${WINDOW}s to soak Render service..."
+sleep 15
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://my-app.onrender.com/healthz)
+if [ "$HTTP_STATUS" -ne 200 ]; then
+  echo "🚨 Render healthcheck failed ($HTTP_STATUS). Check logs!"
+  exit 1
+fi
+echo "✅ Render service healthy."
+`,
+    verificationSteps: [
+      "Commit `.carf.yml` into your repository.",
+      "Configure your Render Deploy Hook or CI action.",
+      "Observe the Live Status tab on CARF dashboard as commits are pushed.",
     ],
   },
 };
@@ -270,43 +169,44 @@ spec:
 export function SetupGuideModal({
   isOpen,
   onClose,
-  repoName,
+  installationId,
+  repoName = "my-repository",
 }: SetupGuideModalProps) {
   const [selectedStack, setSelectedStack] = useState<StackPreset>("pm2");
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [copiedSection, setCopiedSection] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const current = PRESETS[selectedStack];
-  const Icon = current.icon;
+  const currentPreset = PRESETS[selectedStack];
+  const PresetIcon = currentPreset.icon;
 
-  const handleCopy = (text: string, key: string) => {
+  const handleCopy = (text: string, section: string) => {
     navigator.clipboard.writeText(text);
-    setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    setCopiedSection(section);
+    setTimeout(() => setCopiedSection(null), 2000);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+      <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <Sparkles className="size-5" />
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 bg-slate-50/50">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-xs">
+              <BookOpen className="size-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900">
-                CARF Setup & Integration Guide {repoName ? `— ${repoName}` : ""}
+                Setup & Integration Guide
               </h2>
               <p className="text-xs text-slate-500">
-                Choose your deployment stack to get customized configuration and workflow snippets.
+                Deploy dynamic canary rollback thresholds to {repoName}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            className="rounded-lg p-2 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 transition-colors"
           >
             <X className="size-5" />
           </button>
@@ -317,10 +217,8 @@ export function SetupGuideModal({
           {(
             [
               { id: "pm2", label: "PM2 (Node.js/VPS)", icon: Terminal },
-              { id: "vercel", label: "Vercel (Next.js)", icon: Globe },
-              { id: "render", label: "Render", icon: Server },
-              { id: "docker", label: "Docker Compose", icon: Container },
-              { id: "k8s", label: "Kubernetes / Argo", icon: Layers },
+              { id: "k8s", label: "Kubernetes & Argo (Preview)", icon: Layers },
+              { id: "render", label: "Render / Deploy Hooks", icon: Server },
             ] as const
           ).map((stack) => {
             const StackIcon = stack.icon;

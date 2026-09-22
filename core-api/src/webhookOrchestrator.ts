@@ -3,8 +3,6 @@ import { load as loadYaml } from "js-yaml";
 import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
-import { DockerComposeAdapter } from "./adapters/dockerCompose.js";
-import { DockerSwarmAdapter } from "./adapters/dockerSwarm.js";
 import { GitOpsAdapter } from "./adapters/gitops.js";
 import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
@@ -42,11 +40,9 @@ export interface WebhookOrchestratorDeps {
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
   /**
-   * Testable seam; defaults to building a `KubectlAdapter` for `kind: "kubernetes"`, a
-   * `DockerComposeAdapter` for `kind: "dockerCompose"`, a `PM2Adapter` for `kind: "pm2"`, a
-   * `GitOpsAdapter` for `kind: "gitops"`, or a `DockerSwarmAdapter` for `kind:
-   * "dockerSwarm"` (the first three of those using `baseSha` as the previous image tag /
-   * release SHA / revision -- see their doc comments for the convention this assumes).
+   * Testable seam; defaults to building a `PM2Adapter` for `kind: "pm2"` (active), a
+   * `KubectlAdapter` for `kind: "kubernetes"` (preview), a `GitOpsAdapter` for
+   * `kind: "gitops"` (preview), or a `PrometheusAdapter` for `kind: "prometheus"` (preview).
    */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
@@ -64,22 +60,16 @@ export interface WebhookOrchestratorDeps {
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
+  if (adapterConfig.kind === "pm2") {
+    // baseSha stands in for the previous release SHA. See issue #51.
+    return new PM2Adapter(baseSha);
+  }
   if (adapterConfig.kind === "kubernetes") {
     return new KubectlAdapter();
   }
-  if (adapterConfig.kind === "pm2") {
-    // Same "no static config field for the previous value" reasoning as dockerCompose
-    // below -- baseSha stands in for the previous release SHA. See issue #51.
-    return new PM2Adapter(baseSha);
-  }
   if (adapterConfig.kind === "gitops") {
-    // Same "no static config field for the previous value" reasoning as dockerCompose/pm2
-    // -- baseSha stands in for the previous Argo CD deployment revision. See issue #52.
+    // baseSha stands in for the previous Argo CD deployment revision. See issue #52.
     return new GitOpsAdapter(baseSha, env.argoCdBaseUrl(), env.argoCdAuthToken());
-  }
-  if (adapterConfig.kind === "dockerSwarm") {
-    // Swarm tracks the previous spec itself, like kubectl -- no baseSha needed. See issue #53.
-    return new DockerSwarmAdapter();
   }
   if (adapterConfig.kind === "prometheus") {
     return new PrometheusAdapter({
@@ -88,11 +78,7 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
       rollbackCommand: adapterConfig.rollbackCommand,
     });
   }
-  // kind === "dockerCompose": no .carf.yml field carries a previous image tag (it would be
-  // stale the moment a new commit lands anyway, since "previous" changes every deploy) --
-  // baseSha (the commit before this push) is used instead, on the documented assumption
-  // that the deployment pipeline tags images by commit SHA. See issue #50.
-  return new DockerComposeAdapter(baseSha);
+  throw new Error(`Adapter kind "${adapterConfig.kind}" is deprecated or unsupported. PM2 is the active adapter.`);
 }
 
 
@@ -205,18 +191,26 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  // dockerCompose/pm2/gitops's rollback tag/release/revision is derived from baseSha (see
+  if (adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "dockerSwarm") {
+    deps.logger.error(
+      { adapter: adapterConfig },
+      `${adapterConfig.kind} adapter is deprecated. PM2 is the primary active adapter.`
+    );
+    return;
+  }
+
+  // pm2/gitops's rollback tag/release/revision is derived from baseSha (see
   // defaultRollbackAdapterFactory), which is only safe to treat as "what's currently
   // deployed" for a push event -- a pull_request's baseSha is the PR's base branch tip,
-  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter and
-  // dockerSwarm's DockerSwarmAdapter don't use baseSha, so they're unaffected.
+  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter doesn't
+  // use baseSha, so it's unaffected.
   if (
-    (adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "pm2" || adapterConfig.kind === "gitops") &&
+    (adapterConfig.kind === "pm2" || adapterConfig.kind === "gitops") &&
     target.event !== "push"
   ) {
     deps.logger.error(
       { adapter: adapterConfig, event: target.event },
-      `${adapterConfig.kind} adapter requires a push event to safely derive the previous image tag/release from baseSha`
+      `${adapterConfig.kind} adapter requires a push event to safely derive the previous release/revision from baseSha`
     );
     return;
   }

@@ -36,51 +36,37 @@ const ADAPTER_OPTIONS: Array<{
   targetLabel: string;
   placeholder: string;
   description: string;
+  disabled?: boolean;
 }> = [
   {
     kind: "pm2",
     label: "PM2 Process Manager",
     icon: Terminal,
-    badge: "Zero Downtime",
+    badge: "Active / Verified",
     targetLabel: "PM2 Process Name",
     placeholder: "e.g. api-server",
     description: "Automatic symlink repointing & 'pm2 reload <target>' zero-downtime cluster rollback.",
-  },
-  {
-    kind: "dockerCompose",
-    label: "Docker Compose",
-    icon: Container,
-    badge: "Container Swap",
-    targetLabel: "Docker Compose Service Name",
-    placeholder: "e.g. web",
-    description: "Redeploys with previous image tag via 'IMAGE_TAG=<baseSha> docker compose up -d <target>'.",
+    disabled: false,
   },
   {
     kind: "kubernetes",
     label: "Kubernetes (kubectl)",
     icon: Server,
-    badge: "K8s Rollout",
+    badge: "Preview",
     targetLabel: "K8s Deployment Name",
     placeholder: "e.g. api-deployment",
-    description: "Executes 'kubectl rollout undo deployment/<target>' to revert instantly to the previous ReplicaSet.",
+    description: "Executes 'kubectl rollout undo deployment/<target>' (Preview / In-Development).",
+    disabled: true,
   },
   {
     kind: "gitops",
     label: "GitOps (Argo CD)",
     icon: GitBranch,
-    badge: "GitOps Sync",
+    badge: "Preview",
     targetLabel: "Argo CD Application Name",
     placeholder: "e.g. production-api",
-    description: "Triggers 'argocd app rollback <target>' to revert to the previous committed state.",
-  },
-  {
-    kind: "dockerSwarm",
-    label: "Docker Swarm",
-    icon: Container,
-    badge: "Swarm Service",
-    targetLabel: "Docker Swarm Service Name",
-    placeholder: "e.g. prod_web",
-    description: "Rolls back via 'docker service update --rollback <target>'.",
+    description: "Rollback via Argo CD GitOps repository and API (Preview / In-Development).",
+    disabled: true,
   },
 ];
 
@@ -429,7 +415,7 @@ threshold:
                     <span className="text-[10px] text-slate-400">Choose your server runtime</span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2">
                     {ADAPTER_OPTIONS.map((opt) => {
                       const Icon = opt.icon;
                       const isSelected = adapterKind === opt.kind;
@@ -437,9 +423,12 @@ threshold:
                         <button
                           key={opt.kind}
                           type="button"
-                          onClick={() => setAdapterKind(opt.kind)}
+                          disabled={opt.disabled}
+                          onClick={() => !opt.disabled && setAdapterKind(opt.kind)}
                           className={`p-3 rounded-xl border text-left transition-all ${
-                            isSelected
+                            opt.disabled
+                              ? "opacity-60 bg-slate-50/50 border-slate-200 cursor-not-allowed"
+                              : isSelected
                               ? "border-slate-900 bg-slate-900/5 ring-1 ring-slate-900"
                               : "border-slate-200 hover:border-slate-300 bg-white"
                           }`}
@@ -449,7 +438,13 @@ threshold:
                               <Icon className="size-3.5 text-slate-700" />
                               <span className="text-xs font-semibold text-slate-900">{opt.label}</span>
                             </div>
-                            <span className="text-[9px] font-mono text-slate-400">{opt.badge}</span>
+                            <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${
+                              opt.disabled
+                                ? "bg-amber-100 text-amber-800 font-semibold"
+                                : "bg-emerald-100 text-emerald-800 font-semibold"
+                            }`}>
+                              {opt.badge}
+                            </span>
                           </div>
                           <p className="mt-1 text-[10px] text-slate-500 leading-snug">
                             {opt.description}

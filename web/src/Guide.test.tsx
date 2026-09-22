@@ -16,9 +16,7 @@ describe("usage guide page", () => {
   it("renders a section for every current integration", () => {
     render(<Guide />);
     expect(screen.getByRole("heading", { name: /PM2 \(Node\.js \/ VPS\)/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Vercel \(Next\.js \/ frontend\)/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Render & Railway/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Docker Compose/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Kubernetes & Argo Rollouts/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Prometheus & observability/i })).toBeInTheDocument();
   });

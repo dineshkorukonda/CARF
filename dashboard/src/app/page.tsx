@@ -17,7 +17,7 @@ const STEPS = [
   },
   {
     title: "Configure mode & adapter",
-    desc: "Augment mode keeps your own canary tool (Argo Rollouts, Flagger) and just supplies the threshold. Standalone mode has CARF drive rollback itself — Kubernetes, Docker Compose, Docker Swarm, PM2, or GitOps.",
+    desc: "Augment mode keeps your own canary tool (Argo Rollouts, Flagger, or CI probe) and supplies the threshold. Standalone mode has CARF drive rollback itself via PM2 (active) or Kubernetes/GitOps (preview).",
   },
   {
     title: "Set classification & threshold rules",
@@ -37,7 +37,7 @@ const PIPELINE_PHASES = [
   { icon: GitBranch, title: "Classify", caption: "Tier 1 path + Tier 2 AST" },
   { icon: Activity, title: "Monitor", caption: "Post-deploy metrics window" },
   { icon: Cpu, title: "Decide", caption: "Change-keyed threshold" },
-  { icon: RotateCcw, title: "Roll back", caption: "kubectl / compose / git revert" },
+  { icon: RotateCcw, title: "Roll back", caption: "PM2 / cluster reload" },
 ];
 
 export default async function HomePage() {

@@ -9,8 +9,45 @@ import { z } from "zod";
  * through untouched by carfConfigWriter.ts rather than parsed strictly, so this mirror
  * lagging slightly behind core-api's never corrupts a repo's existing `.carf.yml`.
  */
-export const AdapterKindSchema = z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm"]);
+export const AdapterKindSchema = z.enum(["pm2", "kubernetes", "gitops"]);
 export type AdapterKind = z.infer<typeof AdapterKindSchema>;
+
+export type AdapterStatus = "active" | "preview" | "deprecated";
+
+export interface AdapterDescriptor {
+  kind: AdapterKind;
+  label: string;
+  status: AdapterStatus;
+  statusBadge: string;
+  disabled?: boolean;
+  disabledReason?: string;
+}
+
+export const ADAPTER_METADATA: Record<AdapterKind, AdapterDescriptor> = {
+  pm2: {
+    kind: "pm2",
+    label: "PM2 Process Manager (Node / VPS)",
+    status: "active",
+    statusBadge: "Active",
+    disabled: false,
+  },
+  kubernetes: {
+    kind: "kubernetes",
+    label: "Kubernetes (kubectl)",
+    status: "preview",
+    statusBadge: "Adapter Preview",
+    disabled: true,
+    disabledReason: "Kubectl adapter is currently in preview. PM2 is the active Phase 1 standalone adapter.",
+  },
+  gitops: {
+    kind: "gitops",
+    label: "GitOps (Argo CD)",
+    status: "preview",
+    statusBadge: "Adapter Preview",
+    disabled: true,
+    disabledReason: "Argo CD GitOps adapter is currently in preview. PM2 is the active Phase 1 standalone adapter.",
+  },
+};
 
 export const ADAPTER_TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
 
@@ -31,17 +68,16 @@ export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
 export const ModeSchema = z.enum(["standalone", "augment"]);
 export type Mode = z.infer<typeof ModeSchema>;
 
-/** Every adapter kind webhookOrchestrator.ts's defaultRollbackAdapterFactory actually
- *  builds today -- see #50's "avoid letting a user pick an adapter that silently no-ops"
- *  acceptance criterion. Keep this list in sync with core-api's wiring, not just its
- *  schema (the schema can validate a kind before it's live-wired -- see #73/#74's history
- *  of exactly that gap). */
-export const LIVE_ADAPTER_KINDS: readonly AdapterKind[] = [
-  "kubernetes",
-  "dockerCompose",
+/** All adapter kinds known to dashboard UI (active + preview) */
+export const AVAILABLE_ADAPTER_KINDS: readonly AdapterKind[] = [
   "pm2",
+  "kubernetes",
   "gitops",
-  "dockerSwarm",
+];
+
+/** Actively verified production adapter kinds (Phase 1 focus) */
+export const LIVE_ADAPTER_KINDS: readonly AdapterKind[] = [
+  "pm2",
 ];
 
 /** Mirrors ClassificationChangeTypeSchema (tier1.ts's ChangeType minus "unclassified"). */

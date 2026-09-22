@@ -134,8 +134,11 @@ export function TestingPlaybookView({
               : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
         >
-          <Boxes className="size-4 text-blue-500 shrink-0" />
-          <span>Docker & K8s</span>
+          <Cloud className="size-4 text-blue-500 shrink-0" />
+          <span>Kubernetes & GitOps</span>
+          <Badge variant="outline" className="text-[9px] px-1 py-0 border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300">
+            Preview
+          </Badge>
         </button>
       </div>
 
@@ -296,7 +299,7 @@ export function TestingPlaybookView({
               <div className="flex items-center gap-2">
                 <Zap className="size-4 text-amber-500" />
                 <h2 className="text-base font-semibold text-foreground">
-                  Testing CARF on Serverless Projects (AWS Lambda, Vercel, Cloudflare Workers, SST)
+                  Testing CARF on Serverless / CI-Gated Projects (AWS Lambda, Cloudflare Workers, SST)
                 </h2>
               </div>
               <Badge variant="secondary" className="font-mono text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20">
@@ -304,13 +307,13 @@ export function TestingPlaybookView({
               </Badge>
             </div>
 
-            <div className="rounded-sm border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-foreground space-y-2">
+            <div className="rounded-sm border border-amber-500/20 bg-amber-50/5 dark:bg-amber-500/5 p-4 text-xs text-foreground space-y-2">
               <div className="flex items-center gap-1.5 font-semibold text-amber-600 dark:text-amber-400">
                 <AlertTriangle className="size-4 shrink-0" />
                 <span>Why Serverless Uses CARF Augment Mode</span>
               </div>
               <p className="text-muted-foreground leading-relaxed">
-                Serverless functions (AWS Lambda, Vercel Functions, Cloudflare Workers) do not maintain persistent OS processes or PM2 daemons. Therefore, CARF operates in <strong>Augment Mode</strong>. Instead of executing local shell commands on a server, CARF exposes an API endpoint (<code className="font-mono text-foreground">GET /v1/threshold?commit=$SHA</code>) that your CI/CD deployment pipeline (GitHub Actions, GitLab CI) queries to dynamically calibrate progressive canary traffic shifting and trigger rollbacks.
+                Serverless functions (AWS Lambda, Cloudflare Workers, SST) do not maintain persistent OS processes or PM2 daemons. Therefore, CARF operates in <strong>Augment Mode</strong>. Instead of executing local shell commands on a server, CARF exposes an API endpoint (<code className="font-mono text-foreground">GET /v1/threshold?commit=$SHA</code>) that your CI/CD deployment pipeline queries to dynamically calibrate progressive canary traffic shifting.
               </p>
             </div>
 
@@ -330,7 +333,7 @@ export function TestingPlaybookView({
                 </div>
                 <div className="rounded-sm border border-border bg-muted/30 p-3 space-y-1">
                   <div className="font-semibold text-foreground">3. Canary Shift</div>
-                  <p className="text-[11px] text-muted-foreground">Deployer routes 10% traffic to Lambda Alias or Vercel Preview.</p>
+                  <p className="text-[11px] text-muted-foreground">Deployer routes 10% traffic to Lambda Alias or Canary endpoint.</p>
                 </div>
                 <div className="rounded-sm border border-border bg-muted/30 p-3 space-y-1">
                   <div className="font-semibold text-foreground">4. Dynamic Rollback</div>
@@ -344,45 +347,33 @@ export function TestingPlaybookView({
               <span className="text-xs font-semibold text-foreground">
                 1. Configuration: <code className="font-mono text-xs">.carf.yml</code>
               </span>
-              <div className="relative">
-                <pre className="rounded-sm bg-muted/60 p-4 font-mono text-[11px] overflow-x-auto text-foreground">
-{`# Serverless progressive delivery configuration
-version: "1.0"
-mode: augment
+              <div className="relative rounded-sm bg-muted p-3 font-mono text-[11px] text-foreground overflow-x-auto">
+                <pre>{`mode: augment
 thresholds:
-  base_tolerance_pct: 0.5        # 0.5% base error rate tolerance for low-risk changes
-  max_tolerance_pct: 4.0         # Allow up to 4.0% tolerance for non-critical refactors
-  observation_window_seconds: 180 # 3-minute canary soak period
-
-rules:
-  - name: serverless-handlers
-    pattern: "src/handlers/**/*.{ts,js}"
-    weight: 1.5
-  - name: infrastructure-as-code
-    pattern: "**/{serverless,sst,template}.{yml,yaml,json,ts}"
-    weight: 2.0`}
-                </pre>
+  types:
+    code:
+      baseThreshold: 0.015    # Strict 1.5% tolerance for serverless handler code
+      baseWindow: 180         # 3-minute canary soak period
+    config:
+      baseThreshold: 0.008    # 0.8% tolerance for infra/environment changes
+      baseWindow: 300`}</pre>
                 <button
-                  onClick={() => copyToClipboard(`version: "1.0"\nmode: augment\nthresholds:\n  base_tolerance_pct: 0.5\n  max_tolerance_pct: 4.0\n  observation_window_seconds: 180\nrules:\n  - name: serverless-handlers\n    pattern: "src/handlers/**/*.{ts,js}"\n    weight: 1.5\n  - name: infrastructure-as-code\n    pattern: "**/{serverless,sst,template}.{yml,yaml,json,ts}"\n    weight: 2.0`, "serverless-carf")}
+                  onClick={() => copyToClipboard(`mode: augment\nthresholds:\n  types:\n    code:\n      baseThreshold: 0.015\n      baseWindow: 180\n    config:\n      baseThreshold: 0.008\n      baseWindow: 300`, "serverless-yml")}
                   className="absolute right-2 top-2 p-1 text-muted-foreground hover:text-foreground"
-                  title="Copy .carf.yml"
+                  title="Copy YAML"
                 >
-                  {copiedMap["serverless-carf"] ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+                  {copiedMap["serverless-yml"] ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
                 </button>
               </div>
             </div>
 
-            {/* Complete GitHub Actions Workflow */}
+            {/* GitHub Actions Workflow Example */}
             <div className="space-y-2 pt-2">
               <span className="text-xs font-semibold text-foreground">
-                2. Serverless CI/CD Pipeline: <code className="font-mono text-xs">.github/workflows/deploy.yml</code>
+                2. CI/CD Canary Deployment Workflow: <code className="font-mono text-xs">.github/workflows/canary.yml</code>
               </span>
-              <p className="text-[11px] text-muted-foreground">
-                This workflow deploys your serverless function, fetches the CARF dynamic threshold, evaluates canary metrics, and reverts traffic automatically if an anomaly occurs:
-              </p>
-              <div className="relative">
-                <pre className="rounded-sm bg-muted/60 p-4 font-mono text-[11px] overflow-x-auto text-foreground leading-relaxed">
-{`name: Serverless Deploy & Dynamic Canary Verification
+              <div className="relative rounded-sm bg-muted p-3 font-mono text-[11px] text-foreground overflow-x-auto">
+                <pre>{`name: Serverless Deploy & Dynamic Canary Verification
 on:
   push:
     branches: [main]
@@ -393,7 +384,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Fetch CARF dynamic risk threshold
+      # 1. Query CARF dynamic error budget for this specific commit
       - name: Fetch CARF dynamic threshold
         id: carf
         uses: ./.github/actions/carf-threshold
@@ -408,15 +399,13 @@ jobs:
           echo "Observation Window: \${{ steps.carf.outputs.final-window || '180' }}s"
           echo "Active AST Types: \${{ steps.carf.outputs.active-types }}"
 
-      # 2. Deploy Serverless Function (e.g. AWS Lambda / Vercel / SST)
+      # 2. Deploy Serverless Function (e.g. AWS Lambda / SST)
       - name: Deploy Serverless Canary
         run: |
           echo "Deploying new version \${{ github.sha }} to canary alias (10% traffic)..."
           # Example for AWS Lambda:
           # aws lambda update-alias --function-name my-api --name live \\
           #   --routing-config '{"AdditionalVersionWeights": {"2": 0.1}}'
-          # Example for Vercel:
-          # vercel deploy --prebuilt
 
       # 3. Canary Verification Window (Soak Period)
       - name: Observe Canary Error Rate
@@ -437,10 +426,7 @@ jobs:
         run: |
           echo "🚨 Rollback triggered! Reverting traffic to previous stable version..."
           # AWS Lambda rollback:
-          # aws lambda update-alias --function-name my-api --name live --routing-config '{"AdditionalVersionWeights": {}}'
-          # Vercel instant rollback:
-          # vercel rollback`}
-                </pre>
+          # aws lambda update-alias --function-name my-api --name live --routing-config '{"AdditionalVersionWeights": {}}'`}</pre>
                 <button
                   onClick={() => copyToClipboard(`name: Serverless Deploy & Dynamic Canary Verification\non:\n  push:\n    branches: [main]\n\njobs:\n  canary-deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Fetch CARF dynamic threshold\n        id: carf\n        uses: ./.github/actions/carf-threshold\n        with:\n          api-url: https://carf.indevs.in\n          commit: \${{ github.sha }}\n          fail-on-missing: false\n      - name: Inspect Computed Risk Budget\n        run: |\n          echo "Computed Dynamic Threshold: \${{ steps.carf.outputs.final-threshold || '0.01' }}"\n          echo "Observation Window: \${{ steps.carf.outputs.final-window || '180' }}s"\n      - name: Deploy Serverless Canary\n        run: |\n          echo "Deploying canary..."\n      - name: Automated Serverless Rollback on Breach\n        if: failure()\n        run: |\n          echo "Reverting serverless traffic..."`, "serverless-workflow")}
                   className="absolute right-2 top-2 p-1 text-muted-foreground hover:text-foreground"
@@ -620,46 +606,29 @@ ls -la /var/www/current`}
       {activeTab === "containers" && (
         <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Docker Compose */}
+            {/* Standalone Adapters Deprecation Note */}
             <div className="rounded-sm border border-border bg-card p-5 space-y-4 shadow-2xs">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
-                  <Boxes className="size-4 text-blue-500" />
-                  <h2 className="text-sm font-semibold text-foreground">Docker Compose Projects</h2>
+                  <Terminal className="size-4 text-emerald-500" />
+                  <h2 className="text-sm font-semibold text-foreground">Standalone Rollback Engine</h2>
                 </div>
-                <Badge variant="secondary" className="font-mono text-[10px]">Standalone</Badge>
+                <Badge variant="outline" className="font-mono text-[10px] text-emerald-700 bg-emerald-50 border-emerald-300">
+                  PM2 Active
+                </Badge>
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
-                CARF drives zero-downtime container rollbacks by parameterizing your service image tag with <code className="font-mono text-foreground">IMAGE_TAG</code>.
+                In Phase 1, <strong className="text-foreground">PM2</strong> is the sole actively verified standalone rollback adapter. Legacy container rollback adapters (Docker Compose and Docker Swarm) are deprecated.
               </p>
 
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="font-semibold text-foreground">1. docker-compose.yml Spec</span>
-                  <pre className="mt-1 rounded-sm bg-muted/60 p-3 font-mono text-[11px] overflow-x-auto text-foreground">
-{`services:
-  web:
-    image: my-registry/app:\${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    ports: ["3000:3000"]`}
-                  </pre>
+              <div className="space-y-2 text-xs">
+                <div className="rounded-sm bg-muted/40 p-3 border border-border">
+                  <div className="font-semibold text-foreground mb-1">Recommended Container Pattern</div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    For containerized workloads, use CARF in <strong className="text-foreground">Augment Mode</strong> with your existing orchestrator (Kubernetes / Argo Rollouts or CI/CD deploy hooks) rather than direct container daemon restarts.
+                  </p>
                 </div>
-
-                <div>
-                  <span className="font-semibold text-foreground">2. .carf.yml Configuration</span>
-                  <pre className="mt-1 rounded-sm bg-muted/60 p-3 font-mono text-[11px] overflow-x-auto text-foreground">
-{`version: "1.0"
-mode: standalone
-adapter:
-  kind: dockerCompose
-  target: web`}
-                  </pre>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground">
-                  On health breach, CARF executes: <code className="font-mono text-foreground">IMAGE_TAG=&lt;baseSha&gt; docker compose up -d web</code>.
-                </p>
               </div>
             </div>
 
@@ -667,14 +636,16 @@ adapter:
             <div className="rounded-sm border border-border bg-card p-5 space-y-4 shadow-2xs">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
-                  <Cloud className="size-4 text-emerald-500" />
+                  <Cloud className="size-4 text-blue-500" />
                   <h2 className="text-sm font-semibold text-foreground">Kubernetes & Argo Rollouts</h2>
                 </div>
-                <Badge variant="secondary" className="font-mono text-[10px]">Augment / GitOps</Badge>
+                <Badge variant="outline" className="font-mono text-[10px] text-blue-700 bg-blue-50 border-blue-300">
+                  Preview / Augment
+                </Badge>
               </div>
 
               <p className="text-xs text-muted-foreground leading-relaxed">
-                CARF plugs directly into Argo Rollouts via an <code className="font-mono text-foreground">AnalysisTemplate</code> to dynamically compute failure tolerance instead of using static 1% canary limits.
+                CARF plugs into Argo Rollouts via an <code className="font-mono text-foreground">AnalysisTemplate</code> to dynamically compute failure tolerance instead of using static 1% canary limits.
               </p>
 
               <div className="space-y-3 text-xs">

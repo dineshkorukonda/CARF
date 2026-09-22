@@ -8,10 +8,10 @@ describe("Tab Explainer & Setup Guide", () => {
     expect(tabKeys).toContain("adapter");
   });
 
-  it("verifies presets include Vercel, Render, and PM2", () => {
-    const stackPresets = ["pm2", "vercel", "render", "docker", "k8s"];
+  it("verifies presets include PM2, K8s, and Render", () => {
+    const stackPresets = ["pm2", "k8s", "render"];
     expect(stackPresets).toContain("pm2");
-    expect(stackPresets).toContain("vercel");
+    expect(stackPresets).toContain("k8s");
     expect(stackPresets).toContain("render");
   });
 });
