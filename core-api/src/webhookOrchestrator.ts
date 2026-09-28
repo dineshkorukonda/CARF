@@ -249,11 +249,19 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
 
   const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
   const adapter = buildAdapter(adapterConfig, target.baseSha);
-  const targetName = adapterConfig.target ?? adapterConfig.targets?.[0] ?? "";
+  const firstTarget = adapterConfig.targets?.[0];
+  const targetName =
+    adapterConfig.target ??
+    (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
+    "";
+  const startupGraceSeconds =
+    (typeof firstTarget === "object" ? firstTarget?.startupGraceSeconds : undefined) ??
+    adapterConfig.startupGraceSeconds ??
+    60;
 
   // If a background monitor worker is attached and pendingOutcome exists, enqueue monitor job
   if (deps.rolloutMonitor && pendingOutcome) {
-    deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName);
+    deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName, startupGraceSeconds);
   }
 
   const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;

@@ -4,6 +4,7 @@
  */
 
 export type RolloutStatus = "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED";
+export type RolloutTrigger = "auto" | "manual";
 
 export interface RolloutOutcomeRecord {
   id: string;
@@ -13,6 +14,8 @@ export interface RolloutOutcomeRecord {
   commitSha: string;
   installationId?: string | null | undefined;
   status: RolloutStatus;
+  trigger?: RolloutTrigger | undefined;
+  readyAt?: Date | null | undefined;
   threshold: number;
   window: number;
   startedAt: Date;
@@ -52,6 +55,8 @@ export interface RolloutOutcomePrismaClient {
         commitSha: string;
         installationId?: string | undefined;
         status: RolloutStatus;
+        trigger?: RolloutTrigger | undefined;
+        readyAt?: Date | null | undefined;
         threshold: number;
         window: number;
         startedAt?: Date | undefined;
@@ -60,12 +65,16 @@ export interface RolloutOutcomePrismaClient {
       update: {
         threshold?: number | undefined;
         window?: number | undefined;
+        trigger?: RolloutTrigger | undefined;
+        readyAt?: Date | null | undefined;
       };
     }): Promise<RolloutOutcomeRecord>;
     update(args: {
       where: { id: string };
       data: {
         status?: RolloutStatus | undefined;
+        trigger?: RolloutTrigger | undefined;
+        readyAt?: Date | null | undefined;
         finishedAt?: Date | undefined;
         finalErrorRate?: number | undefined;
         rolledBack?: boolean | undefined;
@@ -100,6 +109,8 @@ export interface CreatePendingOutcomeParams {
   installationId?: string | undefined;
   threshold: number;
   window: number;
+  trigger?: RolloutTrigger | undefined;
+  readyAt?: Date | undefined;
 }
 
 export interface FinalizeOutcomeParams {
@@ -110,6 +121,7 @@ export interface FinalizeOutcomeParams {
   reason?: string | undefined;
   rollbackVerified?: boolean | null | undefined;
   finishedAt?: Date | undefined;
+  readyAt?: Date | undefined;
 }
 
 export async function createPendingRolloutOutcome(
@@ -139,6 +151,8 @@ export async function createPendingRolloutOutcome(
       commitSha: params.commitSha,
       ...(params.installationId !== undefined ? { installationId: params.installationId } : {}),
       status: "PENDING",
+      trigger: params.trigger ?? "auto",
+      ...(params.readyAt !== undefined ? { readyAt: params.readyAt } : {}),
       threshold: params.threshold,
       window: params.window,
       startedAt: new Date(),
@@ -147,6 +161,8 @@ export async function createPendingRolloutOutcome(
     update: {
       threshold: params.threshold,
       window: params.window,
+      ...(params.trigger !== undefined ? { trigger: params.trigger } : {}),
+      ...(params.readyAt !== undefined ? { readyAt: params.readyAt } : {}),
     },
   });
 }
@@ -160,11 +176,23 @@ export async function finalizeRolloutOutcome(
     data: {
       status: params.status,
       finishedAt: params.finishedAt ?? new Date(),
+      ...(params.readyAt !== undefined ? { readyAt: params.readyAt } : {}),
       ...(params.finalErrorRate !== undefined ? { finalErrorRate: params.finalErrorRate } : {}),
       rolledBack: params.rolledBack,
       ...(params.reason !== undefined ? { reason: params.reason } : {}),
       ...(params.rollbackVerified !== undefined ? { rollbackVerified: params.rollbackVerified } : {}),
     },
+  });
+}
+
+export async function markRolloutReady(
+  prisma: RolloutOutcomePrismaClient,
+  id: string,
+  readyAt: Date
+): Promise<RolloutOutcomeRecord> {
+  return await prisma.rolloutOutcome.update({
+    where: { id },
+    data: { readyAt },
   });
 }
 

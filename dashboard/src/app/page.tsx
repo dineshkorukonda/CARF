@@ -17,7 +17,7 @@ const STEPS = [
   },
   {
     title: "Configure mode & adapter",
-    desc: "Augment mode keeps your own canary tool (Argo Rollouts, Flagger, or CI probe) and supplies the threshold. Standalone mode has CARF drive rollback itself via PM2 (active) or Kubernetes/GitOps (preview).",
+    desc: "Augment mode keeps your own deployment probe and supplies the dynamic threshold. Standalone mode has CARF drive rollback itself via PM2.",
   },
   {
     title: "Set classification & threshold rules",
@@ -25,7 +25,7 @@ const STEPS = [
   },
   {
     title: "Wire your pipeline (Augment only)",
-    desc: "Point Argo Rollouts, Flagger, or a GitHub Actions workflow at GET /v1/threshold — see the examples/ configs or the carf-threshold Action. Standalone mode needs nothing else.",
+    desc: "Point your deployment script or a GitHub Actions workflow at GET /v1/threshold — see the examples/ configs or the carf-threshold Action. Standalone mode needs nothing else.",
   },
   {
     title: "Watch live status",
@@ -137,7 +137,7 @@ export default async function HomePage() {
             ))}
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
-            Not using Argo Rollouts or Flagger?{" "}
+            Using your own CI/CD pipeline?{" "}
             <a
               href="https://github.com/dineshkorukonda/CARF/tree/main/examples"
               target="_blank"
@@ -146,7 +146,7 @@ export default async function HomePage() {
             >
               See the example configs and the GitHub Action
             </a>
-            , or pick Standalone mode and skip pipeline wiring entirely.
+            , or pick PM2 Standalone mode and skip pipeline wiring entirely.
           </p>
         </div>
 

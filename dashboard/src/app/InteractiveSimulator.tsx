@@ -236,7 +236,7 @@ export function InteractiveSimulator() {
       if (isBreached) {
         base.push(`[${time}] ⚠️ BREACH DETECTED: Dispatched: "${runtime.command}"`);
       } else {
-        base.push(`[${time}] ✓ HEALTHY: Within error budget.`);
+        base.push(`[${time}] ✓ HEALTHY: Within error-rate threshold.`);
       }
       return base;
     }
@@ -585,7 +585,7 @@ export function InteractiveSimulator() {
           <div className="rounded-lg border border-border bg-background p-4 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-mono text-muted-foreground uppercase text-[10px]">
-                Autonomous Runtime Command:
+                Automated Runtime Command:
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">
                 Driver: {runtime.label}

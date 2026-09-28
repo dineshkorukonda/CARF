@@ -3,7 +3,10 @@ import type { RollbackAdapter } from "../../src/adapters/rollbackAdapter.js";
 import type { RolloutOutcomePrismaClient, RolloutOutcomeRecord } from "../../src/adapters/rolloutOutcome.js";
 import { RolloutMonitor } from "../../src/monitor/rolloutMonitor.js";
 
-function createFakePrisma(initialOutcomes: RolloutOutcomeRecord[] = []): RolloutOutcomePrismaClient & { outcomes: Map<string, RolloutOutcomeRecord> } {
+function createFakePrisma(
+  initialOutcomes: RolloutOutcomeRecord[] = [],
+  changeVectors: Map<string, { data: number }> = new Map()
+): RolloutOutcomePrismaClient & { outcomes: Map<string, RolloutOutcomeRecord> } {
   const outcomes = new Map<string, RolloutOutcomeRecord>();
   for (const outcome of initialOutcomes) {
     outcomes.set(outcome.id, { ...outcome });
@@ -12,14 +15,14 @@ function createFakePrisma(initialOutcomes: RolloutOutcomeRecord[] = []): Rollout
   return {
     outcomes,
     rolloutOutcome: {
-      async findMany(args) {
+      async findMany(args: any) {
         let list = Array.from(outcomes.values());
         if (args?.where?.status) {
           list = list.filter((o) => o.status === args.where!.status);
         }
         return list;
       },
-      async upsert(args) {
+      async upsert(args: any) {
         for (const existing of outcomes.values()) {
           if ((existing.installationId ?? "") === (args.create.installationId ?? "") && existing.commitSha === args.create.commitSha) {
             existing.threshold = args.update.threshold ?? existing.threshold;
@@ -44,7 +47,7 @@ function createFakePrisma(initialOutcomes: RolloutOutcomeRecord[] = []): Rollout
         outcomes.set(newRecord.id, newRecord);
         return newRecord;
       },
-      async update(args) {
+      async update(args: any) {
         const existing = outcomes.get(args.where.id);
         if (!existing) {
           throw new Error(`Record ${args.where.id} not found`);
@@ -53,7 +56,19 @@ function createFakePrisma(initialOutcomes: RolloutOutcomeRecord[] = []): Rollout
         return existing;
       },
     },
-  };
+    changeVector: {
+      findUnique: vi.fn(async ({ where }: { where: { commitId: string } }) => changeVectors.get(where.commitId) ?? null),
+      findFirst: vi.fn(async ({ where }: { where: { commit?: { sha?: string } } }) =>
+        where.commit?.sha ? changeVectors.get(where.commit.sha) ?? null : null
+      ),
+    },
+    commit: {
+      findFirst: vi.fn(async ({ where }: { where: { sha: string } }) => {
+        const cv = changeVectors.get(where.sha);
+        return cv ? { changeVector: cv } : null;
+      }),
+    },
+  } as unknown as RolloutOutcomePrismaClient & { outcomes: Map<string, RolloutOutcomeRecord> };
 }
 
 describe("RolloutMonitor State Machine", () => {
@@ -238,4 +253,197 @@ describe("RolloutMonitor State Machine", () => {
     const active = fakePrisma.outcomes.get("outcome-active")!;
     expect(active.status).toBe("SUCCESS");
   });
+
+  it("ignores HTTP probe failure during startupGraceSeconds, records readyAt on first healthy poll, and starts window from readyAt", async () => {
+    let currentTime = 1000;
+    const fakePrisma = createFakePrisma();
+    const outcome: RolloutOutcomeRecord = {
+      id: "outcome-grace-1",
+      commitSha: "sha-grace",
+      status: "PENDING",
+      threshold: 0.05,
+      window: 10, // 10s soak window
+      startedAt: new Date(currentTime),
+      rolledBack: false,
+      createdAt: new Date(currentTime),
+      updatedAt: new Date(currentTime),
+    };
+    fakePrisma.outcomes.set(outcome.id, outcome);
+
+    // First 2 polls: process healthy (processErrorRate 0), but HTTP probe failing (healthy: false)
+    // 3rd poll: healthy: true
+    // Subsequent polls: healthy: true
+    const checkHealth = vi
+      .fn()
+      .mockResolvedValueOnce({ errorRate: 0.5, healthy: false, processErrorRate: 0, httpErrorRate: 1.0 })
+      .mockResolvedValueOnce({ errorRate: 0.5, healthy: false, processErrorRate: 0, httpErrorRate: 1.0 })
+      .mockResolvedValue({ errorRate: 0.0, healthy: true, processErrorRate: 0, httpErrorRate: 0 });
+
+    const rollback = vi.fn();
+    const adapter: RollbackAdapter = { checkHealth, rollback };
+
+    const sleep = vi.fn().mockImplementation(async (ms: number) => {
+      currentTime += ms;
+    });
+
+    const monitor = new RolloutMonitor({
+      prismaClient: fakePrisma,
+      logger: fakeLogger,
+      pollIntervalMs: 2000,
+      sleep,
+      now: () => new Date(currentTime),
+    });
+
+    // Enqueue with 60s startup grace
+    monitor.enqueue(outcome, adapter, "test-app", 60);
+    await monitor.waitForJobs();
+
+    const finalized = fakePrisma.outcomes.get("outcome-grace-1")!;
+    expect(finalized.status).toBe("SUCCESS");
+    expect(finalized.rolledBack).toBe(false);
+    expect(finalized.readyAt).toBeDefined();
+    // readyAt was recorded at poll 3 (after 2 sleep intervals of 2000ms: currentTime = 1000 + 4000 = 5000)
+    expect(new Date(finalized.readyAt!).getTime()).toBe(5000);
+    expect(rollback).not.toHaveBeenCalled();
+  });
+
+  it("initiates immediate rollback if process crashes or restarts during startupGraceSeconds", async () => {
+    const currentTime = 1000;
+    const fakePrisma = createFakePrisma();
+    const outcome: RolloutOutcomeRecord = {
+      id: "outcome-crash",
+      commitSha: "sha-crash",
+      status: "PENDING",
+      threshold: 0.05,
+      window: 30,
+      startedAt: new Date(currentTime),
+      rolledBack: false,
+      createdAt: new Date(currentTime),
+      updatedAt: new Date(currentTime),
+    };
+    fakePrisma.outcomes.set(outcome.id, outcome);
+
+    // Target process crashes during grace (processErrorRate: 1.0)
+    const checkHealth = vi.fn().mockResolvedValue({
+      errorRate: 1.0,
+      healthy: false,
+      processErrorRate: 1.0,
+      httpErrorRate: 1.0,
+    });
+    const rollbackWithVerification = vi.fn().mockResolvedValue({ rollbackVerified: true });
+    const adapter: RollbackAdapter = { checkHealth, rollback: vi.fn(), rollbackWithVerification };
+
+    const monitor = new RolloutMonitor({
+      prismaClient: fakePrisma,
+      logger: fakeLogger,
+      pollIntervalMs: 2000,
+      now: () => new Date(currentTime),
+    });
+
+    monitor.enqueue(outcome, adapter, "target-app", 60);
+    await monitor.waitForJobs();
+
+    const finalized = fakePrisma.outcomes.get("outcome-crash")!;
+    expect(finalized.status).toBe("ROLLED_BACK");
+    expect(finalized.rolledBack).toBe(true);
+    expect(finalized.reason).toContain("Process failure during startup grace period");
+    expect(rollbackWithVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it("initiates rollback if startup grace period expires without reaching healthy state", async () => {
+    let currentTime = 1000;
+    const fakePrisma = createFakePrisma();
+    const outcome: RolloutOutcomeRecord = {
+      id: "outcome-grace-expired",
+      commitSha: "sha-timeout",
+      status: "PENDING",
+      threshold: 0.05,
+      window: 30,
+      startedAt: new Date(currentTime),
+      rolledBack: false,
+      createdAt: new Date(currentTime),
+      updatedAt: new Date(currentTime),
+    };
+    fakePrisma.outcomes.set(outcome.id, outcome);
+
+    // Process is running, but HTTP probe never succeeds (processErrorRate 0, healthy: false)
+    const checkHealth = vi.fn().mockResolvedValue({
+      errorRate: 0.5,
+      healthy: false,
+      processErrorRate: 0,
+      httpErrorRate: 1.0,
+    });
+    const rollback = vi.fn().mockResolvedValue(undefined);
+    const adapter: RollbackAdapter = { checkHealth, rollback };
+
+    const sleep = vi.fn().mockImplementation(async (ms: number) => {
+      currentTime += ms;
+    });
+
+    const monitor = new RolloutMonitor({
+      prismaClient: fakePrisma,
+      logger: fakeLogger,
+      pollIntervalMs: 5000,
+      sleep,
+      now: () => new Date(currentTime),
+    });
+
+    // Grace is 10 seconds. Polls at t=1000, t=6000, t=11000 (grace expired)
+    monitor.enqueue(outcome, adapter, "target-app", 10);
+    await monitor.waitForJobs();
+
+    const finalized = fakePrisma.outcomes.get("outcome-grace-expired")!;
+    expect(finalized.status).toBe("ROLLED_BACK");
+    expect(finalized.rolledBack).toBe(true);
+    expect(finalized.reason).toContain("Startup grace period (10s) expired without passing health check");
+    expect(rollback).toHaveBeenCalledTimes(1);
+  });
+
+  it("appends '; schema not reverted' to rollback reason when changeVector has data > 0", async () => {
+    let currentTime = 1000;
+    const changeVectors = new Map<string, { data: number }>([
+      ["sha-schema-change", { data: 2 }],
+    ]);
+    const fakePrisma = createFakePrisma([], changeVectors);
+    const outcome: RolloutOutcomeRecord = {
+      id: "outcome-schema",
+      commitSha: "sha-schema-change",
+      status: "PENDING",
+      threshold: 0.05,
+      window: 10,
+      startedAt: new Date(currentTime),
+      rolledBack: false,
+      createdAt: new Date(currentTime),
+      updatedAt: new Date(currentTime),
+    };
+    fakePrisma.outcomes.set(outcome.id, outcome);
+
+    const checkHealth = vi
+      .fn()
+      .mockResolvedValueOnce({ errorRate: 0.0, healthy: true })
+      .mockResolvedValueOnce({ errorRate: 0.2, healthy: false });
+    const rollback = vi.fn().mockResolvedValue(undefined);
+    const adapter: RollbackAdapter = { checkHealth, rollback };
+
+    const sleep = vi.fn().mockImplementation(async (ms: number) => {
+      currentTime += ms;
+    });
+
+    const monitor = new RolloutMonitor({
+      prismaClient: fakePrisma,
+      logger: fakeLogger,
+      pollIntervalMs: 2000,
+      sleep,
+      now: () => new Date(currentTime),
+    });
+
+    monitor.enqueue(outcome, adapter, "target-app", 60);
+    await monitor.waitForJobs();
+
+    const finalized = fakePrisma.outcomes.get("outcome-schema")!;
+    expect(finalized.status).toBe("ROLLED_BACK");
+    expect(finalized.rolledBack).toBe(true);
+    expect(finalized.reason).toContain("; schema not reverted");
+  });
 });
+

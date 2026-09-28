@@ -97,7 +97,7 @@ export function CommitTrendChart({
             </span>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Visualizing AST-calibrated error budget ceilings against post-deploy outcomes.
+            Visualizing AST-calibrated error-rate threshold ceilings against post-deploy outcomes.
           </p>
         </div>
 
