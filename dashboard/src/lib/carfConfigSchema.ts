@@ -35,6 +35,21 @@ export const ADAPTER_METADATA: Record<AdapterKind, AdapterDescriptor> = {
 
 export const ADAPTER_TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
 
+export const Pm2TargetConfigSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .regex(
+        ADAPTER_TARGET_REGEX,
+        "target name must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+      ),
+    healthUrl: z.string().optional(),
+    startupGraceSeconds: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type Pm2TargetConfig = z.infer<typeof Pm2TargetConfigSchema>;
+
 export const AdapterConfigSchema = z
   .object({
     kind: AdapterKindSchema,
@@ -44,9 +59,38 @@ export const AdapterConfigSchema = z
       .regex(
         ADAPTER_TARGET_REGEX,
         "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
-      ),
+      )
+      .optional(),
+    targets: z
+      .array(
+        z.union([
+          z
+            .string()
+            .min(1)
+            .regex(
+              ADAPTER_TARGET_REGEX,
+              "targets must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+            ),
+          Pm2TargetConfigSchema,
+        ])
+      )
+      .min(1)
+      .optional(),
+    layout: z.enum(["releases", "git"]).optional(),
+    releasesRoot: z.string().optional(),
+    currentSymlink: z.string().optional(),
+    sharedPaths: z.array(z.string().min(1)).optional(),
+    cwd: z.string().optional(),
+    buildCommand: z.string().optional(),
+    healthUrl: z.string().optional(),
+    startupGraceSeconds: z.number().int().nonnegative().optional(),
+    probeCount: z.number().int().positive().optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => data.target !== undefined || (data.targets !== undefined && data.targets.length > 0), {
+    message: "adapter requires either 'target' or 'targets' to be specified",
+    path: ["target"],
+  });
 export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
 
 export const ModeSchema = z.enum(["standalone", "augment"]);

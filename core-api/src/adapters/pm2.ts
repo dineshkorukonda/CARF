@@ -23,10 +23,16 @@ export interface PM2AdapterOptions {
   targets?: string[] | undefined;
   /** Optional HTTP health check URL or endpoint */
   healthUrl?: string | undefined;
+  /** Startup grace period in seconds. Default: 60 */
+  startupGraceSeconds?: number | undefined;
+  /** Shared paths preserved across releases */
+  sharedPaths?: string[] | undefined;
   /** Number of HTTP probes per poll interval. Default: 1 */
   probeCount?: number | undefined;
   /** Injected fetch function for HTTP health checks, defaulting to globalThis.fetch */
   fetchFn?: ((url: string) => Promise<{ ok: boolean; status: number }>) | undefined;
+  /** Sleep function injected for testing */
+  sleep?: ((ms: number) => Promise<void>) | undefined;
 }
 
 interface Pm2ProcessDescription {
@@ -37,6 +43,13 @@ interface Pm2ProcessDescription {
     restart_time?: number;
     unstable_restarts?: number;
   };
+}
+
+export interface PM2HealthResult {
+  errorRate: number;
+  healthy: boolean;
+  processErrorRate: number;
+  httpErrorRate: number;
 }
 
 /**
@@ -55,8 +68,11 @@ export class PM2Adapter implements RollbackAdapter {
   private readonly buildCommand?: string | undefined;
   private readonly defaultTargets: string[];
   private readonly healthUrl?: string | undefined;
+  private readonly startupGraceSeconds: number;
+  private readonly sharedPaths: string[];
   private readonly probeCount: number;
   private readonly fetchFn: (url: string) => Promise<{ ok: boolean; status: number }>;
+  private readonly sleep: (ms: number) => Promise<void>;
   private readonly baselineRestarts = new Map<string | number, number>();
 
   constructor(
@@ -81,8 +97,11 @@ export class PM2Adapter implements RollbackAdapter {
     this.cwd = options.cwd;
     this.buildCommand = options.buildCommand;
     this.healthUrl = options.healthUrl;
+    this.startupGraceSeconds = options.startupGraceSeconds ?? 60;
+    this.sharedPaths = options.sharedPaths ?? [];
     this.probeCount = options.probeCount ?? 1;
     this.fetchFn = options.fetchFn ?? ((url: string) => globalThis.fetch(url));
+    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
 
     assertSafeTarget(this.releasesRoot, "releasesRoot");
     assertSafeTarget(this.currentSymlink, "currentSymlink");
@@ -187,7 +206,12 @@ export class PM2Adapter implements RollbackAdapter {
     }
 
     const errorRate = Math.max(processErrorRate, httpErrorRate);
-    return { errorRate, healthy: errorRate === 0 };
+    return {
+      errorRate,
+      healthy: errorRate === 0,
+      processErrorRate,
+      httpErrorRate,
+    };
   }
 
   async rollback(target?: string): Promise<void> {
@@ -212,13 +236,52 @@ export class PM2Adapter implements RollbackAdapter {
     }
   }
 
-  async rollbackWithVerification(target?: string): Promise<{ verified: boolean; errorRate: number; rollbackVerified: boolean }> {
+  async rollbackWithVerification(
+    target?: string,
+    graceSeconds?: number
+  ): Promise<{ verified: boolean; errorRate: number; rollbackVerified: boolean }> {
     await this.rollback(target);
-    const health = await this.checkHealth(target);
+    const grace = graceSeconds ?? this.startupGraceSeconds ?? 60;
+    const graceMs = grace * 1000;
+    const startTime = Date.now();
+
+    let lastHealth: PM2HealthResult = {
+      errorRate: 1,
+      healthy: false,
+      processErrorRate: 1,
+      httpErrorRate: 0,
+    };
+
+    while (Date.now() - startTime <= graceMs) {
+      lastHealth = await this.checkHealth(target);
+
+      // Process exits or restart count deltas fail verification immediately
+      if (lastHealth.processErrorRate > 0) {
+        return {
+          verified: false,
+          errorRate: lastHealth.errorRate,
+          rollbackVerified: false,
+        };
+      }
+
+      // First healthy poll during grace (process online & HTTP 2xx) -> verified
+      if (lastHealth.healthy) {
+        return {
+          verified: true,
+          errorRate: lastHealth.errorRate,
+          rollbackVerified: true,
+        };
+      }
+
+      // If only HTTP probe failed during grace period, wait for next poll
+      await this.sleep(Math.min(1000, graceMs));
+    }
+
+    // Grace period expired without reaching healthy status
     return {
-      verified: health.healthy,
-      errorRate: health.errorRate,
-      rollbackVerified: health.healthy,
+      verified: false,
+      errorRate: lastHealth.errorRate,
+      rollbackVerified: false,
     };
   }
 }

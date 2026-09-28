@@ -19,7 +19,7 @@ describe("PM2Adapter.checkHealth", () => {
     const result = await adapter.checkHealth("web");
 
     expect(exec).toHaveBeenCalledWith("pm2 jlist");
-    expect(result).toEqual({ errorRate: 0, healthy: true });
+    expect(result).toMatchObject({ errorRate: 0, healthy: true });
   });
 
   it("computes a fractional errorRate when some matching processes aren't online", async () => {
@@ -43,7 +43,7 @@ describe("PM2Adapter.checkHealth", () => {
 
     const result = await adapter.checkHealth("web");
 
-    expect(result).toEqual({ errorRate: 1, healthy: false });
+    expect(result).toMatchObject({ errorRate: 1, healthy: false });
   });
 
   it("evaluates multiple targets and returns max errorRate across targets", async () => {
@@ -84,11 +84,11 @@ describe("PM2Adapter.checkHealth", () => {
 
     // First check establishes baseline (restart_time = 2) -> healthy
     const first = await adapter.checkHealth();
-    expect(first).toEqual({ errorRate: 0, healthy: true });
+    expect(first).toMatchObject({ errorRate: 0, healthy: true });
 
     // Second check observes restart_time increased to 3 -> unhealthy
     const second = await adapter.checkHealth();
-    expect(second).toEqual({ errorRate: 1, healthy: false });
+    expect(second).toMatchObject({ errorRate: 1, healthy: false });
   });
 
   it("incorporates HTTP health probes and takes max of process and HTTP errorRate", async () => {
