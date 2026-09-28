@@ -2,7 +2,12 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { listInstallationsForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
-import { RepoDetailView } from "./RepoDetailView";
+import {
+  RepoDetailView,
+  type RolloutItem,
+  type CommitWithDetails,
+  type AuditLogItem,
+} from "./RepoDetailView";
 
 export default async function RepoDetailPage(props: {
   params: Promise<{ repo: string[] }>;
@@ -107,9 +112,9 @@ export default async function RepoDetailPage(props: {
       defaultBranch="main"
       installationId={connection?.installationId || installations[0]!.installationId}
       connection={connection}
-      rollouts={rollouts as any}
-      commits={commits as any}
-      auditLogs={auditLogs as any}
+      rollouts={rollouts as unknown as RolloutItem[]}
+      commits={commits as unknown as CommitWithDetails[]}
+      auditLogs={auditLogs as unknown as AuditLogItem[]}
     />
   );
 }

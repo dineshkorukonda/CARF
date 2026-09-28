@@ -56,7 +56,7 @@ export interface Pm2RouteOptions {
   executor?: CommandExecutor | ExecFn;
   prismaClient?: InstallationAuthPrismaClient;
   fsAccess?: (path: string, mode?: number) => Promise<void>;
-  httpFetch?: (url: string, init?: any) => Promise<{ status: number; text: () => Promise<string> }>;
+  httpFetch?: (url: string, init?: RequestInit) => Promise<{ status: number; text: () => Promise<string> }>;
 }
 
 const responseSchema: FastifySchema = {
@@ -152,7 +152,9 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
   });
 
   const checkAccess = options.fsAccess ?? access;
-  const doFetch = options.httpFetch ?? (fetch as any);
+  const doFetch =
+    options.httpFetch ??
+    (fetch as unknown as (url: string, init?: RequestInit) => Promise<{ status: number; text: () => Promise<string> }>);
 
   app.post<{ Body: VerifyRequestBody }>("/v1/pm2/verify", async (request, reply) => {
     const installationId = await resolveInstallationFromAuthHeader(prismaClient, request.headers.authorization);
@@ -178,12 +180,12 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
         passed: true,
         message: "PM2 daemon is reachable and responding",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       checks.push({
         id: "pm2_daemon",
         title: "PM2 Daemon Reachability",
         passed: false,
-        message: `Failed to query PM2 daemon: ${err?.message || "Unknown error"}`,
+        message: `Failed to query PM2 daemon: ${err instanceof Error ? err.message : "Unknown error"}`,
       });
     }
 
@@ -225,12 +227,12 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             message: `Health check returned HTTP ${res.status} (expected 2xx)`,
           });
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         checks.push({
           id: "health_url",
           title: "HTTP Health Probe",
           passed: false,
-          message: `Health check request failed: ${err?.message || "Network error"}`,
+          message: `Health check request failed: ${err instanceof Error ? err.message : "Network error"}`,
         });
       }
     } else {
@@ -305,19 +307,23 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
         passed: true,
         message: "Filesystem write and PM2 management permissions verified",
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       checks.push({
         id: "rollback_permission",
         title: "Rollback Permission Check (Dry-Run)",
         passed: false,
-        message: `Rollback permission check failed: ${err?.message || "Permission denied"}`,
+        message: `Rollback permission check failed: ${err instanceof Error ? err.message : "Permission denied"}`,
       });
     }
 
     const verified = checks.every((c) => c.passed);
 
     // Save RepoConnection
-    const repoConn = (prismaClient as any).repoConnection;
+    const repoConn = (prismaClient as unknown as {
+      repoConnection?: {
+        upsert: (args: unknown) => Promise<unknown>;
+      };
+    }).repoConnection;
     if (repoConn && typeof repoConn.upsert === "function") {
       try {
         await repoConn.upsert({

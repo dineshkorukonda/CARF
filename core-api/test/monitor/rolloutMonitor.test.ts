@@ -20,7 +20,6 @@ function createFakePrisma(initialOutcomes: RolloutOutcomeRecord[] = []): Rollout
         return list;
       },
       async upsert(args) {
-        const key = `${args.create.installationId ?? ""}::${args.create.commitSha}`;
         for (const existing of outcomes.values()) {
           if ((existing.installationId ?? "") === (args.create.installationId ?? "") && existing.commitSha === args.create.commitSha) {
             existing.threshold = args.update.threshold ?? existing.threshold;
@@ -152,7 +151,7 @@ describe("RolloutMonitor State Machine", () => {
   });
 
   it("transitions PENDING -> FAILED when adapter throws during health check", async () => {
-    let currentTime = 1000;
+    const currentTime = 1000;
     const fakePrisma = createFakePrisma();
     const outcome: RolloutOutcomeRecord = {
       id: "outcome-3",

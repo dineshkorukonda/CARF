@@ -38,7 +38,7 @@ function NavLink({
 }: {
   href: string;
   exact?: boolean;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
   collapsed: boolean;
   children: React.ReactNode;
 }) {
@@ -75,7 +75,7 @@ export function SidebarShell({
     try {
       const stored = localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1";
       if (stored) {
-        setCollapsed(true);
+        queueMicrotask(() => setCollapsed(true));
       }
     } catch {
       // localStorage unavailable

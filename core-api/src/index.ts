@@ -39,6 +39,7 @@ const installationTokenClient = getInstallationTokenClient();
 // on a real incoming request, by which point `app`'s const binding is already
 // initialized. Standard self-referencing-closure pattern; safe despite the apparent
 // ordering.
+// eslint-disable-next-line prefer-const
 let rolloutMonitor: RolloutMonitor;
 
 const app = buildApp({
@@ -61,6 +62,7 @@ rolloutMonitor = new RolloutMonitor({
   adapterFactory: (outcome) => {
     const targetName = carfConfig?.adapter?.target ?? carfConfig?.adapter?.targets?.[0] ?? "";
     return new PM2Adapter(outcome.commitSha, {
+      target: targetName,
       releasesRoot: carfConfig?.adapter?.releasesRoot,
       currentSymlink: carfConfig?.adapter?.currentSymlink,
       cwd: carfConfig?.adapter?.cwd,

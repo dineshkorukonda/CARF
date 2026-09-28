@@ -9,14 +9,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: any;
+  let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = (await request.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { installationId, owner, repo, paused } = body || {};
+  const { installationId, owner, repo, paused } = (body || {}) as {
+    installationId?: string;
+    owner?: string;
+    repo?: string;
+    paused?: boolean;
+  };
   if (!installationId || !owner || !repo || typeof paused !== "boolean") {
     return NextResponse.json(
       { error: "Missing required fields: installationId, owner, repo, and boolean paused" },

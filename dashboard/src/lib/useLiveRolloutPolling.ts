@@ -41,7 +41,10 @@ export function useLiveRolloutPolling(
 ) {
   const [rollouts, setRollouts] = useState<LiveRolloutItem[]>(initialRollouts);
   const rolloutsRef = useRef(rollouts);
-  rolloutsRef.current = rollouts;
+
+  useEffect(() => {
+    rolloutsRef.current = rollouts;
+  }, [rollouts]);
 
   // Derive if any rollout is in PENDING state
   const pendingRollout = rollouts.find((r) => r.status === "PENDING");
@@ -59,7 +62,7 @@ export function useLiveRolloutPolling(
   }, [pendingRollout]);
 
   useEffect(() => {
-    updateCountdown();
+    queueMicrotask(() => updateCountdown());
     if (!isPolling) return;
 
     const timer = setInterval(updateCountdown, 1000);
@@ -110,7 +113,7 @@ export function useLiveRolloutPolling(
       isMounted = false;
       clearInterval(interval);
     };
-  }, [isPolling, pendingRollout?.id, installationId, pollIntervalMs]);
+  }, [isPolling, pendingRollout, installationId, pollIntervalMs]);
 
   return {
     rollouts,

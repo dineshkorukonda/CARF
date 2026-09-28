@@ -14,7 +14,7 @@ interface Crumb {
  * The sidebar already shows which installation and section are active (its own switcher +
  * highlighted nav item), so repeating that whole hierarchy here would just be noise.
  */
-function buildCrumbs(pathname: string, installations: InstallationRow[]): Crumb[] {
+function buildCrumbs(pathname: string): Crumb[] {
   if (pathname === "/dashboard") return [{ label: "Repositories" }];
   if (pathname === "/dashboard/setup") return [{ label: "PM2 Setup" }];
   if (pathname === "/dashboard/verify") return [{ label: "Verify Harness" }];
@@ -36,9 +36,10 @@ function buildCrumbs(pathname: string, installations: InstallationRow[]): Crumb[
   return [{ label: "Repositories", href: "/dashboard" }];
 }
 
-export function Breadcrumbs({ installations }: { installations: InstallationRow[] }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function Breadcrumbs(_props: { installations?: InstallationRow[] }) {
   const pathname = usePathname();
-  const crumbs = buildCrumbs(pathname, installations);
+  const crumbs = buildCrumbs(pathname);
 
   return (
     <nav className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">

@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
   Pause,
   Play,
   Loader2,
@@ -41,7 +40,7 @@ interface SampleItem {
   errorRate: number;
 }
 
-interface RolloutItem {
+export interface RolloutItem {
   id: string;
   commitSha: string;
   status: "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED";
@@ -55,7 +54,7 @@ interface RolloutItem {
   samples?: SampleItem[];
 }
 
-interface ChangeVectorItem {
+export interface ChangeVectorItem {
   infra: number;
   dependency: number;
   config: number;
@@ -63,13 +62,13 @@ interface ChangeVectorItem {
   codeComplexity: number;
 }
 
-interface ThresholdItem {
+export interface ThresholdItem {
   finalThreshold: number;
   finalWindow: number;
   activeTypes: string[];
 }
 
-interface CommitWithDetails {
+export interface CommitWithDetails {
   id: string;
   sha: string;
   baseSha: string;
@@ -78,12 +77,12 @@ interface CommitWithDetails {
   threshold?: ThresholdItem | null;
 }
 
-interface AuditLogItem {
+export interface AuditLogItem {
   id: string;
   actor: string;
   action: string;
   result: string;
-  details?: any;
+  details?: unknown;
   ts: Date | string;
 }
 
@@ -96,7 +95,7 @@ interface RepoDetailViewProps {
     id: string;
     verifiedAt: Date | string | null;
     monitoringPaused: boolean;
-    storedConfig?: any;
+    storedConfig?: unknown;
   } | null;
   rollouts: RolloutItem[];
   commits: CommitWithDetails[];
@@ -120,6 +119,7 @@ export function RepoDetailView({
 
   const {
     rollouts: liveRollouts,
+    setRollouts: setLiveRollouts,
     isPolling,
     pendingRollout,
     countdownSeconds,
@@ -174,8 +174,8 @@ export function RepoDetailView({
       }
 
       setMonitoringPaused(nextPaused);
-    } catch (err: any) {
-      alert(`Failed to update pause state: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Failed to update pause state: ${err instanceof Error ? err.message : "Error"}`);
     } finally {
       setTogglingPause(false);
     }
@@ -204,15 +204,19 @@ export function RepoDetailView({
       setRollbackSuccess(
         `Rollback initiated successfully for ${rollbackTarget.commitSha.slice(0, 7)}.`
       );
-      // Update local status
-      rollbackTarget.status = "ROLLED_BACK";
-      rollbackTarget.rolledBack = true;
-      rollbackTarget.reason = "manual";
+      // Update local status immutably
+      setLiveRollouts((prev) =>
+        prev.map((r) =>
+          r.id === rollbackTarget.id
+            ? { ...r, status: "ROLLED_BACK", rolledBack: true, reason: "manual" }
+            : r
+        )
+      );
       setTimeout(() => {
         setRollbackTarget(null);
       }, 1500);
-    } catch (err: any) {
-      setRollbackError(err.message || "Manual rollback failed");
+    } catch (err: unknown) {
+      setRollbackError(err instanceof Error ? err.message : "Manual rollback failed");
     } finally {
       setRollingBack(false);
     }
@@ -825,7 +829,7 @@ export function RepoDetailView({
                     Actor: {log.actor} • {new Date(log.ts).toLocaleString()}
                   </div>
                 </div>
-                {log.details && (
+                {Boolean(log.details) && (
                   <pre className="font-mono text-[10px] text-muted-foreground max-w-xs truncate">
                     {JSON.stringify(log.details)}
                   </pre>
@@ -859,7 +863,9 @@ export function RepoDetailView({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Target PM2 App:</span>
-                <span className="font-bold text-foreground">{connection?.storedConfig?.name || "configured target"}</span>
+                <span className="font-bold text-foreground">
+                  {(connection?.storedConfig as { name?: string } | null | undefined)?.name || "configured target"}
+                </span>
               </div>
             </div>
 

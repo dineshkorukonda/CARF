@@ -17,7 +17,6 @@ import {
   type StandaloneLoopLockPrismaClient,
 } from "./adapters/standaloneLoopLock.js";
 import { CarfConfigSchema, type CarfConfig } from "./config/carfConfigSchema.js";
-import { env } from "./config/env.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { prisma as defaultPrisma } from "./db/client.js";
 import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";

@@ -22,7 +22,7 @@ describe("Demo Target App & PM2 Adapter E2E Simulation", () => {
     });
 
     let probeCount = 0;
-    const fetchMock = vi.fn(async (_url: string) => {
+    const fetchMock = vi.fn(async () => {
       probeCount++;
       // First 2 polls (4 probes) are unhealthy 500s, breaching the threshold
       if (probeCount <= 4) {

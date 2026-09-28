@@ -9,9 +9,6 @@ import {
   RotateCcw,
   Clock,
   ArrowRight,
-  ShieldCheck,
-  AlertTriangle,
-  CheckCircle2,
   Sliders,
 } from "lucide-react";
 import { deriveRepoStatus, getStatusBadgeVariant } from "../../lib/repoStatusDerivation";
@@ -33,7 +30,7 @@ interface RepoConnectionItem {
   repo: string;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
-  storedConfig?: any;
+  storedConfig?: unknown;
 }
 
 interface RolloutOutcomeItem {

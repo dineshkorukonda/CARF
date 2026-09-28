@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import { PM2Adapter } from "../../src/adapters/pm2.js";
-import { LocalCommandExecutor } from "../../src/adapters/execFn.js";
 
 function mockExec(stdout: string, stderr = "") {
   return vi.fn().mockResolvedValue({ stdout, stderr });

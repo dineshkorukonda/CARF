@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -10,11 +10,8 @@ import {
   ArrowRight,
   Copy,
   Check,
-  FolderGit2,
   RefreshCw,
   Play,
-  Sliders,
-  ShieldCheck,
   FileCode,
 } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
@@ -66,7 +63,7 @@ export function SetupWizard({
   );
 
   // Step 1: Repo selection
-  const [repos, setRepos] = useState<InstallationRepo[]>(initialRepos);
+  const repos = initialRepos;
   const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(
     initialRepos[0]?.full_name || ""
   );
@@ -108,7 +105,7 @@ export function SetupWizard({
   );
 
   // Fetch PM2 apps when entering step 2 or on manual refresh
-  const fetchPm2Apps = async () => {
+  const fetchPm2Apps = useCallback(async () => {
     if (!selectedInstallationId) return;
     setLoadingPm2(true);
     setPm2Error(null);
@@ -128,18 +125,20 @@ export function SetupWizard({
           setCurrentSymlink(`${data.apps[0].cwd}/current`);
         }
       }
-    } catch (err: any) {
-      setPm2Error(err.message || "Failed to load PM2 apps from core API");
+    } catch (err: unknown) {
+      setPm2Error(err instanceof Error ? err.message : "Failed to load PM2 apps from core API");
     } finally {
       setLoadingPm2(false);
     }
-  };
+  }, [selectedInstallationId, selectedTargetName]);
 
   useEffect(() => {
     if (currentStep === 2 && pm2Apps.length === 0) {
-      fetchPm2Apps();
+      queueMicrotask(() => {
+        void fetchPm2Apps();
+      });
     }
-  }, [currentStep, selectedInstallationId]);
+  }, [currentStep, pm2Apps.length, fetchPm2Apps]);
 
   // Run 5-item verification
   const runVerification = async () => {
@@ -181,8 +180,8 @@ export function SetupWizard({
 
       const data = await res.json();
       setVerificationResult(data);
-    } catch (err: any) {
-      setVerificationError(err.message || "Verification request failed");
+    } catch (err: unknown) {
+      setVerificationError(err instanceof Error ? err.message : "Verification request failed");
     } finally {
       setVerifying(false);
     }
@@ -244,8 +243,8 @@ export function SetupWizard({
       }
 
       setCommitSuccess(true);
-    } catch (err: any) {
-      setCommitError(err.message || "Failed to commit .carf.yml");
+    } catch (err: unknown) {
+      setCommitError(err instanceof Error ? err.message : "Failed to commit .carf.yml");
     } finally {
       setCommitting(false);
     }
@@ -276,7 +275,7 @@ export function SetupWizard({
           <button
             key={item.step}
             type="button"
-            onClick={() => setCurrentStep(item.step as any)}
+            onClick={() => setCurrentStep(item.step as 1 | 2 | 3 | 4 | 5)}
             className={`rounded-lg border px-3 py-2 font-medium transition-colors ${
               currentStep === item.step
                 ? "border-primary bg-primary/10 text-primary"
