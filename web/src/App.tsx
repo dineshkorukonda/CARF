@@ -10,6 +10,7 @@ import {
   Terminal,
   Sparkles,
 } from "lucide-react";
+import { SiteChrome } from "./SiteChrome";
 
 interface ScenarioPreset {
   id: string;
@@ -129,36 +130,7 @@ export default function App() {
   const dynamicTriggered = simulatedErrorRate > dynamicBudget;
 
   return (
-    <div className="min-h-screen bg-[#ffffff] text-[#0a0a0a] flex flex-col justify-between selection:bg-[#0a0a0a] selection:text-white">
-      {/* Top Minimal Navigation */}
-      <header className="border-b border-[#eaeaea] bg-white sticky top-0 z-40">
-        <div className="max-w-[1080px] mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="bg-[#0a0a0a] text-white px-2 py-0.5 text-[11px] font-mono font-semibold rounded-[3px] tracking-wider uppercase">
-              CARF
-            </span>
-            <span className="font-['Inter',system-ui,sans-serif] text-[13px] font-semibold text-[#111] tracking-tight">
-              Change-Aware Rollback Framework
-            </span>
-          </div>
-
-          <nav className="flex items-center gap-4">
-            <a
-              href="https://carf.indevs.in/login"
-              className="font-['Inter',system-ui,sans-serif] text-[13px] font-medium text-[#666] hover:text-[#0a0a0a] transition-colors px-2 py-1"
-            >
-              Sign In
-            </a>
-            <a
-              href="https://carf.indevs.in/signup"
-              className="font-['Inter',system-ui,sans-serif] text-[13px] font-medium bg-[#0a0a0a] hover:bg-[#262626] text-white px-3.5 py-1.5 rounded-[4px] transition-colors"
-            >
-              Get Started
-            </a>
-          </nav>
-        </div>
-      </header>
-
+    <SiteChrome>
       {/* Main Single-Screen Hero & Showcase Content */}
       <main className="flex-1 max-w-[1080px] w-full mx-auto px-6 py-12 md:py-16 flex flex-col justify-center">
         {/* Badge & Headline */}
@@ -537,20 +509,37 @@ export default function App() {
             </span>
           </div>
 
+          <p className="text-[13px] text-[#555] mb-4">
+            Step-by-step setup for a normal GitHub project, then PM2, Render, Kubernetes, and Prometheus.{" "}
+            <a href="#guide" className="font-medium text-[#111] underline underline-offset-2">
+              Open the full guide
+            </a>
+          </p>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Vercel Card */}
+            {/* PM2 Card */}
             <div className="border border-[#e5e5e5] bg-white rounded-[6px] p-4 flex flex-col justify-between shadow-2xs hover:border-[#bbb] transition-all">
               <div>
-                <div className="flex items-center gap-2 mb-2 font-semibold text-[#111] text-[14px]">
-                  <Globe className="w-4 h-4 text-blue-600" />
-                  <span>Vercel (Next.js)</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 font-semibold text-[#111] text-[14px]">
+                    <Terminal className="w-4 h-4 text-emerald-600" />
+                    <span>PM2 (VPS / Node)</span>
+                  </div>
+                  <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Active
+                  </span>
                 </div>
                 <p className="text-[12px] text-[#666] leading-[1.6]">
-                  Advisory Mode generates real-time PR risk badges and preview soak checks without blocking production builds.
+                  Capistrano release layout (/var/www/releases) with zero-downtime cluster reloads and instant symlink rollbacks.
                 </p>
               </div>
-              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] font-mono text-[10px] text-blue-700 bg-blue-50/70 p-2 rounded">
-                curl -s https://carf.indevs.in/v1/threshold?commit=$SHA
+              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] flex items-center justify-between gap-2">
+                <span className="font-mono text-[10px] text-emerald-700 bg-emerald-50/70 p-2 rounded">
+                  ln -sfn releases/prev current && pm2 reload
+                </span>
+                <a href="#pm2" className="text-[11px] font-medium text-[#111] shrink-0">
+                  Guide →
+                </a>
               </div>
             </div>
 
@@ -565,24 +554,39 @@ export default function App() {
                   Deploy Hook triggers and health endpoint polling for calculated soak duration before release sign-off.
                 </p>
               </div>
-              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] font-mono text-[10px] text-indigo-700 bg-indigo-50/70 p-2 rounded">
-                Deploy Hook + /healthz soak window
+              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] flex items-center justify-between gap-2">
+                <span className="font-mono text-[10px] text-indigo-700 bg-indigo-50/70 p-2 rounded">
+                  Deploy Hook + /healthz soak window
+                </span>
+                <a href="#render" className="text-[11px] font-medium text-[#111] shrink-0">
+                  Guide →
+                </a>
               </div>
             </div>
 
-            {/* PM2 Card */}
+            {/* Kubernetes & Argo Rollouts Card */}
             <div className="border border-[#e5e5e5] bg-white rounded-[6px] p-4 flex flex-col justify-between shadow-2xs hover:border-[#bbb] transition-all">
               <div>
-                <div className="flex items-center gap-2 mb-2 font-semibold text-[#111] text-[14px]">
-                  <Terminal className="w-4 h-4 text-emerald-600" />
-                  <span>PM2 (VPS / Node)</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 font-semibold text-[#111] text-[14px]">
+                    <Globe className="w-4 h-4 text-blue-600" />
+                    <span>Kubernetes / Argo</span>
+                  </div>
+                  <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                    Preview
+                  </span>
                 </div>
                 <p className="text-[12px] text-[#666] leading-[1.6]">
-                  Capistrano release layout (/var/www/releases) with zero-downtime cluster reloads and instant symlink rollbacks.
+                  Dynamic AnalysisTemplate webhooks feeding calibrated canary error thresholds into progressive delivery.
                 </p>
               </div>
-              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] font-mono text-[10px] text-emerald-700 bg-emerald-50/70 p-2 rounded">
-                ln -sfn releases/prev current && pm2 reload
+              <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] flex items-center justify-between gap-2">
+                <span className="font-mono text-[10px] text-blue-700 bg-blue-50/70 p-2 rounded">
+                  curl -s https://carf.indevs.in/v1/threshold?commit=$SHA
+                </span>
+                <a href="#kubernetes" className="text-[11px] font-medium text-[#111] shrink-0">
+                  Guide →
+                </a>
               </div>
             </div>
           </div>
@@ -603,20 +607,14 @@ export default function App() {
           >
             Create Account
           </a>
+          <a
+            href="#guide"
+            className="inline-flex items-center bg-white hover:bg-[#f7f7f7] border border-[#e0e0e0] text-[#111] font-['Inter',system-ui,sans-serif] text-[14px] font-medium px-4 py-2.5 rounded-[5px] transition-colors"
+          >
+            Read the guide
+          </a>
         </div>
       </main>
-
-      {/* Clean Viewport Bottom Bar */}
-      <footer className="border-t border-[#eaeaea] bg-[#ffffff] py-4">
-        <div className="max-w-[1080px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-[12px] font-['Inter',system-ui,sans-serif] text-[#777]">
-          <div>
-            <span className="font-semibold text-[#111]">CARF</span> — Change-Aware Rollback Framework
-          </div>
-          <div className="font-mono text-[11px] text-[#999]">
-            Dynamic Release Calibration
-          </div>
-        </div>
-      </footer>
-    </div>
+    </SiteChrome>
   );
 }

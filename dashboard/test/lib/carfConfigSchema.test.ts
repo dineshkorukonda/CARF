@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AdapterConfigSchema,
   AdapterKindSchema,
+  AVAILABLE_ADAPTER_KINDS,
   ClassificationRuleSchema,
   ClassificationSchema,
   LIVE_ADAPTER_KINDS,
@@ -14,21 +15,23 @@ import {
 // write into a repo's real `.carf.yml` passes through here first. A gap here commits a
 // config core-api can't read.
 
-describe("AdapterKindSchema / LIVE_ADAPTER_KINDS", () => {
-  it("accepts every adapter kind core-api can actually build", () => {
-    for (const kind of LIVE_ADAPTER_KINDS) {
+describe("AdapterKindSchema / AVAILABLE_ADAPTER_KINDS / LIVE_ADAPTER_KINDS", () => {
+  it("accepts every available adapter kind", () => {
+    for (const kind of AVAILABLE_ADAPTER_KINDS) {
       expect(AdapterKindSchema.safeParse(kind).success).toBe(true);
     }
+  });
+
+  it("PM2 is the sole active production adapter", () => {
+    expect(LIVE_ADAPTER_KINDS).toEqual(["pm2"]);
   });
 
   it("rejects an unknown adapter kind", () => {
     expect(AdapterKindSchema.safeParse("heroku").success).toBe(false);
   });
 
-  // If the schema ever accepts a kind that isn't live-wired, the config UI can offer a
-  // choice that silently no-ops at rollback time -- exactly the gap #73/#74 were about.
-  it("has no schema kind that is missing from the live-wired list", () => {
-    expect([...LIVE_ADAPTER_KINDS].sort()).toEqual([...AdapterKindSchema.options].sort());
+  it("has available adapter kinds matching the schema options", () => {
+    expect([...AVAILABLE_ADAPTER_KINDS].sort()).toEqual([...AdapterKindSchema.options].sort());
   });
 });
 

@@ -1,5 +1,5 @@
-import { defaultExec, assertSafeTarget, type ExecFn } from "./execFn.js";
-import type { RollbackAdapter } from "./rollbackAdapter.js";
+import { defaultExec, assertSafeTarget, type ExecFn } from "../execFn.js";
+import type { RollbackAdapter } from "../rollbackAdapter.js";
 
 export interface DockerComposeAdapterOptions {
   /** Injected exec function, defaulting to Node's real `child_process.exec`, promisified. */

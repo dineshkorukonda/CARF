@@ -61,25 +61,64 @@ const ClassificationSchema = z
 
 export const ADAPTER_TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
 
+export type AdapterStatus = "active" | "preview" | "deprecated";
+
+export interface AdapterDescriptor {
+  kind: string;
+  name: string;
+  status: AdapterStatus;
+  description: string;
+}
+
+export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
+  pm2: {
+    kind: "pm2",
+    name: "PM2",
+    status: "active",
+    description: "PM2 process manager cluster reload (actively verified)",
+  },
+  kubernetes: {
+    kind: "kubernetes",
+    name: "Kubernetes (kubectl)",
+    status: "preview",
+    description: "Kubernetes rollout undo via kubectl (preview / in-development)",
+  },
+  gitops: {
+    kind: "gitops",
+    name: "GitOps (Argo CD)",
+    status: "preview",
+    description: "Argo CD application sync / revision rollback (preview / in-development)",
+  },
+  prometheus: {
+    kind: "prometheus",
+    name: "Prometheus APM",
+    status: "preview",
+    description: "Prometheus query metrics adapter (preview / in-development)",
+  },
+  dockerCompose: {
+    kind: "dockerCompose",
+    name: "Docker Compose",
+    status: "deprecated",
+    description: "Docker compose service rollback (deprecated)",
+  },
+  dockerSwarm: {
+    kind: "dockerSwarm",
+    name: "Docker Swarm",
+    status: "deprecated",
+    description: "Docker swarm service update (deprecated)",
+  },
+};
+
 /**
- * `mode: "standalone"` with `adapter.kind: "kubernetes"`, `"dockerCompose"`, `"pm2"`,
- * `"gitops"`, or `"dockerSwarm"` is wired to a real `runStandaloneLoop()` kickoff by
- * `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` (see issues #49, #50, #51, #52,
- * #53). `adapter.target` is the Kubernetes Deployment name, Docker Compose service name,
- * PM2 process name, Argo CD Application name, or Docker Swarm service name to roll back;
- * for `dockerCompose`/`pm2`/`gitops`, the previous image tag / release SHA / revision is
- * derived from the webhook's `baseSha` rather than a config field, and all three are
- * restricted to `push` events only (see `webhookOrchestrator.ts`'s
- * `defaultRollbackAdapterFactory` for why).
- *
- * Deliberately no `github.webhookSecret` (or any secret) field — webhook
- * auth is exclusively env-var-sourced (GITHUB_WEBHOOK_SECRET, see
- * config/env.ts), never file-based. See docs/superpowers/specs/
- * 2026-08-24-carf-yml-config-design.md's "Explicitly out of scope" section for why.
+ * `mode: "standalone"` with `adapter.kind: "pm2"` (active), `"kubernetes"` (preview),
+ * `"gitops"` (preview), or `"prometheus"` (preview) is wired to a `runStandaloneLoop()`
+ * kickoff by `src/webhookOrchestrator.ts`'s `handleWebhookCommit()`.
+ * `adapter.target` is the PM2 process name, Kubernetes Deployment name, or Argo CD Application name.
+ * `dockerCompose` and `dockerSwarm` are deprecated.
  */
 const AdapterSchema = z
   .object({
-    kind: z.enum(["kubernetes", "dockerCompose", "pm2", "gitops", "dockerSwarm", "prometheus"]),
+    kind: z.enum(["pm2", "kubernetes", "gitops", "prometheus", "dockerCompose", "dockerSwarm"]),
     target: z
       .string()
       .min(1)

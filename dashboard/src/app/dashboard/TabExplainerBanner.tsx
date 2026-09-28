@@ -34,12 +34,12 @@ const TAB_INFO: Record<
   },
   adapter: {
     title: "Deployment Adapter & Presets",
-    subtitle: "Configure where and how your application runs (PM2, Vercel, Render, Docker, Kubernetes).",
+    subtitle: "Configure where and how your application runs (PM2, Kubernetes, Render).",
     purpose:
       "Allows you to switch between Augment Mode (CARF advises CI/CD or PR checks) and Standalone Mode (CARF directly drives health-check and rollback loops).",
     doINeedThis:
       "You only need to visit this tab once during initial setup or when changing your deployment infrastructure. Once configured, you can leave it as is.",
-    tip: "If your app is deployed on Vercel, Render, or PM2, check the Setup Guide for ready-to-use snippets.",
+    tip: "If your app is deployed with PM2, Render, or Kubernetes, check the Setup Guide for ready-to-use snippets.",
   },
   rules: {
     title: "Custom Sensitivity Rules",
