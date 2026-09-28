@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Play,
   FileCode,
+  ExternalLink,
 } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 
@@ -302,7 +303,16 @@ export function SetupWizard({
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-medium text-foreground">Installation</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-foreground">Installation</label>
+                  <a
+                    href="/dashboard/settings"
+                    className="text-[11px] text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    <span>Paste installation ID or manage apps</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
                 <select
                   value={selectedInstallationId}
                   onChange={(e) => setSelectedInstallationId(e.target.value)}
