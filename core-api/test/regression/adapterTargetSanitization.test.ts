@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { KubectlAdapter } from "../../src/adapters/kubectl.js";
+import { DockerComposeAdapter } from "../../src/adapters/deprecated/dockerCompose.js";
 import { PM2Adapter } from "../../src/adapters/pm2.js";
+import { DockerSwarmAdapter } from "../../src/adapters/deprecated/dockerSwarm.js";
 import { assertSafeTarget } from "../../src/adapters/execFn.js";
 
 describe("Regression: Standalone Adapter Target Sanitization & Command Injection Prevention", () => {

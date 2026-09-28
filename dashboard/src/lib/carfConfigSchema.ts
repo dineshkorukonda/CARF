@@ -9,7 +9,7 @@ import { z } from "zod";
  * through untouched by carfConfigWriter.ts rather than parsed strictly, so this mirror
  * lagging slightly behind core-api's never corrupts a repo's existing `.carf.yml`.
  */
-export const AdapterKindSchema = z.enum(["pm2"]);
+export const AdapterKindSchema = z.enum(["pm2", "kubernetes", "gitops"]);
 export type AdapterKind = z.infer<typeof AdapterKindSchema>;
 
 export type AdapterStatus = "active" | "preview" | "deprecated";
@@ -30,6 +30,22 @@ export const ADAPTER_METADATA: Record<AdapterKind, AdapterDescriptor> = {
     status: "active",
     statusBadge: "Active",
     disabled: false,
+  },
+  kubernetes: {
+    kind: "kubernetes",
+    label: "Kubernetes (kubectl)",
+    status: "preview",
+    statusBadge: "Adapter Preview",
+    disabled: true,
+    disabledReason: "Kubectl adapter is currently in preview. PM2 is the active Phase 1 standalone adapter.",
+  },
+  gitops: {
+    kind: "gitops",
+    label: "GitOps (Argo CD)",
+    status: "preview",
+    statusBadge: "Adapter Preview",
+    disabled: true,
+    disabledReason: "Argo CD GitOps adapter is currently in preview. PM2 is the active Phase 1 standalone adapter.",
   },
 };
 
@@ -52,12 +68,14 @@ export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
 export const ModeSchema = z.enum(["standalone", "augment"]);
 export type Mode = z.infer<typeof ModeSchema>;
 
-/** All adapter kinds known to dashboard UI */
+/** All adapter kinds known to dashboard UI (active + preview) */
 export const AVAILABLE_ADAPTER_KINDS: readonly AdapterKind[] = [
   "pm2",
+  "kubernetes",
+  "gitops",
 ];
 
-/** Actively verified production adapter kinds */
+/** Actively verified production adapter kinds (Phase 1 focus) */
 export const LIVE_ADAPTER_KINDS: readonly AdapterKind[] = [
   "pm2",
 ];

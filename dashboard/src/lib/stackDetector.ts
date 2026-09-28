@@ -1,4 +1,4 @@
-export type DetectedStack = "pm2" | "generic";
+export type DetectedStack = "nextjs" | "render" | "pm2" | "docker" | "k8s" | "serverless" | "generic";
 
 export interface StackDetectionResult {
   stack: DetectedStack;
@@ -19,7 +19,66 @@ export function detectStackFromRepo(
   const lowerFiles = fileNames.map((f) => f.toLowerCase());
   const lowerRepo = repoName.toLowerCase();
 
-  // Check for PM2 / Node server layout
+  // 1. Check for Next.js / Frontend
+  const isNext =
+    lowerFiles.some((f) => f.includes("next.config") || f === "vercel.json") ||
+    lowerRepo.includes("next") ||
+    lowerRepo.includes("web") ||
+    lowerRepo.includes("frontend");
+
+  if (isNext) {
+    return {
+      stack: "nextjs",
+      label: "Next.js / Web Frontend",
+      badge: "Advisory / Augment",
+      reason: "Detected Next.js configuration or frontend directory layout",
+      confidence: "high",
+      suggestedMode: "augment",
+      sampleYml: `# .carf.yml
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 4.0
+  observation_window_seconds: 180
+rules:
+  - name: api-routes
+    pattern: "src/app/api/**/*.{ts,js}"
+    weight: 1.5
+`,
+      ciSnippetTitle: "GitHub Actions PR Risk Check",
+      ciSnippet: `curl -s "https://carf.indevs.in/v1/threshold?commit=\${COMMIT_SHA}"`,
+    };
+  }
+
+  // 2. Check for Kubernetes / Argo
+  const isK8s =
+    lowerFiles.some((f) => f.startsWith("k8s/") || f.startsWith("helm/") || f.includes("rollout.y")) ||
+    lowerRepo.includes("k8s") ||
+    lowerRepo.includes("infra");
+
+  if (isK8s) {
+    return {
+      stack: "k8s",
+      label: "Kubernetes & Argo Rollouts",
+      badge: "Adapter Preview",
+      reason: "Detected Kubernetes manifests or Helm charts",
+      confidence: "high",
+      suggestedMode: "augment",
+      sampleYml: `# .carf.yml
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 3.0
+  observation_window_seconds: 300
+`,
+      ciSnippetTitle: "Argo AnalysisTemplate Webhook",
+      ciSnippet: `url: "https://carf.indevs.in/v1/threshold?commit={{args.commit-sha}}"`,
+    };
+  }
+
+  // 3. Check for PM2 / Node server layout
   const isPm2 =
     lowerFiles.some((f) => f.includes("ecosystem.config") || f.includes("pm2")) ||
     lowerRepo.includes("server") ||
@@ -28,9 +87,9 @@ export function detectStackFromRepo(
   if (isPm2) {
     return {
       stack: "pm2",
-      label: "Node.js + PM2",
-      badge: "Standalone Mode",
-      reason: "Detected PM2 configuration or Node.js server architecture",
+      label: "Node.js + PM2 (VPS / Server)",
+      badge: "Active / Standalone",
+      reason: "Detected Node server / PM2 process architecture",
       confidence: "high",
       suggestedMode: "standalone",
       sampleYml: `# .carf.yml
@@ -49,7 +108,30 @@ thresholds:
     };
   }
 
-  // Default Generic Stack (Augment Mode)
+  // 4. Check for Docker
+  const isDocker = lowerFiles.some((f) => f.includes("docker-compose") || f === "dockerfile");
+  if (isDocker) {
+    return {
+      stack: "docker",
+      label: "Docker Containerized App",
+      badge: "Augment / CI Gate",
+      reason: "Detected Dockerfile or Compose manifest",
+      confidence: "high",
+      suggestedMode: "augment",
+      sampleYml: `# .carf.yml
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 3.0
+  observation_window_seconds: 240
+`,
+      ciSnippetTitle: "CI Canary Gate",
+      ciSnippet: `curl -s "https://carf.indevs.in/v1/threshold?commit=\${COMMIT_SHA}"`,
+    };
+  }
+
+  // 5. Default Generic Stack
   return {
     stack: "generic",
     label: "Web Application / API",

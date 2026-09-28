@@ -92,10 +92,21 @@ function DeploymentBadge({ info }: { info: DeploymentInfo | undefined }) {
     );
   }
   if (info.mode === "standalone" && info.adapterKind) {
-    const short = info.adapterKind === "pm2" ? "PM2" : info.adapterKind;
+    const isPreview = info.adapterKind === "kubernetes" || info.adapterKind === "gitops";
+    const short =
+      info.adapterKind === "pm2" ? "PM2" :
+      info.adapterKind === "kubernetes" ? "Kubernetes (Preview)" :
+      info.adapterKind === "gitops" ? "GitOps (Preview)" :
+      info.adapterKind === "dockerCompose" ? "Docker Compose (Deprecated)" :
+      info.adapterKind === "dockerSwarm" ? "Docker Swarm (Deprecated)" :
+      info.adapterKind;
     return (
       <span
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border bg-emerald-50 border-emerald-200 text-emerald-700"
+        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border ${
+          isPreview
+            ? "bg-amber-50 border-amber-200 text-amber-800"
+            : "bg-emerald-50 border-emerald-200 text-emerald-700"
+        }`}
         title={`Standalone • ${short} → ${info.adapterTarget ?? "—"}`}
       >
         {adapterIcon(info.adapterKind)}

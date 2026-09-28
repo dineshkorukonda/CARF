@@ -77,20 +77,51 @@ export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
     status: "active",
     description: "PM2 process manager cluster reload (actively verified)",
   },
+  kubernetes: {
+    kind: "kubernetes",
+    name: "Kubernetes (kubectl)",
+    status: "preview",
+    description: "Kubernetes rollout undo via kubectl (preview / in-development)",
+  },
+  gitops: {
+    kind: "gitops",
+    name: "GitOps (Argo CD)",
+    status: "preview",
+    description: "Argo CD application sync / revision rollback (preview / in-development)",
+  },
+  prometheus: {
+    kind: "prometheus",
+    name: "Prometheus APM",
+    status: "preview",
+    description: "Prometheus query metrics adapter (preview / in-development)",
+  },
+  dockerCompose: {
+    kind: "dockerCompose",
+    name: "Docker Compose",
+    status: "deprecated",
+    description: "Docker compose service rollback (deprecated)",
+  },
+  dockerSwarm: {
+    kind: "dockerSwarm",
+    name: "Docker Swarm",
+    status: "deprecated",
+    description: "Docker swarm service update (deprecated)",
+  },
 };
 
 /**
- * `mode: "standalone"` with `adapter.kind: "pm2"` is wired to a `runStandaloneLoop()`
+ * `mode: "standalone"` with `adapter.kind: "pm2"` (active), `"kubernetes"` (preview),
+ * `"gitops"` (preview), or `"prometheus"` (preview) is wired to a `runStandaloneLoop()`
  * kickoff by `src/webhookOrchestrator.ts`'s `handleWebhookCommit()`.
- * PM2 is the only supported standalone adapter.
+ * `adapter.target` is the PM2 process name, Kubernetes Deployment name, or Argo CD Application name.
+ * `dockerCompose` and `dockerSwarm` are deprecated.
  */
 export const AdapterLayoutSchema = z.enum(["releases", "git"]);
 export type AdapterLayout = z.infer<typeof AdapterLayoutSchema>;
 
 export const AdapterSchema = z
   .object({
-    kind: z.literal("pm2"),
-    /** Single PM2 process name (alias for targets: [target]) */
+    kind: z.enum(["pm2", "kubernetes", "gitops", "prometheus", "dockerCompose", "dockerSwarm"]),
     target: z
       .string()
       .min(1)

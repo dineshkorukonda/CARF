@@ -21,7 +21,7 @@ interface SetupGuideModalProps {
   repoName?: string;
 }
 
-type StackPreset = "pm2";
+type StackPreset = "pm2" | "k8s" | "render";
 
 interface PresetDetails {
   title: string;
@@ -38,7 +38,7 @@ interface PresetDetails {
 const PRESETS: Record<StackPreset, PresetDetails> = {
   pm2: {
     title: "PM2 Process Manager (Node.js / VPS)",
-    badge: "Standalone Mode",
+    badge: "Active / Verified",
     icon: Terminal,
     description:
       "For Node.js servers running PM2 with release directories or git deployments.",
@@ -49,8 +49,6 @@ version: "1.0"
 mode: standalone
 adapter:
   kind: pm2
-  target: api-server
-  layout: releases
 rules:
   - name: sensitive-routes
     pattern: "src/{routes,controllers,auth}/**/*.{ts,js}"
@@ -67,15 +65,98 @@ rules:
 // 2. Start PM2 cluster:
 pm2 start /var/www/my-app/current/dist/index.js --name "api-server" -i max
 
-// 3. Automated rollback on threshold breach:
-// ln -sfn /var/www/my-app/releases/<previousSha> /var/www/my-app/current
+// 3. CARF automated rollback on threshold breach:
+// ln -sfn /var/www/my-app/releases/<baseSha> /var/www/my-app/current
 // pm2 reload api-server
 `,
     verificationSteps: [
-      "Set up PM2 cluster mode with release symlinks or git repository on your server.",
-      "Add .carf.yml with mode: standalone and adapter.kind: pm2.",
-      "Push a commit and observe CARF monitor PM2 process health.",
-      "Verify automated reload back to previous release on threshold breach.",
+      "Set up PM2 cluster mode with release symlinks on your server.",
+      "Add `.carf.yml` with `mode: standalone` and `adapter.kind: pm2`.",
+      "Push a commit and observe CARF watchdog monitor PM2 process health.",
+      "Simulate an error spike to verify automated reload back to previous release.",
+    ],
+  },
+  k8s: {
+    title: "Kubernetes & Argo Rollouts",
+    badge: "Adapter Preview / In-Development",
+    icon: Layers,
+    description:
+      "For production Kubernetes clusters using Argo Rollouts or Flagger for progressive canary traffic routing.",
+    modeExplanation:
+      "Argo Rollouts queries CARF's `GET /v1/threshold?commit=$SHA` via an `AnalysisTemplate` webhook provider to dynamically set canary error tolerances for each release.",
+    carfYml: `# .carf.yml
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 3.0
+  observation_window_seconds: 300
+`,
+    deploySnippetTitle: "Argo Rollouts AnalysisTemplate",
+    deploySnippet: `apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: carf-dynamic-threshold
+spec:
+  metrics:
+  - name: carf-risk-budget
+    provider:
+      web:
+        url: "https://carf.indevs.in/v1/threshold?commit={{args.commit-sha}}"
+        jsonPath: "{$.finalThreshold}"
+`,
+    verificationSteps: [
+      "Add AnalysisTemplate to your Argo Rollouts canary spec.",
+      "Push `.carf.yml` with `mode: augment`.",
+      "Argo Rollouts will automatically query CARF to evaluate promotion thresholds.",
+    ],
+  },
+  render: {
+    title: "Render (Web Services & Deploy Hooks)",
+    badge: "Augment / Webhook Mode",
+    icon: Server,
+    description:
+      "Designed for apps hosted on Render.com using Render Webhooks, Deploy Hooks, and health endpoint monitoring.",
+    modeExplanation:
+      "Render executes builds via Deploy Hooks. CARF calculates dynamic error budgets so you can monitor your Render `/healthz` endpoint for the calculated soak window before marking the release clean.",
+    carfYml: `# .carf.yml (Place in repository root)
+version: "1.0"
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 3.0
+  observation_window_seconds: 240
+
+rules:
+  - name: backend-core
+    pattern: "server/**/*.{ts,js,py,go}"
+    weight: 1.6
+`,
+    deploySnippetTitle: "ecosystem.config.cjs & symlink deploy pattern",
+    deploySnippet: `// 1. Release directories structure:
+// /var/www/my-app/
+// ├── current -> releases/<currentSha>
+// └── releases/
+//     ├── <previousSha>/
+//     └── <currentSha>/
+
+# Fetch CARF threshold
+RES=$(curl -s "https://carf.indevs.in/v1/threshold?commit=$(git rev-parse HEAD)")
+WINDOW=$(echo $RES | jq -r '.finalWindow // 240')
+
+echo "Waiting \${WINDOW}s to soak Render service..."
+sleep 15
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://my-app.onrender.com/healthz)
+if [ "$HTTP_STATUS" -ne 200 ]; then
+  echo "🚨 Render healthcheck failed ($HTTP_STATUS). Check logs!"
+  exit 1
+fi
+echo "✅ Render service healthy."
+`,
+    verificationSteps: [
+      "Commit `.carf.yml` into your repository.",
+      "Configure your Render Deploy Hook or CI action.",
+      "Observe the Live Status tab on CARF dashboard as commits are pushed.",
     ],
   },
 };
@@ -113,7 +194,7 @@ export function SetupGuideModal({
                 Setup & Integration Guide
               </h2>
               <p className="text-xs text-slate-500">
-                Configure PM2 standalone rollback monitoring for {repoName}
+                Deploy dynamic canary rollback thresholds to {repoName}
               </p>
             </div>
           </div>
@@ -129,7 +210,9 @@ export function SetupGuideModal({
         <div className="flex border-b border-slate-200 bg-slate-100/70 p-2 gap-1.5 overflow-x-auto">
           {(
             [
-              { id: "pm2", label: "PM2 Process Manager", icon: Terminal },
+              { id: "pm2", label: "PM2 (Node.js/VPS)", icon: Terminal },
+              { id: "k8s", label: "Kubernetes & Argo (Preview)", icon: Layers },
+              { id: "render", label: "Render / Deploy Hooks", icon: Server },
             ] as const
           ).map((stack) => {
             const StackIcon = stack.icon;

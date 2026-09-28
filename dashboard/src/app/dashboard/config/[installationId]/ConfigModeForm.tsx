@@ -64,6 +64,34 @@ threshold:
       baseWindow: 600`,
     },
   },
+  kubernetes: {
+    label: "Kubernetes Deployment Name (Preview)",
+    placeholder: "e.g. api-deployment",
+    description: "CARF executes 'kubectl rollout undo deployment/<target>' when dynamic error threshold is breached (Preview / In-Development).",
+    serverGuide: {
+      prerequisites: "Kubernetes cluster with kubectl configured and deployment resource created.",
+      command: "kubectl apply -f deployment.yaml",
+      rollbackAction: "kubectl rollout undo deployment/<target>",
+      sampleYml: (target) => `mode: standalone
+adapter:
+  kind: kubernetes
+  target: "${target || "api-deployment"}"`,
+    },
+  },
+  gitops: {
+    label: "Argo CD Application Name (Preview)",
+    placeholder: "e.g. production-app",
+    description: "CARF rolls back specified Argo CD application via Argo CD API / Git commit revert (Preview / In-Development).",
+    serverGuide: {
+      prerequisites: "Argo CD GitOps repository tracking deployment manifests.",
+      command: "argocd app sync <target>",
+      rollbackAction: "Automated Git revert commit dispatched to repo",
+      sampleYml: (target) => `mode: standalone
+adapter:
+  kind: gitops
+  target: "${target || "production-app"}"`,
+    },
+  },
 };
 
 export function ConfigModeForm({
