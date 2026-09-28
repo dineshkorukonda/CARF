@@ -7,13 +7,11 @@ import {
   Copy,
   Terminal,
   Server,
-  Container,
   Layers,
-  Sparkles,
   ShieldCheck,
-  Globe,
   Code2,
   FileCode2,
+  BookOpen,
 } from "lucide-react";
 
 interface SetupGuideModalProps {
@@ -51,12 +49,6 @@ version: "1.0"
 mode: standalone
 adapter:
   kind: pm2
-  target: api-server
-thresholds:
-  base_tolerance_pct: 0.5         # 0.5% base error tolerance for sensitive changes
-  max_tolerance_pct: 3.5          # Up to 3.5% for minor UI/test edits
-  observation_window_seconds: 300 # 5-minute soak window
-
 rules:
   - name: sensitive-routes
     pattern: "src/{routes,controllers,auth}/**/*.{ts,js}"
@@ -169,7 +161,6 @@ echo "✅ Render service healthy."
 export function SetupGuideModal({
   isOpen,
   onClose,
-  installationId,
   repoName = "my-repository",
 }: SetupGuideModalProps) {
   const [selectedStack, setSelectedStack] = useState<StackPreset>("pm2");
@@ -246,16 +237,16 @@ export function SetupGuideModal({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
-                <Icon className="size-5" />
+                <PresetIcon className="size-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-slate-900 text-sm">{current.title}</h3>
+                  <h3 className="font-semibold text-slate-900 text-sm">{currentPreset.title}</h3>
                   <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                    {current.badge}
+                    {currentPreset.badge}
                   </span>
                 </div>
-                <p className="text-xs text-slate-600">{current.description}</p>
+                <p className="text-xs text-slate-600">{currentPreset.description}</p>
               </div>
             </div>
           </div>
@@ -263,7 +254,7 @@ export function SetupGuideModal({
           {/* Mode explanation */}
           <div className="rounded-xl bg-blue-50/60 border border-blue-100 p-3.5 text-xs text-blue-900 leading-relaxed">
             <span className="font-semibold">How CARF works here: </span>
-            {current.modeExplanation}
+            {currentPreset.modeExplanation}
           </div>
 
           {/* Code Snippets (2 columns) */}
@@ -276,19 +267,19 @@ export function SetupGuideModal({
                   <span>Step 1: Add `.carf.yml`</span>
                 </div>
                 <button
-                  onClick={() => handleCopy(current.carfYml, "yml")}
+                  onClick={() => handleCopy(currentPreset.carfYml, "yml")}
                   className="flex items-center gap-1 rounded bg-white px-2 py-1 text-[11px] font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 shadow-xs"
                 >
-                  {copiedKey === "yml" ? (
+                  {copiedSection === "yml" ? (
                     <Check className="size-3 text-emerald-600" />
                   ) : (
                     <Copy className="size-3" />
                   )}
-                  <span>{copiedKey === "yml" ? "Copied" : "Copy YAML"}</span>
+                  <span>{copiedSection === "yml" ? "Copied" : "Copy YAML"}</span>
                 </button>
               </div>
               <pre className="flex-1 p-3.5 text-[11px] font-mono text-slate-800 bg-slate-900 text-slate-100 overflow-x-auto">
-                <code>{current.carfYml}</code>
+                <code>{currentPreset.carfYml}</code>
               </pre>
             </div>
 
@@ -297,22 +288,22 @@ export function SetupGuideModal({
               <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-3.5 py-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
                   <Code2 className="size-4 text-indigo-600" />
-                  <span>Step 2: {current.deploySnippetTitle}</span>
+                  <span>Step 2: {currentPreset.deploySnippetTitle}</span>
                 </div>
                 <button
-                  onClick={() => handleCopy(current.deploySnippet, "deploy")}
+                  onClick={() => handleCopy(currentPreset.deploySnippet, "deploy")}
                   className="flex items-center gap-1 rounded bg-white px-2 py-1 text-[11px] font-medium text-slate-700 border border-slate-200 hover:bg-slate-50 shadow-xs"
                 >
-                  {copiedKey === "deploy" ? (
+                  {copiedSection === "deploy" ? (
                     <Check className="size-3 text-emerald-600" />
                   ) : (
                     <Copy className="size-3" />
                   )}
-                  <span>{copiedKey === "deploy" ? "Copied" : "Copy Code"}</span>
+                  <span>{copiedSection === "deploy" ? "Copied" : "Copy Code"}</span>
                 </button>
               </div>
               <pre className="flex-1 p-3.5 text-[11px] font-mono text-slate-100 bg-slate-900 overflow-x-auto">
-                <code>{current.deploySnippet}</code>
+                <code>{currentPreset.deploySnippet}</code>
               </pre>
             </div>
           </div>
@@ -324,7 +315,7 @@ export function SetupGuideModal({
               <span>Step 3: Verification & Next Steps</span>
             </h4>
             <ul className="space-y-1.5 text-xs text-slate-600">
-              {current.verificationSteps.map((step, idx) => (
+              {currentPreset.verificationSteps.map((step, idx) => (
                 <li key={idx} className="flex items-start gap-2">
                   <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-bold text-blue-700">
                     {idx + 1}

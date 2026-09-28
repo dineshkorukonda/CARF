@@ -3,14 +3,12 @@
 import { useState, useMemo } from "react";
 import {
   Terminal,
-  Container,
   Server,
   Copy,
   Check,
   ExternalLink,
   Zap,
   Activity,
-  ArrowUpRight,
   Search,
   RefreshCw,
 } from "lucide-react";

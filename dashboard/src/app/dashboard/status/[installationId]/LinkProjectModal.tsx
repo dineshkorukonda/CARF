@@ -6,7 +6,6 @@ import {
   Search,
   FolderGit2,
   Terminal,
-  Container,
   Server,
   GitBranch,
   ArrowUpRight,

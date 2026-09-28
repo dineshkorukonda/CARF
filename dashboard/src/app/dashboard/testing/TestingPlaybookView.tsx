@@ -7,7 +7,6 @@ import {
   Cloud,
   Server,
   Zap,
-  Boxes,
   Copy,
   Check,
   ArrowRight,

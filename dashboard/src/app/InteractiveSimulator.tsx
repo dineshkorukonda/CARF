@@ -9,7 +9,6 @@ import {
   Film,
   Server,
   Terminal,
-  Box,
   GitPullRequest,
   Activity,
   GitCommit,
