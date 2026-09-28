@@ -2,6 +2,8 @@ import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
 import {
   finalizeRolloutOutcome,
   getPendingRolloutOutcomes,
+  recordRolloutSample,
+  pruneRolloutSamples,
   type RolloutOutcomePrismaClient,
   type RolloutOutcomeRecord,
 } from "../adapters/rolloutOutcome.js";
@@ -196,6 +198,19 @@ export class RolloutMonitor {
         const health = await adapter.checkHealth(targetName);
         lastErrorRate = health.errorRate;
 
+        // Record telemetry sample on each poll
+        try {
+          await recordRolloutSample(
+            this.prisma,
+            outcome.id,
+            health.errorRate,
+            (health as { perTarget?: unknown }).perTarget,
+            this.now()
+          );
+        } catch (sampleErr) {
+          this.logger.error({ id: outcome.id, error: sampleErr }, "failed to record rollout sample");
+        }
+
         if (health.errorRate >= outcome.threshold) {
           this.logger.error(
             { id: outcome.id, errorRate: health.errorRate, threshold: outcome.threshold },
@@ -246,6 +261,10 @@ export class RolloutMonitor {
         this.logger.error({ id: outcome.id, error: dbError }, "failed to finalize outcome as FAILED in database");
       }
     }
+  }
+
+  async pruneOldSamples(retentionDays: number = 30): Promise<number> {
+    return await pruneRolloutSamples(this.prisma, retentionDays);
   }
 
   async waitForJobs(): Promise<void> {

@@ -7,6 +7,8 @@ import { registerCommitsRoute, type CommitsRouteOptions } from "./routes/commits
 import { registerReportRoute, type ReportRouteOptions } from "./routes/report.js";
 import { registerMetricsRoute } from "./routes/metrics.js";
 import { registerVersionRoute } from "./routes/version.js";
+import { registerPm2Route, type Pm2RouteOptions } from "./routes/pm2.js";
+import { registerRolloutRollbackRoute, type RolloutRollbackRouteOptions } from "./routes/rolloutRollback.js";
 
 export interface BuildAppOptions {
   threshold?: ThresholdRouteOptions;
@@ -15,6 +17,8 @@ export interface BuildAppOptions {
   githubStatus?: GithubStatusRouteOptions;
   installationApiKey?: InstallationApiKeyRouteOptions;
   commits?: CommitsRouteOptions;
+  pm2?: Pm2RouteOptions;
+  rolloutRollback?: RolloutRollbackRouteOptions;
 }
 
 export function buildApp(options: BuildAppOptions = {}) {
@@ -29,6 +33,8 @@ export function buildApp(options: BuildAppOptions = {}) {
   void registerGithubStatusRoute(app, options.githubStatus);
   void registerInstallationApiKeyRoute(app, options.installationApiKey);
   void registerCommitsRoute(app, options.commits);
+  void registerPm2Route(app, options.pm2);
+  void registerRolloutRollbackRoute(app, options.rolloutRollback);
   void registerMetricsRoute(app);
   void registerVersionRoute(app);
   if (options.webhook) {

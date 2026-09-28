@@ -25,11 +25,19 @@ export interface RolloutOutcomeRecord {
   updatedAt: Date;
 }
 
+export interface RolloutSampleRecord {
+  id: string;
+  rolloutId: string;
+  ts: Date;
+  errorRate: number;
+  perTarget?: unknown;
+}
+
 /** Minimal seam over the subset of PrismaClient's API this module needs. */
 export interface RolloutOutcomePrismaClient {
   rolloutOutcome: {
     findMany(args?: {
-      where?: { status?: RolloutStatus };
+      where?: { status?: RolloutStatus; owner?: string; repo?: string };
       orderBy?: { startedAt?: "asc" | "desc" };
     }): Promise<RolloutOutcomeRecord[]>;
     findUnique?(args: {
@@ -65,6 +73,23 @@ export interface RolloutOutcomePrismaClient {
         rollbackVerified?: boolean | null;
       };
     }): Promise<RolloutOutcomeRecord>;
+  };
+  rolloutSample?: {
+    create(args: {
+      data: {
+        rolloutId: string;
+        ts?: Date;
+        errorRate: number;
+        perTarget?: unknown;
+      };
+    }): Promise<RolloutSampleRecord>;
+    findMany(args: {
+      where: { rolloutId: string };
+      orderBy: { ts: "asc" | "desc" };
+    }): Promise<RolloutSampleRecord[]>;
+    deleteMany(args: {
+      where: { ts: { lt: Date } };
+    }): Promise<{ count: number }>;
   };
 }
 
@@ -151,3 +176,45 @@ export async function getPendingRolloutOutcomes(
     orderBy: { startedAt: "asc" },
   });
 }
+
+export async function recordRolloutSample(
+  prisma: RolloutOutcomePrismaClient,
+  rolloutId: string,
+  errorRate: number,
+  perTarget?: unknown,
+  ts?: Date
+): Promise<RolloutSampleRecord | null> {
+  if (!prisma.rolloutSample?.create) return null;
+  return await prisma.rolloutSample.create({
+    data: {
+      rolloutId,
+      errorRate,
+      perTarget,
+      ...(ts ? { ts } : {}),
+    },
+  });
+}
+
+export async function getRolloutSamples(
+  prisma: RolloutOutcomePrismaClient,
+  rolloutId: string
+): Promise<RolloutSampleRecord[]> {
+  if (!prisma.rolloutSample?.findMany) return [];
+  return await prisma.rolloutSample.findMany({
+    where: { rolloutId },
+    orderBy: { ts: "asc" },
+  });
+}
+
+export async function pruneRolloutSamples(
+  prisma: RolloutOutcomePrismaClient,
+  retentionDays: number = 30
+): Promise<number> {
+  if (!prisma.rolloutSample?.deleteMany) return 0;
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const result = await prisma.rolloutSample.deleteMany({
+    where: { ts: { lt: cutoff } },
+  });
+  return result.count;
+}
+

@@ -206,6 +206,37 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     deps.logger.error({ error, sha: target.headSha }, "failed to create pending rollout outcome");
   }
 
+  // Check if monitoring is paused for this repository
+  const repoConnClient = rolloutOutcomeClient as unknown as {
+    repoConnection?: {
+      findUnique: (args: {
+        where: { installationId_owner_repo: { installationId: string; owner: string; repo: string } };
+      }) => Promise<{ monitoringPaused?: boolean } | null>;
+    };
+  };
+  if (repoConnClient.repoConnection?.findUnique) {
+    try {
+      const conn = await repoConnClient.repoConnection.findUnique({
+        where: {
+          installationId_owner_repo: {
+            installationId: target.installationId,
+            owner: target.owner,
+            repo: target.repo,
+          },
+        },
+      });
+      if (conn?.monitoringPaused) {
+        deps.logger.info(
+          { owner: target.owner, repo: target.repo },
+          "monitoring is paused for this repository, skipping standalone monitor loop"
+        );
+        return;
+      }
+    } catch (err) {
+      deps.logger.error({ err }, "failed to check repository monitoringPaused state");
+    }
+  }
+
   const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
   const ttlMs = deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
   const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
