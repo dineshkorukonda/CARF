@@ -12,7 +12,7 @@ describe("deriveRepoStatus", () => {
     ).toBe("Not connected");
   });
 
-  it("returns 'Not verified' when repo is configured but connection check has not passed", () => {
+  it("returns 'Not verified' when repo is configured but connection check has not passed and no rollouts exist", () => {
     expect(
       deriveRepoStatus({
         isConfigured: true,
@@ -20,6 +20,17 @@ describe("deriveRepoStatus", () => {
         totalRollouts: 0,
       })
     ).toBe("Not verified");
+  });
+
+  it("returns 'Last rollout succeeded, connection unverified' when latest rollout was SUCCESS but connection is unverified", () => {
+    expect(
+      deriveRepoStatus({
+        isConfigured: true,
+        isVerified: false,
+        latestOutcomeStatus: "SUCCESS",
+        totalRollouts: 1,
+      })
+    ).toBe("Last rollout succeeded, connection unverified");
   });
 
   it("returns 'Connected, no rollouts yet' when verified but 0 outcomes recorded", () => {

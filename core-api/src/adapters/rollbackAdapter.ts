@@ -5,7 +5,15 @@
  * drive any of them without knowing which one it has.
  */
 export interface RollbackAdapter {
-  checkHealth(target?: string): Promise<{ errorRate: number; healthy: boolean }>;
+  checkHealth(target?: string): Promise<{
+    errorRate: number;
+    healthy: boolean;
+    processErrorRate?: number;
+    httpErrorRate?: number;
+  }>;
   rollback(target?: string): Promise<void>;
-  rollbackWithVerification?(target?: string): Promise<{ rollbackVerified: boolean; verified?: boolean; errorRate?: number }>;
+  rollbackWithVerification?(
+    target?: string,
+    graceSeconds?: number
+  ): Promise<{ rollbackVerified: boolean; verified?: boolean; errorRate?: number }>;
 }

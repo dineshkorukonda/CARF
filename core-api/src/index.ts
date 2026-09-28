@@ -23,6 +23,7 @@ import { prisma } from "./db/client.js";
 import { PM2Adapter } from "./adapters/pm2.js";
 import { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import type { RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
+import { startSampleRetentionJob, type SampleRetentionJob } from "./retention/sampleRetention.js";
 
 // Issue #60: real end-to-end webhook test commit.
 // Issue #60: second probe -- retest push webhook delivery after the earlier 404.
@@ -41,6 +42,7 @@ const installationTokenClient = getInstallationTokenClient();
 // ordering.
 // eslint-disable-next-line prefer-const
 let rolloutMonitor: RolloutMonitor;
+let retentionJob: SampleRetentionJob;
 
 const app = buildApp({
   webhook: {
@@ -60,7 +62,11 @@ rolloutMonitor = new RolloutMonitor({
   prismaClient: prisma as unknown as RolloutOutcomePrismaClient,
   logger: app.log,
   adapterFactory: (outcome) => {
-    const targetName = carfConfig?.adapter?.target ?? carfConfig?.adapter?.targets?.[0] ?? "";
+    const firstTarget = carfConfig?.adapter?.targets?.[0];
+    const targetName =
+      carfConfig?.adapter?.target ??
+      (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
+      "";
     return new PM2Adapter(outcome.commitSha, {
       target: targetName,
       releasesRoot: carfConfig?.adapter?.releasesRoot,
@@ -69,6 +75,8 @@ rolloutMonitor = new RolloutMonitor({
       buildCommand: carfConfig?.adapter?.buildCommand,
       layout: carfConfig?.adapter?.layout,
       healthUrl: carfConfig?.adapter?.healthUrl,
+      startupGraceSeconds: carfConfig?.adapter?.startupGraceSeconds,
+      sharedPaths: carfConfig?.adapter?.sharedPaths,
       probeCount: carfConfig?.adapter?.probeCount,
     });
   },
@@ -86,9 +94,23 @@ watchCarfConfig({
   },
 });
 
+app.addHook("onClose", async () => {
+  if (retentionJob) {
+    retentionJob.stop();
+  }
+  await rolloutMonitor.stop();
+});
+
 app
   .listen({ port: env.port, host: "0.0.0.0" })
   .then(async () => {
+    // Start 30-day RolloutSample retention job on boot and every 24h
+    retentionJob = startSampleRetentionJob({
+      prismaClient: prisma as unknown as RolloutOutcomePrismaClient,
+      logger: app.log,
+      retentionDays: 30,
+    });
+
     try {
       const recovered = await rolloutMonitor.recoverPending();
       if (recovered > 0) {

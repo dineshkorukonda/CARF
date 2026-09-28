@@ -21,30 +21,18 @@ export interface ThresholdConfig {
   complexityDecay: number;
 }
 
+import { DEFAULT_ENGINE_CONFIG, CURRENT_ENGINE_CONFIG, type VersionedEngineConfig } from "./versionedEngineConfig.js";
+
+export { DEFAULT_ENGINE_CONFIG, CURRENT_ENGINE_CONFIG, type VersionedEngineConfig };
+
 /**
- * Default tuning. Windows widen from infra (fastest-moving, tightest blast radius) up
+ * Default tuning (v1). Windows widen from infra (fastest-moving, tightest blast radius) up
  * to code (broadest, most permissive): infra=60s, dependency=180s, config=300s,
  * data=600s (db migrations), code=900s (15 min). Thresholds follow the same ordering —
  * infra and data are the most sensitive (smallest threshold, easiest to trip), code the least.
  */
-export const DEFAULT_CONFIG: ThresholdConfig = {
-  baseThreshold: {
-    infra: 0.01,
-    dependency: 0.03,
-    config: 0.05,
-    code: 0.08,
-    data: 0.01,
-  },
-  baseWindow: {
-    infra: 60,
-    dependency: 180,
-    config: 300,
-    code: 900,
-    data: 600,
-  },
-  decay: 0.5,
-  complexityDecay: 0.3,
-};
+export const DEFAULT_CONFIG: ThresholdConfig = DEFAULT_ENGINE_CONFIG;
+
 
 export interface ThresholdResult {
   finalThreshold: number;

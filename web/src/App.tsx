@@ -197,7 +197,7 @@ export default function App() {
                 Real-Time Canary Tuning
               </h3>
               <p className="font-['Inter',system-ui,sans-serif] text-[13px] leading-[1.6] text-[#666]">
-                Sidecar protocol feeding dynamic error budgets directly into Argo Rollouts, Flagger, or standalone deployment pipelines in real time.
+                Sidecar protocol feeding dynamic error-rate thresholds directly into standalone or CI deployment pipelines in real time.
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-[#f0f0f0] font-mono text-[11px] text-[#888]">

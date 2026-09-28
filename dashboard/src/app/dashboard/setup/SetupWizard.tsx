@@ -164,6 +164,7 @@ export function SetupWizard({
           releasesDir: layout === "releases" ? releasesDir : undefined,
           currentSymlink: layout === "releases" ? currentSymlink : undefined,
           sharedDirs: layout === "releases" ? sharedList : undefined,
+          sharedPaths: layout === "releases" ? sharedList : undefined,
         },
       };
 
@@ -627,14 +628,14 @@ export function SetupWizard({
           </div>
         )}
 
-        {/* Step 4: 5-Item Connection Verification */}
+        {/* Step 4: Connection Verification */}
         {currentStep === 4 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Step 4: Execute 5-Item Preflight Verification</h2>
+                <h2 className="text-sm font-semibold text-foreground">Step 4: Execute Preflight Connection Verification</h2>
                 <p className="text-xs text-muted-foreground">
-                  Validates PM2 reachability, target process existence, HTTP health probe response, filesystem paths, and dry-run rollback permissions.
+                  Validates PM2 reachability, target process existence, HTTP health probe response, releases directory, symlink, shared paths, and rollback permissions.
                 </p>
               </div>
               <button
@@ -644,7 +645,7 @@ export function SetupWizard({
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
                 {verifying ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-                <span>{verifying ? "Checking..." : "Run 5-Item Check"}</span>
+                <span>{verifying ? "Checking..." : "Run Connection Check"}</span>
               </button>
             </div>
 
@@ -672,7 +673,7 @@ export function SetupWizard({
                     )}
                     <span>
                       {verificationResult.verified
-                        ? "Verification Successful: All 5 checks passed. Repository marked verified."
+                        ? `Verification Successful: All ${verificationResult.checks.length} checks passed. Repository marked verified.`
                         : "Verification Failed: Resolve failing checks before activating rollbacks."}
                     </span>
                   </div>
@@ -709,7 +710,7 @@ export function SetupWizard({
 
             {!verificationResult && !verifying && (
               <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                Click &quot;Run 5-Item Check&quot; to test daemon access, process table status, HTTP probes, and directory permissions.
+                Click &quot;Run Connection Check&quot; to test daemon access, process table status, HTTP probes, releases directory, symlink, shared paths, and rollback permissions.
               </div>
             )}
 

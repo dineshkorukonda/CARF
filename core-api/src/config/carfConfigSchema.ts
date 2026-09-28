@@ -87,6 +87,21 @@ export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
 export const AdapterLayoutSchema = z.enum(["releases", "git"]);
 export type AdapterLayout = z.infer<typeof AdapterLayoutSchema>;
 
+export const Pm2TargetConfigSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1)
+      .regex(
+        ADAPTER_TARGET_REGEX,
+        "target name must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+      ),
+    healthUrl: z.string().optional(),
+    startupGraceSeconds: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export type Pm2TargetConfig = z.infer<typeof Pm2TargetConfigSchema>;
+
 export const AdapterSchema = z
   .object({
     kind: z.literal("pm2"),
@@ -99,16 +114,19 @@ export const AdapterSchema = z
         "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
       )
       .optional(),
-    /** Multiple PM2 process names */
+    /** Multiple PM2 process names (strings or target objects) */
     targets: z
       .array(
-        z
-          .string()
-          .min(1)
-          .regex(
-            ADAPTER_TARGET_REGEX,
-            "targets must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
-          )
+        z.union([
+          z
+            .string()
+            .min(1)
+            .regex(
+              ADAPTER_TARGET_REGEX,
+              "targets must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+            ),
+          Pm2TargetConfigSchema,
+        ])
       )
       .min(1)
       .optional(),
@@ -118,12 +136,16 @@ export const AdapterSchema = z
     releasesRoot: z.string().optional(),
     /** Symlink path for "releases" layout. Default: /var/www/current */
     currentSymlink: z.string().optional(),
+    /** Shared paths (files or directories) preserved across releases */
+    sharedPaths: z.array(z.string().min(1)).optional(),
     /** Working directory for "git" layout */
     cwd: z.string().optional(),
     /** Reinstall or build command to run after git checkout on rollback (for "git" layout) */
     buildCommand: z.string().optional(),
     /** Optional HTTP health check URL or endpoint */
     healthUrl: z.string().optional(),
+    /** Startup grace period in seconds before readiness evaluation. Default: 60 */
+    startupGraceSeconds: z.number().int().nonnegative().optional(),
     /** Number of HTTP probes per poll interval */
     probeCount: z.number().int().positive().optional(),
   })

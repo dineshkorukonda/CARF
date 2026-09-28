@@ -29,6 +29,8 @@ jobs:
       - run: npx prisma generate
       - run: npm run lint
       - run: npm run typecheck
+      - name: Verify Prisma schema parity with dashboard
+        run: node ../scripts/check-schema-parity.mjs
 
   test:
     runs-on: ubuntu-latest

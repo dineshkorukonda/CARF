@@ -9,7 +9,7 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
   rolloutOutcome: {
     findUnique(args: {
       where: { id: string };
-      include?: { commit?: { select: { baseSha: true } }; samples?: true };
+      include?: { commit?: { select: { baseSha: boolean; changeVector?: boolean } }; samples?: boolean };
     }): Promise<{
       id: string;
       owner: string | null;
@@ -19,12 +19,13 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
       status: string;
       threshold: number;
       window: number;
-      commit?: { baseSha: string } | null;
+      commit?: { baseSha: string; changeVector?: { data?: number } | null } | null;
     } | null>;
     update(args: {
       where: { id: string };
       data: {
         status: "ROLLED_BACK";
+        trigger?: "manual" | "auto";
         rolledBack: boolean;
         reason: string;
         rollbackVerified?: boolean | null;
@@ -177,7 +178,7 @@ export async function registerRolloutRollbackRoute(
       const { id } = request.params;
       const rollout = await prismaClient.rolloutOutcome.findUnique({
         where: { id },
-        include: { commit: { select: { baseSha: true } } },
+        include: { commit: { select: { baseSha: true, changeVector: true } } },
       });
 
       if (!rollout || rollout.installationId !== installationId) {
@@ -204,7 +205,11 @@ export async function registerRolloutRollbackRoute(
       }
 
       const carfConfig = loadCarfConfig();
-      const targetName = carfConfig?.adapter?.target ?? carfConfig?.adapter?.targets?.[0] ?? "";
+      const firstTarget = carfConfig?.adapter?.targets?.[0];
+      const targetName =
+        carfConfig?.adapter?.target ??
+        (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
+        "";
 
       const defaultFactory = (sha: string) =>
         new PM2Adapter(sha, {
@@ -214,6 +219,8 @@ export async function registerRolloutRollbackRoute(
           buildCommand: carfConfig?.adapter?.buildCommand,
           layout: carfConfig?.adapter?.layout,
           healthUrl: carfConfig?.adapter?.healthUrl,
+          startupGraceSeconds: carfConfig?.adapter?.startupGraceSeconds,
+          sharedPaths: carfConfig?.adapter?.sharedPaths,
           probeCount: carfConfig?.adapter?.probeCount,
         });
 
@@ -223,10 +230,20 @@ export async function registerRolloutRollbackRoute(
       try {
         let rollbackVerified: boolean | undefined = undefined;
         if (typeof adapter.rollbackWithVerification === "function") {
-          const res = await adapter.rollbackWithVerification(targetName);
+          const res = await adapter.rollbackWithVerification(targetName, carfConfig?.adapter?.startupGraceSeconds ?? 60);
           rollbackVerified = res.rollbackVerified;
         } else {
           await adapter.rollback(targetName);
+        }
+
+        const hasSchemaChange = Boolean(
+          rollout.commit?.changeVector &&
+          typeof rollout.commit.changeVector.data === "number" &&
+          rollout.commit.changeVector.data > 0
+        );
+        let reason = `manual: triggered by ${actor}`;
+        if (hasSchemaChange) {
+          reason = `${reason}; schema not reverted`;
         }
 
         const now = new Date();
@@ -234,8 +251,9 @@ export async function registerRolloutRollbackRoute(
           where: { id: rollout.id },
           data: {
             status: "ROLLED_BACK",
+            trigger: "manual",
             rolledBack: true,
-            reason: `manual: triggered by ${actor}`,
+            reason,
             rollbackVerified: rollbackVerified ?? null,
             finishedAt: now,
           },
