@@ -5,38 +5,40 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { BarChart3, Boxes, ChevronsLeft, ChevronsRight, House, LogOut, Radio, UserRound, Blocks } from "lucide-react";
+import {
+  FolderGit2,
+  Activity,
+  Terminal,
+  ShieldCheck,
+  Sliders,
+  ChevronsLeft,
+  ChevronsRight,
+  LogOut,
+  UserRound,
+} from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
-import {
-  INSTALLATION_SECTION_ITEMS,
-  installationSectionHref,
-  type InstallationSectionId,
-} from "../../lib/dashboardNav";
-
-const SECTION_ICONS: Record<InstallationSectionId, typeof Radio> = {
-  status: Radio,
-  analytics: BarChart3,
-  integrations: Blocks,
-};
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
-function activeInstallationId(pathname: string): string | null {
-  const match = pathname.match(/^\/dashboard\/(?:status|config|analytics|integrations)\/([^/]+)/);
-  return match ? match[1]! : null;
-}
+const NAV_ITEMS = [
+  { href: "/dashboard", exact: true, label: "Repositories", icon: FolderGit2 },
+  { href: "/dashboard/repos", exact: false, label: "Rollouts & Controls", icon: Activity },
+  { href: "/dashboard/setup", exact: false, label: "PM2 Setup", icon: Terminal },
+  { href: "/dashboard/verify", exact: false, label: "Verification Harness", icon: ShieldCheck },
+  { href: "/dashboard/settings", exact: false, label: "Settings", icon: Sliders },
+];
 
 function NavLink({
   href,
   exact,
-  icon,
+  icon: Icon,
   collapsed,
   children,
 }: {
   href: string;
   exact?: boolean;
-  icon: React.ReactNode;
+  icon: any;
   collapsed: boolean;
   children: React.ReactNode;
 }) {
@@ -54,38 +56,7 @@ function NavLink({
           : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
       }
     >
-      {icon}
-      {!collapsed && <span className="truncate">{children}</span>}
-    </Link>
-  );
-}
-
-function ContextNavLink({
-  href,
-  icon,
-  collapsed,
-  children,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  collapsed: boolean;
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-  const active = pathname === href;
-
-  return (
-    <Link
-      href={href}
-      title={collapsed ? String(children) : undefined}
-      className={
-        "flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors " +
-        (active
-          ? "bg-sidebar-foreground/15 text-sidebar-foreground font-semibold"
-          : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")
-      }
-    >
-      {icon}
+      <Icon className="size-4 shrink-0" />
       {!collapsed && <span className="truncate">{children}</span>}
     </Link>
   );
@@ -98,14 +69,12 @@ export function SidebarShell({
   installations: InstallationRow[];
   accountEmail: string;
 }) {
-  const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(COLLAPSE_STORAGE_KEY) === "1";
       if (stored) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCollapsed(true);
       }
     } catch {
@@ -125,13 +94,7 @@ export function SidebarShell({
     });
   }
 
-  const activeId = activeInstallationId(pathname);
-  // Default to active route param if on repo page, otherwise default to primary installation
-  const active = activeId
-    ? installations.find((i) => i.installationId === activeId)
-    : installations.length > 0
-      ? installations[0]
-      : undefined;
+  const primary = installations[0];
 
   return (
     <aside
@@ -163,91 +126,63 @@ export function SidebarShell({
           </button>
         </div>
 
-        {/* Global Navigation */}
+        {/* Global Navigation - Strictly the 5 routes */}
         <div className="flex flex-col gap-2">
           {!collapsed && (
             <div className="px-4">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                General
+                Menu
               </p>
             </div>
           )}
           <nav className="flex flex-col gap-0.5 px-3">
-            <NavLink href="/dashboard" exact collapsed={collapsed} icon={<House className="size-4 shrink-0" />}>
-              Overview
-            </NavLink>
-            <NavLink href="/dashboard/installations" collapsed={collapsed} icon={<Boxes className="size-4 shrink-0" />}>
-              GitHub Integration
-            </NavLink>
+            {NAV_ITEMS.map((item) => (
+              <NavLink
+                key={item.href}
+                href={item.href}
+                exact={item.exact}
+                collapsed={collapsed}
+                icon={item.icon}
+              >
+                {item.label}
+              </NavLink>
+            ))}
           </nav>
         </div>
 
-        {active && (
-          <>
-            <div className="mx-4 border-t border-sidebar-foreground/10" />
-
-            {/* Repository Workspace Nav */}
-            <div className="flex flex-col gap-2">
-              {!collapsed && (
-                <div className="px-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                    Active Integration
-                  </p>
+        {primary && (
+          <div className="mt-2 border-t border-sidebar-foreground/10 pt-4">
+            {!collapsed ? (
+              <div className="mx-3 rounded-lg border border-sidebar-foreground/15 bg-sidebar-foreground/5 p-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="font-semibold text-xs text-sidebar-foreground truncate">
+                    @{primary.targetLogin}
+                  </span>
                 </div>
-              )}
-              {!collapsed ? (
-                <div className="mx-3 rounded-lg border border-sidebar-foreground/15 bg-sidebar-foreground/5 p-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="font-semibold text-xs text-sidebar-foreground truncate">
-                      @{active.targetLogin}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-sidebar-foreground/60 font-mono">
-                    Integration #{active.installationId}
-                  </p>
-                </div>
-              ) : (
-                <div className="flex justify-center my-1" title={`@${active.targetLogin} (#${active.installationId})`}>
-                  <div className="size-2.5 rounded-full bg-emerald-500" />
-                </div>
-              )}
-
-              <nav className="flex flex-col gap-0.5 px-3">
-                {INSTALLATION_SECTION_ITEMS.map((item) => {
-                  const Icon = SECTION_ICONS[item.id];
-                  return (
-                    <ContextNavLink
-                      key={item.id}
-                      href={installationSectionHref(item.id, active.installationId)}
-                      collapsed={collapsed}
-                      icon={
-                        <Icon
-                          className={
-                            item.id === "status"
-                              ? "size-4 shrink-0 text-emerald-500"
-                              : item.id === "integrations"
-                                ? "size-4 shrink-0 text-blue-400"
-                                : "size-4 shrink-0"
-                          }
-                        />
-                      }
-                    >
-                      {item.label}
-                    </ContextNavLink>
-                  );
-                })}
-              </nav>
-            </div>
-          </>
+                <p className="mt-1 text-[11px] text-sidebar-foreground/60 font-mono">
+                  Integration #{primary.installationId}
+                </p>
+              </div>
+            ) : (
+              <div className="flex justify-center my-1" title={`@${primary.targetLogin} (#${primary.installationId})`}>
+                <div className="size-2.5 rounded-full bg-emerald-500" />
+              </div>
+            )}
+          </div>
         )}
       </div>
 
       {/* User footer */}
       <div className="flex flex-col gap-2 border-t border-sidebar-foreground/10 p-3">
-        <NavLink href="/dashboard/account" collapsed={collapsed} icon={<UserRound className="size-4 shrink-0" />}>
-          <span className="truncate">{accountEmail}</span>
-        </NavLink>
+        <Link
+          href="/dashboard/settings"
+          title={collapsed ? accountEmail : undefined}
+          className="flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground transition-colors"
+        >
+          <UserRound className="size-4 shrink-0" />
+          {!collapsed && <span className="truncate">{accountEmail}</span>}
+        </Link>
         <Button
           type="button"
           variant="ghost"

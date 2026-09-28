@@ -32,7 +32,7 @@ export default async function SetupPage() {
   const connections = await prisma.repoConnection.findMany({
     where: {
       installationId: {
-        in: installations.map((i) => Number(i.installationId)),
+        in: installations.map((i) => String(i.installationId)),
       },
     },
   });

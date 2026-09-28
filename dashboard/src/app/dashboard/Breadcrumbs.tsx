@@ -15,31 +15,25 @@ interface Crumb {
  * highlighted nav item), so repeating that whole hierarchy here would just be noise.
  */
 function buildCrumbs(pathname: string, installations: InstallationRow[]): Crumb[] {
-  if (pathname === "/dashboard") return [{ label: "Home" }];
-  if (pathname === "/dashboard/account") return [{ label: "Account" }];
-  if (pathname === "/dashboard/installations") return [{ label: "All installations" }];
-
-  const match = pathname.match(/^\/dashboard\/(status|verify|config|analytics|integrations)\/([^/]+)(\/rules)?$/);
-  if (match) {
-    const [, section, installationId, rulesSuffix] = match;
-    const installation = installations.find((i) => i.installationId === installationId);
-    const repoLabel = installation?.targetLogin ?? installationId!;
-    const sectionLabel = rulesSuffix
-      ? "Thresholds"
-      : section === "status"
-        ? "Status"
-        : section === "verify"
-          ? "Verify"
-          : section === "config"
-            ? "Adapter"
-            : section === "integrations"
-              ? "Integrations"
-              : "Analytics";
-
-    return [{ label: repoLabel, href: `/dashboard/status/${installationId}` }, { label: sectionLabel }];
+  if (pathname === "/dashboard") return [{ label: "Repositories" }];
+  if (pathname === "/dashboard/setup") return [{ label: "PM2 Setup" }];
+  if (pathname === "/dashboard/verify") return [{ label: "Verify Harness" }];
+  if (pathname === "/dashboard/settings" || pathname === "/dashboard/account" || pathname === "/dashboard/installations") {
+    return [{ label: "Settings" }];
   }
 
-  return [{ label: "Home", href: "/dashboard" }];
+  if (pathname.startsWith("/dashboard/repos")) {
+    const subPath = pathname.replace("/dashboard/repos", "").replace(/^\//, "");
+    if (!subPath) {
+      return [{ label: "Repositories", href: "/dashboard" }];
+    }
+    return [
+      { label: "Repositories", href: "/dashboard" },
+      { label: subPath },
+    ];
+  }
+
+  return [{ label: "Repositories", href: "/dashboard" }];
 }
 
 export function Breadcrumbs({ installations }: { installations: InstallationRow[] }) {

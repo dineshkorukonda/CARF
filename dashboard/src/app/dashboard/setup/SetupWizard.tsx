@@ -42,7 +42,7 @@ interface Pm2App {
 
 interface RepoConnectionDef {
   id: string;
-  installationId: number;
+  installationId: string;
   owner: string;
   repo: string;
   verifiedAt: Date | string | null;
@@ -103,7 +103,7 @@ export function SetupWizard({
   const selectedRepo = repos.find((r) => r.full_name === selectedRepoFullName);
   const selectedConnection = connections.find(
     (c) =>
-      c.owner.toLowerCase() === selectedRepo?.owner.toLowerCase() &&
+      c.owner.toLowerCase() === selectedRepo?.owner.login.toLowerCase() &&
       c.repo.toLowerCase() === selectedRepo?.name.toLowerCase()
   );
 
@@ -154,7 +154,7 @@ export function SetupWizard({
 
       const payload = {
         installationId: selectedInstallationId,
-        owner: selectedRepo.owner,
+        owner: selectedRepo.owner.login,
         repo: selectedRepo.name,
         target: {
           name: selectedTargetName,
@@ -227,7 +227,7 @@ export function SetupWizard({
     try {
       const formData = new FormData();
       formData.append("installationId", selectedInstallationId);
-      formData.append("owner", selectedRepo.owner);
+      formData.append("owner", selectedRepo.owner.login);
       formData.append("repo", selectedRepo.name);
       formData.append("mode", "standalone");
       formData.append("adapterKind", "pm2");

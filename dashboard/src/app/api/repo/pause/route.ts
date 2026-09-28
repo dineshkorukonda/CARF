@@ -33,13 +33,13 @@ export async function POST(request: NextRequest) {
     const updated = await prisma.repoConnection.upsert({
       where: {
         installationId_owner_repo: {
-          installationId: Number(installationId),
+          installationId: String(installationId),
           owner,
           repo,
         },
       },
       create: {
-        installationId: Number(installationId),
+        installationId: String(installationId),
         owner,
         repo,
         monitoringPaused: paused,
