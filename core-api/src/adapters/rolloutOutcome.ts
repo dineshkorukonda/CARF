@@ -7,20 +7,20 @@ export type RolloutStatus = "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED";
 
 export interface RolloutOutcomeRecord {
   id: string;
-  commitId?: string | null;
-  owner?: string | null;
-  repo?: string | null;
+  commitId?: string | null | undefined;
+  owner?: string | null | undefined;
+  repo?: string | null | undefined;
   commitSha: string;
-  installationId?: string | null;
+  installationId?: string | null | undefined;
   status: RolloutStatus;
   threshold: number;
   window: number;
   startedAt: Date;
-  finishedAt?: Date | null;
-  finalErrorRate?: number | null;
+  finishedAt?: Date | null | undefined;
+  finalErrorRate?: number | null | undefined;
   rolledBack: boolean;
-  reason?: string | null;
-  rollbackVerified?: boolean | null;
+  reason?: string | null | undefined;
+  rollbackVerified?: boolean | null | undefined;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,40 +37,40 @@ export interface RolloutSampleRecord {
 export interface RolloutOutcomePrismaClient {
   rolloutOutcome: {
     findMany(args?: {
-      where?: { status?: RolloutStatus; owner?: string; repo?: string };
-      orderBy?: { startedAt?: "asc" | "desc" };
-    }): Promise<RolloutOutcomeRecord[]>;
+      where?: { status?: RolloutStatus | undefined; owner?: string | undefined; repo?: string | undefined } | undefined;
+      orderBy?: { startedAt?: "asc" | "desc" | undefined } | undefined;
+    } | undefined): Promise<RolloutOutcomeRecord[]>;
     findUnique?(args: {
-      where: { id?: string; installationId_commitSha?: { installationId: string; commitSha: string } };
+      where: { id?: string | undefined; installationId_commitSha?: { installationId: string; commitSha: string } | undefined };
     }): Promise<RolloutOutcomeRecord | null>;
     upsert(args: {
       where: { installationId_commitSha: { installationId: string; commitSha: string } };
       create: {
-        commit?: { connect: { owner_repo_sha: { owner: string; repo: string; sha: string } } };
-        owner?: string;
-        repo?: string;
+        commit?: { connect: { owner_repo_sha: { owner: string; repo: string; sha: string } } } | undefined;
+        owner?: string | undefined;
+        repo?: string | undefined;
         commitSha: string;
-        installationId?: string;
+        installationId?: string | undefined;
         status: RolloutStatus;
         threshold: number;
         window: number;
-        startedAt?: Date;
-        rolledBack?: boolean;
+        startedAt?: Date | undefined;
+        rolledBack?: boolean | undefined;
       };
       update: {
-        threshold?: number;
-        window?: number;
+        threshold?: number | undefined;
+        window?: number | undefined;
       };
     }): Promise<RolloutOutcomeRecord>;
     update(args: {
       where: { id: string };
       data: {
-        status?: RolloutStatus;
-        finishedAt?: Date;
-        finalErrorRate?: number;
-        rolledBack?: boolean;
-        reason?: string;
-        rollbackVerified?: boolean | null;
+        status?: RolloutStatus | undefined;
+        finishedAt?: Date | undefined;
+        finalErrorRate?: number | undefined;
+        rolledBack?: boolean | undefined;
+        reason?: string | undefined;
+        rollbackVerified?: boolean | null | undefined;
       };
     }): Promise<RolloutOutcomeRecord>;
   };
@@ -78,7 +78,7 @@ export interface RolloutOutcomePrismaClient {
     create(args: {
       data: {
         rolloutId: string;
-        ts?: Date;
+        ts?: Date | undefined;
         errorRate: number;
         perTarget?: unknown;
       };
@@ -90,14 +90,14 @@ export interface RolloutOutcomePrismaClient {
     deleteMany(args: {
       where: { ts: { lt: Date } };
     }): Promise<{ count: number }>;
-  };
+  } | undefined;
 }
 
 export interface CreatePendingOutcomeParams {
   owner: string;
   repo: string;
   commitSha: string;
-  installationId?: string;
+  installationId?: string | undefined;
   threshold: number;
   window: number;
 }
@@ -105,11 +105,11 @@ export interface CreatePendingOutcomeParams {
 export interface FinalizeOutcomeParams {
   id: string;
   status: RolloutStatus;
-  finalErrorRate?: number;
+  finalErrorRate?: number | undefined;
   rolledBack: boolean;
-  reason?: string;
-  rollbackVerified?: boolean | null;
-  finishedAt?: Date;
+  reason?: string | undefined;
+  rollbackVerified?: boolean | null | undefined;
+  finishedAt?: Date | undefined;
 }
 
 export async function createPendingRolloutOutcome(

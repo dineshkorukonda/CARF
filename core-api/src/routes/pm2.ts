@@ -10,7 +10,7 @@ export interface Pm2AppInfo {
   status: string;
   restarts: number;
   uptime: number;
-  cwd?: string;
+  cwd?: string | undefined;
 }
 
 export interface VerificationCheckItem {
@@ -30,13 +30,13 @@ export interface VerifyRequestBody {
   repo: string;
   target: {
     name: string;
-    healthUrl?: string;
-    startupGraceSeconds?: number;
-    layout?: "releases" | "git";
-    cwd?: string;
-    releasesDir?: string;
-    currentSymlink?: string;
-    sharedDirs?: string[];
+    healthUrl?: string | undefined;
+    startupGraceSeconds?: number | undefined;
+    layout?: "releases" | "git" | undefined;
+    cwd?: string | undefined;
+    releasesDir?: string | undefined;
+    currentSymlink?: string | undefined;
+    sharedDirs?: string[] | undefined;
   };
 }
 
@@ -323,13 +323,13 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
         await repoConn.upsert({
           where: {
             installationId_owner_repo: {
-              installationId: Number(installationId),
+              installationId: String(installationId),
               owner: body.owner,
               repo: body.repo,
             },
           },
           create: {
-            installationId: Number(installationId),
+            installationId: String(installationId),
             owner: body.owner,
             repo: body.repo,
             verifiedAt: verified ? new Date() : null,

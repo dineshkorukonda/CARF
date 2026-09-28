@@ -6,27 +6,27 @@ const DEFAULT_CURRENT_SYMLINK = "/var/www/current";
 
 export interface PM2AdapterOptions {
   /** Injected exec function or CommandExecutor, defaulting to LocalCommandExecutor */
-  exec?: ExecFn | CommandExecutor;
+  exec?: ExecFn | CommandExecutor | undefined;
   /** Root directory containing one release directory per commit SHA. Default: /var/www/releases. */
-  releasesRoot?: string;
+  releasesRoot?: string | undefined;
   /** Symlink PM2's app entry point resolves through, repointed on rollback. Default: /var/www/current. */
-  currentSymlink?: string;
+  currentSymlink?: string | undefined;
   /** Deployment layout: "releases" (symlink swap) or "git" (in-place git checkout). Default: "releases" */
-  layout?: "releases" | "git";
+  layout?: "releases" | "git" | undefined;
   /** Working directory for "git" layout. */
-  cwd?: string;
+  cwd?: string | undefined;
   /** Optional build or restart command after git checkout in "git" layout. */
-  buildCommand?: string;
+  buildCommand?: string | undefined;
   /** Single process name target */
-  target?: string;
+  target?: string | undefined;
   /** Multiple process name targets */
-  targets?: string[];
+  targets?: string[] | undefined;
   /** Optional HTTP health check URL or endpoint */
-  healthUrl?: string;
+  healthUrl?: string | undefined;
   /** Number of HTTP probes per poll interval. Default: 1 */
-  probeCount?: number;
+  probeCount?: number | undefined;
   /** Injected fetch function for HTTP health checks, defaulting to globalThis.fetch */
-  fetchFn?: (url: string) => Promise<{ ok: boolean; status: number }>;
+  fetchFn?: ((url: string) => Promise<{ ok: boolean; status: number }>) | undefined;
 }
 
 interface Pm2ProcessDescription {
@@ -51,10 +51,10 @@ export class PM2Adapter implements RollbackAdapter {
   private readonly releasesRoot: string;
   private readonly currentSymlink: string;
   private readonly layout: "releases" | "git";
-  private readonly cwd?: string;
-  private readonly buildCommand?: string;
+  private readonly cwd?: string | undefined;
+  private readonly buildCommand?: string | undefined;
   private readonly defaultTargets: string[];
-  private readonly healthUrl?: string;
+  private readonly healthUrl?: string | undefined;
   private readonly probeCount: number;
   private readonly fetchFn: (url: string) => Promise<{ ok: boolean; status: number }>;
   private readonly baselineRestarts = new Map<string | number, number>();
@@ -212,12 +212,13 @@ export class PM2Adapter implements RollbackAdapter {
     }
   }
 
-  async rollbackWithVerification(target?: string): Promise<{ verified: boolean; errorRate: number }> {
+  async rollbackWithVerification(target?: string): Promise<{ verified: boolean; errorRate: number; rollbackVerified: boolean }> {
     await this.rollback(target);
     const health = await this.checkHealth(target);
     return {
       verified: health.healthy,
       errorRate: health.errorRate,
+      rollbackVerified: health.healthy,
     };
   }
 }

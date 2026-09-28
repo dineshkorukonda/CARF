@@ -236,7 +236,7 @@ export async function registerRolloutRollbackRoute(
             status: "ROLLED_BACK",
             rolledBack: true,
             reason: `manual: triggered by ${actor}`,
-            rollbackVerified,
+            rollbackVerified: rollbackVerified ?? null,
             finishedAt: now,
           },
         });

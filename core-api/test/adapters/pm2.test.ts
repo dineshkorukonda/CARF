@@ -220,7 +220,7 @@ describe("PM2Adapter.rollbackWithVerification", () => {
 
     const result = await adapter.rollbackWithVerification();
 
-    expect(result).toEqual({ verified: true, errorRate: 0 });
+    expect(result).toEqual({ verified: true, errorRate: 0, rollbackVerified: true });
     expect(exec).toHaveBeenCalledTimes(3);
   });
 });

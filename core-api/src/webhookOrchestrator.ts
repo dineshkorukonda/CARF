@@ -6,7 +6,7 @@ import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
-import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
+import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient, type RolloutOutcomeRecord } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
 import {
   acquireLock,
@@ -192,7 +192,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
 
   // Create PENDING RolloutOutcome row (idempotent per installationId, commitSha)
-  let pendingOutcome;
+  let pendingOutcome: RolloutOutcomeRecord | undefined;
   try {
     pendingOutcome = await createPendingRolloutOutcome(rolloutOutcomeClient, {
       owner: target.owner,

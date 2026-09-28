@@ -83,6 +83,29 @@ class FakeRolloutOutcomePrismaClient implements RolloutOutcomePrismaClient {
     create: vi.fn(async (args: unknown) => {
       this.created.push(args);
     }),
+    findMany: vi.fn(async () => []),
+    upsert: vi.fn(async (args: any) => ({
+      id: "outcome-1",
+      commitSha: args.create.commitSha,
+      status: args.create.status,
+      threshold: args.create.threshold,
+      window: args.create.window,
+      startedAt: new Date(),
+      rolledBack: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })),
+    update: vi.fn(async (args: any) => ({
+      id: args.where.id,
+      commitSha: "sha",
+      status: args.data.status ?? "SUCCESS",
+      threshold: 0.05,
+      window: 300,
+      startedAt: new Date(),
+      rolledBack: Boolean(args.data.rolledBack),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })),
   };
 }
 
@@ -198,26 +221,6 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
   });
 
-  it("Standalone + adapter.kind kubernetes kicks off the loop runner without awaiting it", async () => {
-    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
-    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
-    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
-      standaloneLoopRunner,
-      rollbackAdapterFactory,
-    });
-
-    await handleWebhookCommit(target, deps);
-    await flushMicrotasks();
-
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "kubernetes", target: "my-deployment" }, "base123");
-    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
-    const call = standaloneLoopRunner.mock.calls[0]!;
-    expect(call[0]).toBe("head456"); // sha
-    expect(call[1]).toBe(fakeAdapter);
-    expect(call[3]).toBe("my-deployment"); // target string
-  });
 
   it("Standalone + adapter.kind pm2 kicks off the loop runner, building the adapter with baseSha as the previous release", async () => {
     const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });

@@ -22,6 +22,7 @@ import { handleWebhookCommit } from "./webhookOrchestrator.js";
 import { prisma } from "./db/client.js";
 import { PM2Adapter } from "./adapters/pm2.js";
 import { RolloutMonitor } from "./monitor/rolloutMonitor.js";
+import type { RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 
 // Issue #60: real end-to-end webhook test commit.
 // Issue #60: second probe -- retest push webhook delivery after the earlier 404.
@@ -55,7 +56,7 @@ const app = buildApp({
 });
 
 rolloutMonitor = new RolloutMonitor({
-  prismaClient: prisma,
+  prismaClient: prisma as unknown as RolloutOutcomePrismaClient,
   logger: app.log,
   adapterFactory: (outcome) => {
     const targetName = carfConfig?.adapter?.target ?? carfConfig?.adapter?.targets?.[0] ?? "";

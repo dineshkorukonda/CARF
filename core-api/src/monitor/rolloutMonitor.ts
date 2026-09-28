@@ -23,7 +23,7 @@ export interface RolloutMonitorOptions {
   /** Clock provider for testing. */
   now?: () => Date;
   /** Factory to reconstruct adapters during crash recovery. */
-  adapterFactory?: (outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined;
+  adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
 }
 
 function realSleep(ms: number): Promise<void> {
@@ -36,7 +36,7 @@ export class RolloutMonitor {
   private readonly pollIntervalMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => Date;
-  private readonly adapterFactory?: (outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined;
+  private readonly adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
 
   private runningJobs = new Map<string, Promise<void>>();
   private isStopped = false;

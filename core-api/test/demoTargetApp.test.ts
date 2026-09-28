@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PM2Adapter } from "../src/adapters/pm2.js";
 import { runStandaloneLoop } from "../src/adapters/loop.js";
 
-import type { PipelineResult } from "../src/pipeline/processCommit.js";
+import type { ThresholdResult } from "../src/threshold/engine.js";
 
 describe("Demo Target App & PM2 Adapter E2E Simulation", () => {
   it("simulates full standalone monitoring, detects breach, and triggers verified rollback", async () => {
@@ -43,17 +43,10 @@ describe("Demo Target App & PM2 Adapter E2E Simulation", () => {
       fetchFn: fetchMock,
     });
 
-    const pipelineResult: PipelineResult = {
-      changeTypes: ["code"],
-      typeWeights: { code: 1 },
-      totalWeight: 1,
-      classificationBreakdown: { infra: 0, dependency: 0, config: 0, code: 1, data: 0 },
-      windowModifiers: { code: 1 },
-      baseThreshold: 0.05,
+    const pipelineResult: ThresholdResult = {
       finalThreshold: 0.05,
-      baseWindow: 10,
       finalWindow: 10,
-      durationMinutes: 1,
+      activeTypes: ["code"],
     };
 
     // Run standalone loop with fast polling interval for test
@@ -62,7 +55,7 @@ describe("Demo Target App & PM2 Adapter E2E Simulation", () => {
       adapter,
       pipelineResult,
       "demo-target-app",
-      { pollIntervalSeconds: 0.01 }
+      { pollIntervalMs: 10 }
     );
 
     expect(loopResult.rolledBack).toBe(true);

@@ -7,5 +7,5 @@
 export interface RollbackAdapter {
   checkHealth(target?: string): Promise<{ errorRate: number; healthy: boolean }>;
   rollback(target?: string): Promise<void>;
-  rollbackWithVerification?(target?: string): Promise<{ rollbackVerified: boolean }>;
+  rollbackWithVerification?(target?: string): Promise<{ rollbackVerified: boolean; verified?: boolean; errorRate?: number }>;
 }
