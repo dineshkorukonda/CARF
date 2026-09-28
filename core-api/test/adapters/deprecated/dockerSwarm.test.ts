@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DockerSwarmAdapter } from "../../src/adapters/dockerSwarm.js";
+import { DockerSwarmAdapter } from "../../../src/adapters/deprecated/dockerSwarm.js";
 
 function mockExec(stdout: string, stderr = "") {
   return vi.fn().mockResolvedValue({ stdout, stderr });

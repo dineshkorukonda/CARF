@@ -39,7 +39,7 @@ export function OnboardingChecklist({
     {
       id: "stack-detected",
       label: "Stack Auto-Recognized",
-      description: "CARF AST engine mapped stack semantics (PM2, Vercel, Render, Docker, or K8s).",
+      description: "CARF AST engine mapped stack semantics (PM2, Kubernetes, or Render).",
       completed: true,
     },
     {

@@ -62,7 +62,7 @@ export function AdvisoryAlertBanner({
                 Advisory & Smart Alert Mode Active
               </span>
               <span className="rounded-full bg-blue-100 border border-blue-200 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                Vercel · Render · PM2 · Cloud
+                CI/CD · Webhooks · PM2
               </span>
             </div>
             <p className="text-xs text-slate-600">
@@ -100,20 +100,20 @@ export function AdvisoryAlertBanner({
       {isExpanded && (
         <div className="mt-3.5 border-t border-slate-200/80 pt-3.5 space-y-3 text-xs text-slate-700">
           <div className="grid gap-3 sm:grid-cols-3">
-            {/* Vercel Action */}
+            {/* CI/CD Action */}
             <div className="rounded-lg bg-white p-3 border border-slate-200 shadow-2xs space-y-1.5">
               <div className="flex items-center justify-between font-semibold text-slate-900">
                 <span className="flex items-center gap-1.5">
                   <Globe className="size-3.5 text-blue-600" />
-                  <span>Vercel / Next.js</span>
+                  <span>CI/CD PR Probe</span>
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">Advisory</span>
               </div>
               <p className="text-slate-600 text-[11px]">
-                To roll back on Vercel if an alert occurs:
+                Query commit risk threshold in GitHub Actions:
               </p>
               <div className="rounded bg-slate-900 px-2 py-1 font-mono text-[10px] text-slate-100 select-all">
-                vercel rollback
+                curl /v1/threshold?commit=$SHA
               </div>
             </div>
 

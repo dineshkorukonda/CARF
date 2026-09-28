@@ -9,7 +9,6 @@ import {
   Film,
   Server,
   Terminal,
-  Box,
   GitPullRequest,
   Activity,
   GitCommit,
@@ -22,7 +21,7 @@ import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 
 type ScenarioKey = "infra" | "config" | "dependency" | "code";
-type TargetRuntime = "kubernetes" | "pm2" | "docker" | "gitops";
+type TargetRuntime = "pm2" | "kubernetes" | "gitops";
 
 interface Scenario {
   key: ScenarioKey;
@@ -119,23 +118,18 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
 };
 
 const RUNTIMES: Record<TargetRuntime, { label: string; icon: typeof Server; command: string }> = {
-  kubernetes: {
-    label: "Kubernetes",
-    icon: Server,
-    command: "kubectl rollout undo deployment/api-server -n production",
-  },
   pm2: {
-    label: "PM2",
+    label: "PM2 (Active)",
     icon: Terminal,
     command: "pm2 reload api-server --update-env",
   },
-  docker: {
-    label: "Docker Compose",
-    icon: Box,
-    command: "IMAGE_TAG=sha-prev docker compose up -d api",
+  kubernetes: {
+    label: "Kubernetes (Preview)",
+    icon: Server,
+    command: "kubectl rollout undo deployment/api-server -n production",
   },
   gitops: {
-    label: "GitOps / Argo",
+    label: "GitOps / Argo (Preview)",
     icon: GitPullRequest,
     command: "git revert HEAD --no-edit && git push origin main",
   },
@@ -152,7 +146,7 @@ const STEPS = [
 export function InteractiveSimulator() {
   const [activeTab, setActiveTab] = useState<"video" | "sandbox">("video");
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("infra");
-  const [selectedRuntime, setSelectedRuntime] = useState<TargetRuntime>("kubernetes");
+  const [selectedRuntime, setSelectedRuntime] = useState<TargetRuntime>("pm2");
 
   // Video / Walkthrough Player State
   const [isPlaying, setIsPlaying] = useState<boolean>(true);

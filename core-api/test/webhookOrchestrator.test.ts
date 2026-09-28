@@ -219,40 +219,20 @@ describe("handleWebhookCommit", () => {
     expect(call[3]).toBe("my-deployment"); // target string
   });
 
-  it("Standalone + adapter.kind dockerCompose kicks off the loop runner, building the adapter with baseSha as the previous image tag", async () => {
-    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
-    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
-    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "dockerCompose", target: "web" } },
-      standaloneLoopRunner,
-      rollbackAdapterFactory,
-    });
-
-    await handleWebhookCommit(target, deps);
-    await flushMicrotasks();
-
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "dockerCompose", target: "web" }, "base123");
-    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
-    const call = standaloneLoopRunner.mock.calls[0]!;
-    expect(call[0]).toBe("head456"); // sha
-    expect(call[1]).toBe(fakeAdapter);
-    expect(call[3]).toBe("web"); // target string
-  });
-
-  it("Standalone + dockerCompose adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback tag there)", async () => {
+  it("Standalone + adapter.kind dockerCompose logs a deprecation error and does not kick off the loop runner", async () => {
     const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({
       carfConfig: { mode: "standalone", adapter: { kind: "dockerCompose", target: "web" } },
       standaloneLoopRunner,
     });
 
-    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
 
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
     expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "dockerCompose", target: "web" }, event: "pull_request" }),
-      expect.stringContaining("push event")
+      expect.objectContaining({ adapter: { kind: "dockerCompose", target: "web" } }),
+      expect.stringContaining("deprecated")
     );
   });
 
@@ -330,25 +310,21 @@ describe("handleWebhookCommit", () => {
     );
   });
 
-  it("Standalone + adapter.kind dockerSwarm kicks off the loop runner without requiring a push event", async () => {
-    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
-    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
-    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+  it("Standalone + adapter.kind dockerSwarm logs a deprecation error and does not kick off the loop runner", async () => {
+    const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({
       carfConfig: { mode: "standalone", adapter: { kind: "dockerSwarm", target: "web" } },
       standaloneLoopRunner,
-      rollbackAdapterFactory,
     });
 
-    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+    await handleWebhookCommit(target, deps);
     await flushMicrotasks();
 
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "dockerSwarm", target: "web" }, "base123");
-    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
-    const call = standaloneLoopRunner.mock.calls[0]!;
-    expect(call[0]).toBe("head456"); // sha
-    expect(call[1]).toBe(fakeAdapter);
-    expect(call[3]).toBe("web"); // target string
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ adapter: { kind: "dockerSwarm", target: "web" } }),
+      expect.stringContaining("deprecated")
+    );
   });
 
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {

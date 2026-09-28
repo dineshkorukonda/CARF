@@ -52,5 +52,11 @@ describe("CARF Minimal Showcase SPA", () => {
     expect(screen.getByRole("button", { name: /Database Schema Migration/i })).toBeInTheDocument();
     expect(screen.getByText(/A\/B Rollback Decision Comparison/i)).toBeInTheDocument();
   });
+
+  it("links to the usage guide", () => {
+    render(<App />);
+    const guideLinks = screen.getAllByRole("link", { name: /guide/i });
+    expect(guideLinks.some((link) => link.getAttribute("href") === "#guide")).toBe(true);
+  });
 });
 

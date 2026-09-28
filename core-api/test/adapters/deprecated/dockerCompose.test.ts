@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DockerComposeAdapter } from "../../src/adapters/dockerCompose.js";
+import { DockerComposeAdapter } from "../../../src/adapters/deprecated/dockerCompose.js";
 
 function mockExec(stdout: string, stderr = "") {
   return vi.fn().mockResolvedValue({ stdout, stderr });

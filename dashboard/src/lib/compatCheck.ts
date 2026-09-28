@@ -18,13 +18,13 @@ function matchesAny(paths: string[], patterns: RegExp[]): boolean {
   return paths.some((path) => patterns.some((pattern) => pattern.test(path)));
 }
 
-const STANDALONE_SIGNAL_IDS = ["kubernetes", "dockerCompose", "pm2", "gitops"];
+const STANDALONE_SIGNAL_IDS = ["pm2"];
 const AUGMENT_SIGNAL_IDS = ["argoRollouts", "flagger"];
 
 /**
  * Pure classification of a repo's file paths against the deployment targets CARF's
- * rollback adapters know how to drive (core-api/src/adapters/*: kubectl, docker compose,
- * docker swarm, pm2, gitops) and the progressive-delivery tools Augment mode plugs into
+ * rollback adapters know how to drive (core-api/src/adapters/*: PM2 [active], kubectl/gitops [preview])
+ * and the progressive-delivery tools Augment mode plugs into
  * (Argo Rollouts, Flagger). No I/O -- callers supply the path list (a GitHub tree fetch,
  * a local `git ls-files`, wherever), so this is unit-testable with in-memory fixtures.
  */
@@ -50,7 +50,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Kubernetes manifests / Helm chart",
       matched: kubernetes,
       detail: kubernetes
-        ? "Found k8s/Helm manifests — the Kubernetes Standalone adapter (kubectl rollout undo) will work out of the box."
+        ? "Found k8s/Helm manifests — Kubernetes adapter is in Preview (use Augment mode for production canary gating)."
         : "No k8s/, kubernetes/, manifests/, or Chart.yaml found.",
     },
     {
@@ -58,7 +58,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Docker Compose file",
       matched: dockerCompose,
       detail: dockerCompose
-        ? "Found a compose file — the Docker Compose or Docker Swarm Standalone adapter will work."
+        ? "Found a compose file — note: Docker Compose standalone adapter is deprecated (Augment mode recommended)."
         : "No docker-compose.yml/compose.yaml found.",
     },
     {
@@ -66,7 +66,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Dockerfile",
       matched: dockerfile,
       detail: dockerfile
-        ? "Containerized — a good sign for any of the Standalone adapters."
+        ? "Containerized application layout."
         : "No Dockerfile found.",
     },
     {
@@ -74,7 +74,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "PM2 ecosystem file",
       matched: pm2,
       detail: pm2
-        ? "Found an ecosystem.config file — the PM2 Standalone adapter will work."
+        ? "Found an ecosystem.config file — the PM2 Standalone adapter will work out of the box (actively verified)."
         : "No ecosystem.config.js/cjs/json found.",
     },
     {
@@ -82,7 +82,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "GitOps (Argo CD / Flux) manifests",
       matched: gitops,
       detail: gitops
-        ? "Found GitOps-style manifests — the GitOps Standalone adapter can drive a Git revert."
+        ? "Found GitOps-style manifests — GitOps adapter is in Preview (use Augment mode for canary analysis)."
         : "No argocd/, flux/, or kustomization.yaml found.",
     },
     {

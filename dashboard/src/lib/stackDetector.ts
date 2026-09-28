@@ -1,4 +1,4 @@
-export type DetectedStack = "vercel" | "render" | "pm2" | "docker" | "k8s" | "serverless" | "generic";
+export type DetectedStack = "nextjs" | "render" | "pm2" | "docker" | "k8s" | "serverless" | "generic";
 
 export interface StackDetectionResult {
   stack: DetectedStack;
@@ -19,19 +19,19 @@ export function detectStackFromRepo(
   const lowerFiles = fileNames.map((f) => f.toLowerCase());
   const lowerRepo = repoName.toLowerCase();
 
-  // 1. Check for Next.js / Vercel
-  const isVercel =
+  // 1. Check for Next.js / Frontend
+  const isNext =
     lowerFiles.some((f) => f.includes("next.config") || f === "vercel.json") ||
     lowerRepo.includes("next") ||
     lowerRepo.includes("web") ||
     lowerRepo.includes("frontend");
 
-  if (isVercel) {
+  if (isNext) {
     return {
-      stack: "vercel",
-      label: "Next.js / Vercel Frontend",
+      stack: "nextjs",
+      label: "Next.js / Web Frontend",
       badge: "Advisory / Augment",
-      reason: "Detected Next.js or Vercel configuration files",
+      reason: "Detected Next.js configuration or frontend directory layout",
       confidence: "high",
       suggestedMode: "augment",
       sampleYml: `# .carf.yml
@@ -46,7 +46,7 @@ rules:
     pattern: "src/app/api/**/*.{ts,js}"
     weight: 1.5
 `,
-      ciSnippetTitle: "Vercel PR Risk Check",
+      ciSnippetTitle: "GitHub Actions PR Risk Check",
       ciSnippet: `curl -s "https://carf.indevs.in/v1/threshold?commit=\${COMMIT_SHA}"`,
     };
   }
@@ -60,8 +60,8 @@ rules:
   if (isK8s) {
     return {
       stack: "k8s",
-      label: "Kubernetes / Argo Rollouts",
-      badge: "Augment / Webhook",
+      label: "Kubernetes & Argo Rollouts",
+      badge: "Adapter Preview",
       reason: "Detected Kubernetes manifests or Helm charts",
       confidence: "high",
       suggestedMode: "augment",
@@ -78,7 +78,7 @@ thresholds:
     };
   }
 
-  // 3. Check for PM2 / VPS layout
+  // 3. Check for PM2 / Node server layout
   const isPm2 =
     lowerFiles.some((f) => f.includes("ecosystem.config") || f.includes("pm2")) ||
     lowerRepo.includes("versiongate") ||
@@ -89,13 +89,16 @@ thresholds:
     return {
       stack: "pm2",
       label: "Node.js + PM2 (VPS / Server)",
-      badge: "Standalone or Augment",
+      badge: "Active / Standalone",
       reason: "Detected Node server / PM2 process architecture",
       confidence: "high",
-      suggestedMode: "augment",
+      suggestedMode: "standalone",
       sampleYml: `# .carf.yml
 version: "1.0"
-mode: augment
+mode: standalone
+adapter:
+  kind: pm2
+  target: api-server
 thresholds:
   base_tolerance_pct: 0.5
   max_tolerance_pct: 3.5
@@ -106,25 +109,26 @@ thresholds:
     };
   }
 
-  // 4. Check for Docker Compose
+  // 4. Check for Docker
   const isDocker = lowerFiles.some((f) => f.includes("docker-compose") || f === "dockerfile");
   if (isDocker) {
     return {
       stack: "docker",
-      label: "Docker Compose",
-      badge: "Standalone",
-      reason: "Detected Docker Compose file",
+      label: "Docker Containerized App",
+      badge: "Augment / CI Gate",
+      reason: "Detected Dockerfile or Compose manifest",
       confidence: "high",
-      suggestedMode: "standalone",
+      suggestedMode: "augment",
       sampleYml: `# .carf.yml
 version: "1.0"
-mode: standalone
-adapter:
-  kind: dockerCompose
-  target: web
+mode: augment
+thresholds:
+  base_tolerance_pct: 0.5
+  max_tolerance_pct: 3.0
+  observation_window_seconds: 240
 `,
-      ciSnippetTitle: "Docker Compose Zero-Downtime Rollback",
-      ciSnippet: `IMAGE_TAG=\${PREV_SHA} docker compose up -d web`,
+      ciSnippetTitle: "CI Canary Gate",
+      ciSnippet: `curl -s "https://carf.indevs.in/v1/threshold?commit=\${COMMIT_SHA}"`,
     };
   }
 
