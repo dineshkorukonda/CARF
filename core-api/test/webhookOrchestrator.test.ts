@@ -219,23 +219,6 @@ describe("handleWebhookCommit", () => {
     expect(call[3]).toBe("my-deployment"); // target string
   });
 
-  it("Standalone + adapter.kind dockerCompose logs a deprecation error and does not kick off the loop runner", async () => {
-    const standaloneLoopRunner = vi.fn();
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "dockerCompose", target: "web" } },
-      standaloneLoopRunner,
-    });
-
-    await handleWebhookCommit(target, deps);
-    await flushMicrotasks();
-
-    expect(standaloneLoopRunner).not.toHaveBeenCalled();
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "dockerCompose", target: "web" } }),
-      expect.stringContaining("deprecated")
-    );
-  });
-
   it("Standalone + adapter.kind pm2 kicks off the loop runner, building the adapter with baseSha as the previous release", async () => {
     const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
     const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
@@ -249,7 +232,10 @@ describe("handleWebhookCommit", () => {
     await handleWebhookCommit(target, deps);
     await flushMicrotasks();
 
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "pm2", target: "web" }, "base123");
+    expect(rollbackAdapterFactory).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "pm2", target: "web" }),
+      "base123"
+    );
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
     const call = standaloneLoopRunner.mock.calls[0]!;
     expect(call[0]).toBe("head456"); // sha
@@ -270,60 +256,6 @@ describe("handleWebhookCommit", () => {
     expect(deps.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({ adapter: { kind: "pm2", target: "web" }, event: "pull_request" }),
       expect.stringContaining("push event")
-    );
-  });
-
-  it("Standalone + adapter.kind gitops kicks off the loop runner, building the adapter with baseSha as the previous revision", async () => {
-    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: false });
-    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
-    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "gitops", target: "my-app" } },
-      standaloneLoopRunner,
-      rollbackAdapterFactory,
-    });
-
-    await handleWebhookCommit(target, deps);
-    await flushMicrotasks();
-
-    expect(rollbackAdapterFactory).toHaveBeenCalledWith({ kind: "gitops", target: "my-app" }, "base123");
-    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
-    const call = standaloneLoopRunner.mock.calls[0]!;
-    expect(call[0]).toBe("head456"); // sha
-    expect(call[1]).toBe(fakeAdapter);
-    expect(call[3]).toBe("my-app"); // target string
-  });
-
-  it("Standalone + gitops adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback revision there)", async () => {
-    const standaloneLoopRunner = vi.fn();
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "gitops", target: "my-app" } },
-      standaloneLoopRunner,
-    });
-
-    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
-
-    expect(standaloneLoopRunner).not.toHaveBeenCalled();
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "gitops", target: "my-app" }, event: "pull_request" }),
-      expect.stringContaining("push event")
-    );
-  });
-
-  it("Standalone + adapter.kind dockerSwarm logs a deprecation error and does not kick off the loop runner", async () => {
-    const standaloneLoopRunner = vi.fn();
-    const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "dockerSwarm", target: "web" } },
-      standaloneLoopRunner,
-    });
-
-    await handleWebhookCommit(target, deps);
-    await flushMicrotasks();
-
-    expect(standaloneLoopRunner).not.toHaveBeenCalled();
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "dockerSwarm", target: "web" } }),
-      expect.stringContaining("deprecated")
     );
   });
 
@@ -348,7 +280,7 @@ describe("handleWebhookCommit", () => {
     });
     const standaloneLoopRunner = vi.fn().mockReturnValue(loopPromise);
     const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "my-deployment" } },
       standaloneLoopRunner,
     });
 
@@ -368,10 +300,10 @@ describe("handleWebhookCommit", () => {
   it("a rejected loop runner does not propagate out of handleWebhookCommit, and clears the guard afterward", async () => {
     const standaloneLoopRunner = vi
       .fn()
-      .mockRejectedValueOnce(new Error("kubectl not found"))
+      .mockRejectedValueOnce(new Error("pm2 reload failed"))
       .mockResolvedValueOnce({ rolledBack: false });
     const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "my-deployment" } },
       standaloneLoopRunner,
     });
 
@@ -395,7 +327,7 @@ describe("handleWebhookCommit", () => {
       throw new Error("connection lost");
     };
     const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "my-deployment" } },
       standaloneLoopRunner,
       lockPrismaClient,
     });
@@ -422,7 +354,7 @@ describe("handleWebhookCommit", () => {
         throw new Error("connection lost");
       };
       const deps = baseDeps({
-        carfConfig: { mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } },
+        carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "my-deployment" } },
         standaloneLoopRunner,
         lockPrismaClient,
         heartbeatIntervalMs: 10,

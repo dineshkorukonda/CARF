@@ -11,5 +11,5 @@ threshold:
       baseWindow: 45
 mode: standalone
 adapter:
-  kind: kubernetes
+  kind: pm2
   target: "my-deployment"

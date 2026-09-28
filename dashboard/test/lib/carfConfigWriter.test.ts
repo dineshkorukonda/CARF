@@ -6,12 +6,12 @@ describe("applyModeAdapterPatch", () => {
   it("creates a minimal document when the repo has no .carf.yml yet", () => {
     const result = applyModeAdapterPatch(null, {
       mode: "standalone",
-      adapter: { kind: "kubernetes", target: "my-deployment" },
+      adapter: { kind: "pm2", target: "my-deployment" },
     });
 
     expect(load(result)).toEqual({
       mode: "standalone",
-      adapter: { kind: "kubernetes", target: "my-deployment" },
+      adapter: { kind: "pm2", target: "my-deployment" },
     });
   });
 
@@ -36,7 +36,7 @@ describe("applyModeAdapterPatch", () => {
   });
 
   it("drops a stale adapter block when switching to augment mode", () => {
-    const existing = dump({ mode: "standalone", adapter: { kind: "kubernetes", target: "old" } });
+    const existing = dump({ mode: "standalone", adapter: { kind: "pm2", target: "old" } });
 
     const result = applyModeAdapterPatch(existing, { mode: "augment" });
 
@@ -75,7 +75,7 @@ describe("applyClassificationThresholdPatch", () => {
   });
 
   it("preserves existing mode/adapter untouched", () => {
-    const existing = dump({ mode: "standalone", adapter: { kind: "kubernetes", target: "my-deployment" } });
+    const existing = dump({ mode: "standalone", adapter: { kind: "pm2", target: "my-deployment" } });
 
     const result = applyClassificationThresholdPatch(existing, {
       classification: { rules: [{ type: "code", patterns: ["src/**"] }] },
@@ -83,7 +83,7 @@ describe("applyClassificationThresholdPatch", () => {
 
     expect(load(result)).toEqual({
       mode: "standalone",
-      adapter: { kind: "kubernetes", target: "my-deployment" },
+      adapter: { kind: "pm2", target: "my-deployment" },
       classification: { rules: [{ type: "code", patterns: ["src/**"] }] },
     });
   });

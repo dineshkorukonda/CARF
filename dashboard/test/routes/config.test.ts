@@ -92,8 +92,8 @@ const VALID_FORM = {
   owner: "acme",
   repo: "widgets",
   mode: "standalone",
-  adapterKind: "kubernetes",
-  adapterTarget: "deploy/api",
+  adapterKind: "pm2",
+  adapterTarget: "api-server",
 };
 
 beforeEach(() => {

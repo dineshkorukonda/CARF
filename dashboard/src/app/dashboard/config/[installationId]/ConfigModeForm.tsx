@@ -35,9 +35,9 @@ const ADAPTER_DETAILS: Record<AdapterKind, AdapterMetadata> = {
   pm2: {
     label: "PM2 Process Name",
     placeholder: "e.g. api-server",
-    description: "CARF repoints /var/www/current to /var/www/releases/<baseSha> and executes 'pm2 reload <target>' for zero-downtime rollback.",
+    description: "CARF monitors pm2 process health and optional HTTP health probes, executing zero-downtime rollback on threshold breach.",
     serverGuide: {
-      prerequisites: "Node.js / Python / Ruby app running on a VPS or bare-metal server with PM2 installed.",
+      prerequisites: "Node.js application running on a server with PM2 installed.",
       layout: `/var/www/my-app/
 ├── current -> releases/<currentSha>   # Active release symlink
 └── releases/
@@ -49,6 +49,7 @@ const ADAPTER_DETAILS: Record<AdapterKind, AdapterMetadata> = {
 adapter:
   kind: pm2
   target: "${target || "api-server"}"
+  layout: releases
 
 threshold:
   types:
@@ -61,34 +62,6 @@ threshold:
     data:
       baseThreshold: 0.01
       baseWindow: 600`,
-    },
-  },
-  kubernetes: {
-    label: "Kubernetes Deployment Name (Preview)",
-    placeholder: "e.g. api-deployment",
-    description: "CARF executes 'kubectl rollout undo deployment/<target>' when dynamic error threshold is breached (Preview / In-Development).",
-    serverGuide: {
-      prerequisites: "Kubernetes cluster with kubectl configured and deployment resource created.",
-      command: "kubectl apply -f deployment.yaml",
-      rollbackAction: "kubectl rollout undo deployment/<target>",
-      sampleYml: (target) => `mode: standalone
-adapter:
-  kind: kubernetes
-  target: "${target || "api-deployment"}"`,
-    },
-  },
-  gitops: {
-    label: "Argo CD Application Name (Preview)",
-    placeholder: "e.g. production-app",
-    description: "CARF rolls back specified Argo CD application via Argo CD API / Git commit revert (Preview / In-Development).",
-    serverGuide: {
-      prerequisites: "Argo CD GitOps repository tracking deployment manifests.",
-      command: "argocd app sync <target>",
-      rollbackAction: "Automated Git revert commit dispatched to repo",
-      sampleYml: (target) => `mode: standalone
-adapter:
-  kind: gitops
-  target: "${target || "production-app"}"`,
     },
   },
 };
