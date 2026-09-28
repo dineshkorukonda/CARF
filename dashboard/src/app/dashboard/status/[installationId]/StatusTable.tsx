@@ -60,23 +60,15 @@ function formatWindow(seconds: number | null): string {
 // ── Shared adapter label / icon helpers ──────────────────────────────────────
 function adapterLabel(kind: string | undefined): string {
   switch (kind) {
-    case "pm2":          return "PM2 Process Manager";
-    case "dockerCompose": return "Docker Compose";
-    case "dockerSwarm":  return "Docker Swarm";
-    case "kubernetes":   return "Kubernetes (kubectl)";
-    case "gitops":       return "GitOps (Argo CD)";
-    default:             return kind ?? "Unknown";
+    case "pm2": return "PM2 Process Manager";
+    default:    return kind ?? "Unknown";
   }
 }
 
 function adapterIcon(kind: string | undefined, className = "size-3 shrink-0") {
   switch (kind) {
-    case "pm2":           return <Terminal className={className} />;
-    case "dockerCompose":
-    case "dockerSwarm":   return <Container className={className} />;
-    case "kubernetes":    return <Server className={className} />;
-    case "gitops":        return <GitBranch className={className} />;
-    default:              return null;
+    case "pm2": return <Terminal className={className} />;
+    default:    return null;
   }
 }
 
@@ -100,21 +92,10 @@ function DeploymentBadge({ info }: { info: DeploymentInfo | undefined }) {
     );
   }
   if (info.mode === "standalone" && info.adapterKind) {
-    const isPreview = info.adapterKind === "kubernetes" || info.adapterKind === "gitops";
-    const short =
-      info.adapterKind === "pm2" ? "PM2" :
-      info.adapterKind === "kubernetes" ? "Kubernetes (Preview)" :
-      info.adapterKind === "gitops" ? "GitOps (Preview)" :
-      info.adapterKind === "dockerCompose" ? "Docker Compose (Deprecated)" :
-      info.adapterKind === "dockerSwarm" ? "Docker Swarm (Deprecated)" :
-      info.adapterKind;
+    const short = info.adapterKind === "pm2" ? "PM2" : info.adapterKind;
     return (
       <span
-        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border ${
-          isPreview
-            ? "bg-amber-50 border-amber-200 text-amber-800"
-            : "bg-emerald-50 border-emerald-200 text-emerald-700"
-        }`}
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium border bg-emerald-50 border-emerald-200 text-emerald-700"
         title={`Standalone • ${short} → ${info.adapterTarget ?? "—"}`}
       >
         {adapterIcon(info.adapterKind)}
@@ -144,14 +125,6 @@ function rollbackCommand(kind: string | undefined, target: string, previousSha =
   switch (kind) {
     case "pm2":
       return `ln -sfn /var/www/releases/${previousSha} /var/www/current\npm2 reload ${target}`;
-    case "dockerCompose":
-      return `IMAGE_TAG=${previousSha} docker compose up -d ${target}`;
-    case "dockerSwarm":
-      return `docker service update --rollback ${target}`;
-    case "kubernetes":
-      return `kubectl rollout undo deployment/${target}`;
-    case "gitops":
-      return `argocd app rollback ${target}`;
     default:
       return "—";
   }
@@ -159,7 +132,7 @@ function rollbackCommand(kind: string | undefined, target: string, previousSha =
 
 function ecosystemSnippet(kind: string | undefined, target: string): string | null {
   if (kind === "pm2") {
-    return `// ecosystem.config.js
+    return `// ecosystem.config.cjs
 module.exports = {
   apps: [{
     name: "${target}",
@@ -170,18 +143,6 @@ module.exports = {
     env_production: { NODE_ENV: "production" }
   }]
 };`;
-  }
-  if (kind === "dockerCompose") {
-    return `# docker-compose.yml (relevant snippet)
-services:
-  ${target}:
-    image: my-registry.com/app:\${IMAGE_TAG:-latest}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 3`;
   }
   return null;
 }
@@ -317,15 +278,7 @@ function FaultTolerancePanel({
               <Info className="size-3.5 text-slate-500" /> Health Check
             </p>
             <p className="text-slate-500 leading-relaxed">
-              {info.adapterKind === "pm2"
-                ? "pm2 jlist — fraction of processes with status ≠ \"online\""
-                : info.adapterKind === "dockerCompose"
-                ? "docker compose ps — unhealthy / exited containers"
-                : info.adapterKind === "dockerSwarm"
-                ? "docker service ps — failed task replicas"
-                : info.adapterKind === "kubernetes"
-                ? "kubectl rollout status — unavailable replicas"
-                : "Adapter-specific health probe"}
+              pm2 jlist process state + restart deltas + HTTP health probes
             </p>
           </div>
           <div className="rounded-lg bg-white border border-emerald-100 p-3 space-y-1">
@@ -342,13 +295,7 @@ function FaultTolerancePanel({
               <CheckCircle2 className="size-3.5 text-emerald-600" /> Zero Downtime
             </p>
             <p className="text-slate-500 leading-relaxed">
-              {info.adapterKind === "pm2"
-                ? "pm2 reload cycles cluster workers one-by-one — no dropped requests"
-                : info.adapterKind === "dockerCompose"
-                ? "Image tag swap restarts only the affected service"
-                : info.adapterKind === "kubernetes"
-                ? "kubectl rollout undo restores previous ReplicaSet"
-                : "Adapter handles rollback atomically"}
+              pm2 reload cycles cluster workers one-by-one — no dropped requests
             </p>
           </div>
         </div>
