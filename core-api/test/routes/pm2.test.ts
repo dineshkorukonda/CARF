@@ -118,3 +118,163 @@ describe("GET /v1/pm2/apps", () => {
     expect(response.json()).toEqual({ error: "Failed to query PM2 process list on host" });
   });
 });
+
+describe("POST /v1/pm2/verify", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const app = Fastify();
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: vi.fn(),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      payload: {
+        owner: "test-owner",
+        repo: "test-repo",
+        target: { name: "my-app" },
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("returns 400 when required fields are missing", async () => {
+    const app = Fastify();
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: vi.fn(),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: { owner: "test-owner" },
+    });
+
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("performs 5-item check and returns verified: true when all pass", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([
+      { name: "my-app", pm_id: 0, pm2_env: { status: "online" } },
+    ]);
+
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: rawPm2Output, stderr: "" };
+        if (cmd.startsWith("pm2 describe")) return { stdout: "describing my-app", stderr: "" };
+        return { stdout: "", stderr: "" };
+      }),
+    };
+
+    const mockFsAccess = vi.fn().mockResolvedValue(undefined);
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+    const upsertFn = vi.fn().mockResolvedValue({});
+
+    const prismaMock = {
+      ...createMockPrisma(),
+      repoConnection: {
+        upsert: upsertFn,
+      },
+    };
+
+    await registerPm2Route(app, {
+      prismaClient: prismaMock as any,
+      executor: mockExecutor,
+      fsAccess: mockFsAccess,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "test-owner",
+        repo: "test-repo",
+        target: {
+          name: "my-app",
+          healthUrl: "http://localhost:3000/health",
+          layout: "releases",
+          releasesDir: "/var/www/releases",
+          currentSymlink: "/var/www/current",
+          sharedDirs: ["/var/www/shared"],
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.verified).toBe(true);
+    expect(body.checks).toHaveLength(5);
+    expect(body.checks.every((c: any) => c.passed)).toBe(true);
+
+    expect(upsertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          verifiedAt: expect.any(Date),
+        }),
+      })
+    );
+  });
+
+  it("returns verified: false when target app is not in PM2 process table", async () => {
+    const app = Fastify();
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: "[]", stderr: "" };
+        return { stdout: "", stderr: "" };
+      }),
+    };
+
+    const mockFsAccess = vi.fn().mockResolvedValue(undefined);
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+    const upsertFn = vi.fn().mockResolvedValue({});
+
+    const prismaMock = {
+      ...createMockPrisma(),
+      repoConnection: {
+        upsert: upsertFn,
+      },
+    };
+
+    await registerPm2Route(app, {
+      prismaClient: prismaMock as any,
+      executor: mockExecutor,
+      fsAccess: mockFsAccess,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "test-owner",
+        repo: "test-repo",
+        target: {
+          name: "non-existent-app",
+          healthUrl: "http://localhost:3000/health",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.verified).toBe(false);
+    const targetCheck = body.checks.find((c: any) => c.id === "target_app");
+    expect(targetCheck.passed).toBe(false);
+
+    expect(upsertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          verifiedAt: null,
+        }),
+      })
+    );
+  });
+});
