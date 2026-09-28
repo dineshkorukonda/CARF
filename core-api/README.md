@@ -147,8 +147,7 @@ unchanged.
 - `threshold` — overrides `src/threshold/engine.ts`'s `DEFAULT_CONFIG`,
   per field: an omitted field (or omitted type) keeps its built-in
   default.
-- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "kubernetes"`,
-  `"dockerCompose"`, `"pm2"`, `"gitops"`, or `"dockerSwarm"` drives a real rollback adapter
+- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "pm2"` drives a real PM2 rollback adapter
   kickoff from `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` on every webhook.
   `mode: "augment"`
   (or no `mode` at all) just persists and stops — `GET /v1/threshold` serves the result

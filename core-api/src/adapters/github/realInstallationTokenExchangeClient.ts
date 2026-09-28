@@ -8,7 +8,7 @@ const GITHUB_API_BASE = "https://api.github.com";
  * Real `InstallationTokenExchangeClient`: exchanges a signed App JWT for a short-lived
  * installation access token via GitHub's REST API. `fetchFn` is injectable (defaults to
  * global `fetch`) so tests never hit the network — same DI convention as `ExecFn` in
- * `kubectl.ts`/`dockerCompose.ts`.
+ * `pm2.ts`.
  */
 export class RealInstallationTokenExchangeClient implements InstallationTokenExchangeClient {
   constructor(private readonly fetchFn: FetchFn = fetch) {}

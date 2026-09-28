@@ -226,12 +226,8 @@ export function OverviewView({
   // ── Adapter icon helper ──────────────────────────────────────────────────
   function adapterIcon(kind: string | undefined) {
     switch (kind) {
-      case "pm2":          return <Terminal className="size-3.5 shrink-0" />;
-      case "dockerCompose":
-      case "dockerSwarm":  return <Container className="size-3.5 shrink-0" />;
-      case "kubernetes":   return <Server className="size-3.5 shrink-0" />;
-      case "gitops":       return <GitBranch className="size-3.5 shrink-0" />;
-      default:             return <Sliders className="size-3.5 shrink-0" />;
+      case "pm2": return <Terminal className="size-3.5 shrink-0" />;
+      default:    return <Sliders className="size-3.5 shrink-0" />;
     }
   }
 
@@ -252,21 +248,10 @@ export function OverviewView({
       );
     }
     if (status.mode === "standalone" && status.adapterKind) {
-      const isPreview = status.adapterKind === "kubernetes" || status.adapterKind === "gitops";
-      const label =
-        status.adapterKind === "pm2" ? "PM2" :
-        status.adapterKind === "kubernetes" ? "Kubernetes (Preview)" :
-        status.adapterKind === "gitops" ? "GitOps (Preview)" :
-        status.adapterKind === "dockerCompose" ? "Docker Compose (Deprecated)" :
-        status.adapterKind === "dockerSwarm" ? "Docker Swarm (Deprecated)" :
-        status.adapterKind;
+      const label = status.adapterKind === "pm2" ? "PM2" : status.adapterKind;
       return (
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${
-            isPreview
-              ? "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400"
-              : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          }`}
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
           title={`Standalone • ${label} → ${status.adapterTarget ?? "—"}`}
         >
           {adapterIcon(status.adapterKind)}
