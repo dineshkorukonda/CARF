@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const ROOT_DIR = resolve(__dirname, "..");
 
 // Format both schemas first to ensure canonical column alignment
 try {
-  execSync("npx prisma format", { cwd: resolve(process.cwd(), "core-api"), stdio: "ignore" });
-  execSync("npx prisma format", { cwd: resolve(process.cwd(), "dashboard"), stdio: "ignore" });
+  execSync("npx prisma format", { cwd: resolve(ROOT_DIR, "core-api"), stdio: "ignore" });
+  execSync("npx prisma format", { cwd: resolve(ROOT_DIR, "dashboard"), stdio: "ignore" });
 } catch (err) {
   // If prisma format cannot execute in this environment, continue to content check
 }
@@ -23,8 +28,8 @@ function stripCommentsAndNormalize(content) {
     .join("\n");
 }
 
-const corePath = resolve(process.cwd(), "core-api/prisma/schema.prisma");
-const dashboardPath = resolve(process.cwd(), "dashboard/prisma/schema.prisma");
+const corePath = resolve(ROOT_DIR, "core-api/prisma/schema.prisma");
+const dashboardPath = resolve(ROOT_DIR, "dashboard/prisma/schema.prisma");
 
 const coreContent = readFileSync(corePath, "utf-8");
 const dashboardContent = readFileSync(dashboardPath, "utf-8");
