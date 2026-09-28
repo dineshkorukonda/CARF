@@ -6,7 +6,7 @@ import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
-import { recordRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
+import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
 import {
   acquireLock,
@@ -20,6 +20,7 @@ import { CarfConfigSchema, type CarfConfig } from "./config/carfConfigSchema.js"
 import { env } from "./config/env.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { prisma as defaultPrisma } from "./db/client.js";
+import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
@@ -36,14 +37,12 @@ export interface WebhookOrchestratorDeps {
   carfConfig: CarfConfig | undefined;
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
-  /**
-   * Testable seam; defaults to building a `PM2Adapter` for `kind: "pm2"` (active), a
-   * `KubectlAdapter` for `kind: "kubernetes"` (preview), a `GitOpsAdapter` for
-   * `kind: "gitops"` (preview), or a `PrometheusAdapter` for `kind: "prometheus"` (preview).
-   */
+  /** Testable seam for building RollbackAdapter. Defaults to PM2Adapter. */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
   standaloneLoopRunner?: typeof runStandaloneLoop;
+  /** Background RolloutMonitor worker instance. */
+  rolloutMonitor?: RolloutMonitor;
   /** Testable seam for the durable Standalone-loop lock; defaults to the real db/client.ts singleton. */
   lockPrismaClient?: StandaloneLoopLockPrismaClient;
   /** How long a lock can go without a heartbeat before another instance may reclaim it. */
@@ -189,6 +188,24 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
+  const rolloutOutcomeClient =
+    deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
+
+  // Create PENDING RolloutOutcome row (idempotent per installationId, commitSha)
+  let pendingOutcome;
+  try {
+    pendingOutcome = await createPendingRolloutOutcome(rolloutOutcomeClient, {
+      owner: target.owner,
+      repo: target.repo,
+      commitSha: target.headSha,
+      installationId: target.installationId,
+      threshold: result.finalThreshold,
+      window: result.finalWindow,
+    });
+  } catch (error) {
+    deps.logger.error({ error, sha: target.headSha }, "failed to create pending rollout outcome");
+  }
+
   const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
   const ttlMs = deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
   const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
@@ -202,6 +219,13 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
 
   const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
   const adapter = buildAdapter(adapterConfig, target.baseSha);
+  const targetName = adapterConfig.target ?? adapterConfig.targets?.[0] ?? "";
+
+  // If a background monitor worker is attached and pendingOutcome exists, enqueue monitor job
+  if (deps.rolloutMonitor && pendingOutcome) {
+    deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName);
+  }
+
   const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;
 
   // Renewed on an interval for as long as the loop runs, so a live loop's lock never goes
@@ -216,25 +240,20 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     });
   }, heartbeatIntervalMs);
 
-  const rolloutOutcomeClient =
-    deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
-
-  const targetName = adapterConfig.target ?? adapterConfig.targets?.[0] ?? "";
   void loopRunner(target.headSha, adapter, result, targetName)
     .then(async (loopResult) => {
       try {
-        await recordRolloutOutcome(rolloutOutcomeClient, {
-          owner: target.owner,
-          repo: target.repo,
-          sha: target.headSha,
-          installationId: target.installationId,
-          rolledBack: loopResult.rolledBack,
-          finalErrorRate: loopResult.finalErrorRate,
-          durationMs: loopResult.durationMs,
-        });
+        if (pendingOutcome) {
+          const { finalizeRolloutOutcome } = await import("./adapters/rolloutOutcome.js");
+          await finalizeRolloutOutcome(rolloutOutcomeClient, {
+            id: pendingOutcome.id,
+            status: loopResult.rolledBack ? "ROLLED_BACK" : "SUCCESS",
+            finalErrorRate: loopResult.finalErrorRate,
+            rolledBack: loopResult.rolledBack,
+            reason: loopResult.rolledBack ? "Threshold breach during standalone loop" : "Window completed successfully",
+          });
+        }
       } catch (error) {
-        // Distinct log message from the loop-failure case below -- the loop itself
-        // succeeded, only recording its outcome failed. Not fatal to anything else.
         deps.logger.error({ error, key }, "failed to record rollout outcome");
       }
     })

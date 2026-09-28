@@ -19,6 +19,10 @@ import { watchCarfConfig } from "./config/carfConfigWatcher.js";
 import { githubApiClient, getInstallationTokenClient } from "./adapters/github/client.js";
 import { handleWebhookCommit } from "./webhookOrchestrator.js";
 
+import { prisma } from "./db/client.js";
+import { PM2Adapter } from "./adapters/pm2.js";
+import { RolloutMonitor } from "./monitor/rolloutMonitor.js";
+
 // Issue #60: real end-to-end webhook test commit.
 // Issue #60: second probe -- retest push webhook delivery after the earlier 404.
 // Fail closed: an invalid .carf.yml crashes startup rather than silently falling back to
@@ -34,6 +38,8 @@ const installationTokenClient = getInstallationTokenClient();
 // on a real incoming request, by which point `app`'s const binding is already
 // initialized. Standard self-referencing-closure pattern; safe despite the apparent
 // ordering.
+let rolloutMonitor: RolloutMonitor;
+
 const app = buildApp({
   webhook: {
     webhookSecret: env.githubWebhookSecret(),
@@ -43,7 +49,25 @@ const app = buildApp({
         installationTokenClient,
         carfConfig,
         logger: app.log,
+        rolloutMonitor,
       }),
+  },
+});
+
+rolloutMonitor = new RolloutMonitor({
+  prismaClient: prisma,
+  logger: app.log,
+  adapterFactory: (outcome) => {
+    const targetName = carfConfig?.adapter?.target ?? carfConfig?.adapter?.targets?.[0] ?? "";
+    return new PM2Adapter(outcome.commitSha, {
+      releasesRoot: carfConfig?.adapter?.releasesRoot,
+      currentSymlink: carfConfig?.adapter?.currentSymlink,
+      cwd: carfConfig?.adapter?.cwd,
+      buildCommand: carfConfig?.adapter?.buildCommand,
+      layout: carfConfig?.adapter?.layout,
+      healthUrl: carfConfig?.adapter?.healthUrl,
+      probeCount: carfConfig?.adapter?.probeCount,
+    });
   },
 });
 
@@ -61,6 +85,16 @@ watchCarfConfig({
 
 app
   .listen({ port: env.port, host: "0.0.0.0" })
+  .then(async () => {
+    try {
+      const recovered = await rolloutMonitor.recoverPending();
+      if (recovered > 0) {
+        app.log.info({ recovered }, "recovered pending rollout monitoring jobs on startup");
+      }
+    } catch (err) {
+      app.log.error({ err }, "failed to recover pending rollout jobs on startup");
+    }
+  })
   .catch((err) => {
     app.log.error(err);
     process.exit(1);
