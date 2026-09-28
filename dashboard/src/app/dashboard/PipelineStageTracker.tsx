@@ -257,7 +257,7 @@ function CommitCard({ commit }: { commit: RecentCommit }) {
                 </>
               ) : outcome.kind === "healthy" ? (
                 <>
-                  <p className="text-xs font-semibold text-emerald-900">Monitored Clean</p>
+                  <p className="text-xs font-semibold text-emerald-900">Window Completed</p>
                   <p className="text-[11px] text-emerald-700">0 rollbacks needed</p>
                 </>
               ) : isInObservation ? (

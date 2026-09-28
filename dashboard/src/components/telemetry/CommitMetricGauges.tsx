@@ -46,18 +46,18 @@ export function CommitMetricGauges({
 
   return (
     <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 ${className}`}>
-      {/* Dynamic Error Budget vs Observed Rate Gauge */}
+      {/* Error-Rate Threshold vs Observed Rate Gauge */}
       <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-4.5 shadow-2xs">
         <div>
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase flex items-center gap-1.5">
               <Activity className="size-3.5 text-primary" />
-              Dynamic Error Budget
+              Error-Rate Threshold
             </span>
             {isBreached ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
                 <AlertTriangle className="size-2.5" />
-                Budget Breached
+                Threshold Breached
               </span>
             ) : isObserving ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 animate-pulse">

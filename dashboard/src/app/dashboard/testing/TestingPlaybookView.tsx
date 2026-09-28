@@ -383,7 +383,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Query CARF dynamic error budget for this specific commit
+      # 1. Query CARF dynamic error-rate threshold for this specific commit
       - name: Fetch CARF dynamic threshold
         id: carf
         uses: ./.github/actions/carf-threshold

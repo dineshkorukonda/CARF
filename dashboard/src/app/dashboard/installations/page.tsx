@@ -51,7 +51,7 @@ export default async function InstallationsPage({
         <div className="flex flex-col items-center gap-3 rounded-sm border border-dashed border-border px-4 py-12 text-center bg-card">
           <p className="text-sm font-medium text-foreground">No repositories connected yet</p>
           <p className="text-xs text-muted-foreground max-w-md">
-            Install the CARF GitHub App on your repositories to enable continuous commit classification, dynamic error budgets, and zero-downtime rollbacks.
+            Install the CARF GitHub App on your repositories to enable continuous commit classification, error-rate thresholds, and automated rollbacks.
           </p>
           <Button render={<a href="/api/github-app/install/start" />} className="mt-2">
             Install the CARF GitHub App

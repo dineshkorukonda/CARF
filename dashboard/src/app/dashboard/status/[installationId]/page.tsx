@@ -77,7 +77,7 @@ export default async function StatusPage({
       <div>
         <h1 className="text-xl font-bold text-slate-900">Live Rollout Status</h1>
         <p className="text-sm text-slate-500">
-          Track classified commits, dynamic error budgets, and active watchdogs by project.
+          Track classified commits, error-rate thresholds, and active monitors by project.
         </p>
       </div>
 

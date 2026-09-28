@@ -215,7 +215,7 @@ export function OverviewView({
 
   // 5. Compute live overview metrics
   const totalCommits = commits.length;
-  const activeWatchdogs = commits.filter(
+  const activeMonitors = commits.filter(
     (c) =>
       c.rolledBack === null &&
       c.finalWindow &&
@@ -331,7 +331,7 @@ export function OverviewView({
             </div>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              Integration #{installation.installationId} • Dynamic error budgets & autonomous rollback active across integrated repositories.
+              Integration #{installation.installationId} • Error-rate thresholds and automated rollback configured across integrated repositories.
             </p>
           </div>
         </div>
@@ -398,17 +398,17 @@ export function OverviewView({
           <p className="mt-1.5 text-[11px] text-muted-foreground">AST classified via Tier-1 & Tier-2</p>
         </div>
 
-        {/* Metric 3: Active Watchdogs */}
+        {/* Metric 3: Active Monitors */}
         <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-              Active Watchdogs
+              Active Monitors
             </span>
             <Radio className="size-4 text-amber-500" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-foreground">{activeWatchdogs}</span>
-            {activeWatchdogs > 0 ? (
+            <span className="text-3xl font-bold tracking-tight text-foreground">{activeMonitors}</span>
+            {activeMonitors > 0 ? (
               <Badge variant="secondary" className="animate-pulse bg-amber-500/10 text-[10px] text-amber-600 dark:text-amber-400">
                 Observing
               </Badge>
@@ -417,25 +417,25 @@ export function OverviewView({
             )}
           </div>
           <p className="mt-1.5 text-[11px] text-muted-foreground">
-            {activeWatchdogs > 0
+            {activeMonitors > 0
               ? "Actively observing post-deploy health"
               : "No active rollout observation windows"}
           </p>
         </div>
 
-        {/* Metric 4: Outages Prevented */}
+        {/* Metric 4: Rollbacks Executed */}
         <div className="rounded-xl border border-border bg-card p-5 shadow-xs transition-shadow hover:shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-              Prevented Outages
+              Rollbacks Executed
             </span>
             <ShieldCheck className="size-4 text-emerald-500" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-3xl font-bold tracking-tight text-foreground">{rollbacksTriggered}</span>
-            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">auto-rollbacks</span>
+            <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">rollbacks</span>
           </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">Zero-human intervention triggered</p>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">Triggered on error-rate threshold breach</p>
         </div>
       </div>
 
@@ -452,7 +452,7 @@ export function OverviewView({
               </Badge>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Repositories actively configured with CARF AST classification, dynamic error budgets, and rollback watchdogs.
+              Repositories actively configured with CARF AST classification, error-rate thresholds, and rollback monitors.
             </p>
           </div>
 
@@ -479,7 +479,7 @@ export function OverviewView({
             <h3 className="mt-4 text-sm font-bold text-foreground">No Services Integrated Yet</h3>
             <p className="mt-1.5 max-w-md text-xs text-muted-foreground">
               Your GitHub App is connected, but no repositories have been configured with CARF protection.
-              Choose a repository below to enable 1-click autonomous rollbacks.
+              Choose a repository below to enable automated rollbacks.
             </p>
             {availableRepos.length > 0 && (
               <button
@@ -507,7 +507,7 @@ export function OverviewView({
                   c.repo.toLowerCase() === repo.full_name.toLowerCase()
               );
               const latestCommit = repoCommits[0];
-              const repoActiveWatchdogs = repoCommits.filter(
+              const repoActiveMonitors = repoCommits.filter(
                 (c) =>
                   c.rolledBack === null &&
                   c.finalWindow &&
@@ -552,11 +552,11 @@ export function OverviewView({
                         </div>
                       </div>
 
-                      {/* Watchdog / Rollback status badge */}
-                      {repoActiveWatchdogs > 0 ? (
+                      {/* Monitor / Rollback status badge */}
+                      {repoActiveMonitors > 0 ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 animate-pulse">
                           <Radio className="size-3" />
-                          <span>Watchdog Active</span>
+                          <span>Observation Active</span>
                         </span>
                       ) : repoRollbacks > 0 && latestCommit?.rolledBack ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-red-600 dark:text-red-400">
@@ -566,7 +566,7 @@ export function OverviewView({
                       ) : (
                         <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="size-3" />
-                          <span>Monitored Clean</span>
+                          <span>Observation Completed</span>
                         </span>
                       )}
                     </div>
@@ -584,7 +584,7 @@ export function OverviewView({
 
                       <div>
                         <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                          Dynamic Error Budget
+                          Error-Rate Threshold
                         </span>
                         <p className="mt-1 font-mono text-xs font-medium text-foreground">
                           {latestCommit?.finalThreshold != null
@@ -797,7 +797,7 @@ export function OverviewView({
           <div>
             <h2 className="text-base font-bold text-foreground">Live Rollout Pipeline</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Recent classified commits and active watchdogs across your integrated services.
+              Recent classified commits and active monitors across your integrated services.
             </p>
           </div>
           <Link

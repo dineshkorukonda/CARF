@@ -148,7 +148,7 @@ export function VerifyDashboard({
                     <span>Condition B: CARF Dynamic</span>
                     <CheckCircle2 className="size-4 text-emerald-500" />
                   </h2>
-                  <p className="text-[11px] text-muted-foreground">Change-aware: AST semantic risk & dynamic error budget</p>
+                  <p className="text-[11px] text-muted-foreground">Change-aware: AST semantic risk & error-rate threshold</p>
                 </div>
                 <Badge variant="default" className="font-mono text-[10px]">CARF</Badge>
               </div>

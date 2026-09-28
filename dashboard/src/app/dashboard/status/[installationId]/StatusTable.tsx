@@ -501,7 +501,7 @@ export function StatusTable({
       const rolledBackCount = p.commits.filter((c) => c.rolledBack === true).length;
       const healthyCount = p.commits.filter((c) => c.rolledBack === false).length;
 
-      const activeWatchdogs = p.commits.filter((c) => {
+      const activeMonitors = p.commits.filter((c) => {
         const outcome = classifyRolloutOutcome(c);
         return (
           outcome.kind === "pending" &&
@@ -518,7 +518,7 @@ export function StatusTable({
         totalCommits,
         rolledBackCount,
         healthyCount,
-        activeWatchdogs,
+        activeMonitors,
         latestCommit,
         latestOutcome,
       };
@@ -661,7 +661,7 @@ export function StatusTable({
                       <TableHead>Project / Repository</TableHead>
                       <TableHead>Default Branch</TableHead>
                       <TableHead>Total Commits</TableHead>
-                      <TableHead>Live Health & Watchdogs</TableHead>
+                      <TableHead>Live Health & Monitors</TableHead>
                       <TableHead>Deployment</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
@@ -699,10 +699,10 @@ export function StatusTable({
                         </TableCell>
 
                         <TableCell className="py-3">
-                          {p.activeWatchdogs > 0 ? (
+                          {p.activeMonitors > 0 ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-medium text-amber-700">
                               <Clock className="size-3 animate-spin" />
-                              <span>Watchdog Active ({p.activeWatchdogs})</span>
+                              <span>Observation Active ({p.activeMonitors})</span>
                             </span>
                           ) : p.rolledBackCount > 0 ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[11px] font-medium text-rose-700">
@@ -1085,9 +1085,9 @@ export function StatusTable({
                 </p>
               </div>
               <div className="rounded-lg bg-amber-50/50 p-3 border border-amber-100">
-                <span className="text-[11px] text-amber-700 font-medium">Active Watchdogs</span>
+                <span className="text-[11px] text-amber-700 font-medium">Active Monitors</span>
                 <p className="text-lg font-bold text-amber-800 mt-0.5">
-                  {activeProject?.activeWatchdogs ?? 0}
+                  {activeProject?.activeMonitors ?? 0}
                 </p>
               </div>
             </div>
@@ -1124,9 +1124,9 @@ export function StatusTable({
               <div className="space-y-1">
                 <p className="font-semibold text-slate-900 uppercase tracking-wider text-[11px]">Verdicts</p>
                 <ul className="text-slate-600 space-y-1">
-                  <li><strong className="text-emerald-700">Monitored Clean:</strong> Error rate remained within dynamic budget.</li>
+                  <li><strong className="text-emerald-700">Observation Completed:</strong> Error rate remained within dynamic budget.</li>
                   <li><strong className="text-rose-700">Rolled Back:</strong> Error spike breached threshold; CARF triggered rollback.</li>
-                  <li><strong className="text-amber-700">In Observation:</strong> Watchdog timer active.</li>
+                  <li><strong className="text-amber-700">In Observation:</strong> Observation window active.</li>
                 </ul>
               </div>
             </div>

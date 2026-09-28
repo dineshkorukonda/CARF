@@ -122,7 +122,7 @@ export function CommitRiskInspectorDrawer({
           {/* Key Metrics Display */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs">
-              <span className="text-[11px] font-medium text-slate-500">Dynamic Error Budget</span>
+              <span className="text-[11px] font-medium text-slate-500">Error-Rate Threshold</span>
               <div className="mt-1 text-xl font-extrabold text-slate-900">{thresholdPct}</div>
               <span className="text-[10px] text-slate-400">Max allowed failure rate</span>
             </div>

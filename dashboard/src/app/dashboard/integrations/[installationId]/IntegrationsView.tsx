@@ -28,7 +28,7 @@ interface IntegrationCardDef {
   name: string;
   category: "Hosting & Serverless" | "Containers & Orchestration" | "Process Managers" | "Observability";
   description: string;
-  mode: "Standalone (Autonomous Rollback)" | "Augment (Advisory / CI Gate)";
+  mode: "Standalone (Automated Rollback)" | "Augment (Advisory / CI Gate)";
   icon: typeof Terminal;
   badge: string;
   badgeColor: string;
@@ -59,8 +59,8 @@ export function IntegrationsView({
         name: "PM2 Process Manager",
         category: "Process Managers",
         description:
-          "Autonomous zero-downtime rollback for Node.js apps on VPS, EC2, or bare metal. Automatically executes 'pm2 reload' upon threshold breach.",
-        mode: "Standalone (Autonomous Rollback)",
+          "Automated zero-downtime rollback for Node.js apps on VPS, EC2, or bare metal. Automatically executes 'pm2 reload' upon threshold breach.",
+        mode: "Standalone (Automated Rollback)",
         icon: Terminal,
         badge: "Active / Verified",
         badgeColor: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
