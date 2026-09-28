@@ -183,13 +183,62 @@ model RolloutOutcome {
   rolledBack       Boolean       @default(false)
   reason           String?
   rollbackVerified Boolean?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @default(now()) @updatedAt
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @default(now()) @updatedAt
+  samples          RolloutSample[]
 
   @@unique([installationId, commitSha])
   @@index([commitId])
   @@index([installationId])
   @@index([status])
+}
+
+// Intermediate health probe sample written by the monitor on every polling interval.
+// Retained for high-resolution analytics (default 30-day retention).
+model RolloutSample {
+  id        String         @id @default(cuid())
+  rolloutId String
+  rollout   RolloutOutcome @relation(fields: [rolloutId], references: [id], onDelete: Cascade)
+  ts        DateTime       @default(now())
+  errorRate Float
+  perTarget Json?
+
+  @@index([rolloutId, ts])
+  @@index([ts])
+}
+
+// Stores repository connection state, verification report, pause toggle, and fallback config.
+// Rule: .carf.yml in the repository root strictly takes precedence over storedConfig when present.
+model RepoConnection {
+  id                 String    @id @default(cuid())
+  installationId     String
+  owner              String
+  repo               String
+  verifiedAt         DateTime?
+  verificationReport Json?
+  monitoringPaused   Boolean   @default(false)
+  storedConfig       Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([installationId, owner, repo])
+  @@index([installationId])
+}
+
+// Audit trail for administrative actions (manual rollback, pause monitoring, config edits).
+model RolloutAuditLog {
+  id        String   @id @default(cuid())
+  actor     String
+  owner     String
+  repo      String
+  rolloutId String?
+  action    String
+  result    String
+  details   Json?
+  ts        DateTime @default(now())
+
+  @@index([owner, repo, ts])
+  @@index([rolloutId])
 }
 
 // Bearer credential proving a caller acts on behalf of a given GitHub App installation --
@@ -220,3 +269,4 @@ model EvaluationLog {
   @@index([commitSha])
   @@index([condition])
 }
+
