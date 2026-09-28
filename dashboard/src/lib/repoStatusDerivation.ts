@@ -4,13 +4,14 @@ export type DerivedRepoStatus =
   | "Connected, no rollouts yet"
   | "Observing (PENDING)"
   | "Last rollout succeeded"
+  | "Last rollout succeeded, connection unverified"
   | "Last rollout rolled back"
   | "Adapter error";
 
 export interface RepoStatusInput {
   /** Whether .carf.yml exists or a DB storedConfig is present */
   isConfigured: boolean;
-  /** Whether the 5-item connection check has passed (verifiedAt is not null) */
+  /** Whether the connection check has passed (verifiedAt is not null) */
   isVerified: boolean;
   /** Whether an active rollout is currently in PENDING state */
   hasPendingRollout?: boolean;
@@ -24,18 +25,28 @@ export interface RepoStatusInput {
  * Derives repository operational status strictly from recorded data.
  * Rules:
  * - Shows "Not connected" if no config exists.
- * - Shows "Not verified" until connection check has passed.
+ * - Shows "Not verified" until connection check has passed, UNLESS the last rollout succeeded
+ *   ("Last rollout succeeded, connection unverified").
  * - Never shows a healthy state without at least one terminal outcome.
  */
 export function deriveRepoStatus(input: RepoStatusInput): DerivedRepoStatus {
   if (!input.isConfigured) {
     return "Not connected";
   }
-  if (!input.isVerified) {
-    return "Not verified";
-  }
   if (input.hasPendingRollout || input.latestOutcomeStatus === "PENDING") {
     return "Observing (PENDING)";
+  }
+  if (!input.isVerified) {
+    if (input.latestOutcomeStatus === "SUCCESS") {
+      return "Last rollout succeeded, connection unverified";
+    }
+    if (input.latestOutcomeStatus === "ROLLED_BACK") {
+      return "Last rollout rolled back";
+    }
+    if (input.latestOutcomeStatus === "FAILED") {
+      return "Adapter error";
+    }
+    return "Not verified";
   }
   if (input.totalRollouts === 0 || !input.latestOutcomeStatus) {
     return "Connected, no rollouts yet";
@@ -66,6 +77,11 @@ export function getStatusBadgeVariant(status: DerivedRepoStatus): {
       return {
         colorClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
         dotClass: "bg-emerald-500",
+      };
+    case "Last rollout succeeded, connection unverified":
+      return {
+        colorClass: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+        dotClass: "bg-amber-500",
       };
     case "Last rollout rolled back":
       return {

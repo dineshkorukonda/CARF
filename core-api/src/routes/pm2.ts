@@ -3,7 +3,8 @@ import { defaultExec, type CommandExecutor, LocalCommandExecutor, type ExecFn } 
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
 import { prisma as defaultPrisma } from "../db/client.js";
 
-import { access, constants as fsConstants } from "node:fs/promises";
+import path from "node:path";
+import { access, constants as fsConstants, lstat } from "node:fs/promises";
 
 export interface Pm2AppInfo {
   name: string;
@@ -14,7 +15,7 @@ export interface Pm2AppInfo {
 }
 
 export interface VerificationCheckItem {
-  id: "pm2_daemon" | "target_app" | "health_url" | "layout_paths" | "rollback_permission";
+  id: string;
   title: string;
   passed: boolean;
   message: string;
@@ -37,6 +38,7 @@ export interface VerifyRequestBody {
     releasesDir?: string | undefined;
     currentSymlink?: string | undefined;
     sharedDirs?: string[] | undefined;
+    sharedPaths?: string[] | undefined;
   };
 }
 
@@ -56,6 +58,7 @@ export interface Pm2RouteOptions {
   executor?: CommandExecutor | ExecFn;
   prismaClient?: InstallationAuthPrismaClient;
   fsAccess?: (path: string, mode?: number) => Promise<void>;
+  lstat?: (path: string) => Promise<{ isSymbolicLink: () => boolean }>;
   httpFetch?: (url: string, init?: RequestInit) => Promise<{ status: number; text: () => Promise<string> }>;
 }
 
@@ -244,77 +247,123 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
       });
     }
 
-    // Check 4: Release symlink and shared directories exist on host
-    const layout = body.target.layout || "releases";
-    const missingPaths: string[] = [];
-    if (layout === "releases") {
-      const releasesDir = body.target.releasesDir || (body.target.cwd ? `${body.target.cwd}/releases` : "/var/www/releases");
-      const currentSymlink = body.target.currentSymlink || (body.target.cwd ? `${body.target.cwd}/current` : "/var/www/current");
-      const sharedDirs = body.target.sharedDirs || [];
-
-      try {
-        await checkAccess(releasesDir);
-      } catch {
-        missingPaths.push(`releasesDir (${releasesDir})`);
-      }
-
-      try {
-        await checkAccess(currentSymlink);
-      } catch {
-        missingPaths.push(`currentSymlink (${currentSymlink})`);
-      }
-
-      for (const shared of sharedDirs) {
-        try {
-          await checkAccess(shared);
-        } catch {
-          missingPaths.push(`sharedDir (${shared})`);
-        }
-      }
-    } else {
-      const cwd = body.target.cwd || ".";
-      try {
-        await checkAccess(cwd);
-      } catch {
-        missingPaths.push(`cwd (${cwd})`);
-      }
-    }
-
-    if (missingPaths.length === 0) {
-      checks.push({
-        id: "layout_paths",
-        title: "Deployment Layout Paths",
-        passed: true,
-        message: "Required filesystem layout paths exist on host",
-      });
-    } else {
-      checks.push({
-        id: "layout_paths",
-        title: "Deployment Layout Paths",
-        passed: false,
-        message: `Missing required path(s) on host: ${missingPaths.join(", ")}`,
-      });
-    }
-
-    // Check 5: Rollback permission check (dry-run without mutations)
+    // Check 4: Releases directory exists
+    const releasesDir = body.target.releasesDir || (body.target.cwd ? `${body.target.cwd}/releases` : "/var/www/releases");
+    let releasesDirPassed = false;
+    let releasesDirMsg = "";
     try {
-      const pathToCheck = body.target.cwd || (body.target.layout === "releases" ? (body.target.releasesDir || "/var/www/releases") : ".");
-      await checkAccess(pathToCheck, fsConstants.W_OK);
-      await executor.exec(`pm2 describe ${targetName}`);
-      checks.push({
-        id: "rollback_permission",
-        title: "Rollback Permission Check (Dry-Run)",
-        passed: true,
-        message: "Filesystem write and PM2 management permissions verified",
-      });
+      if (options.fsAccess) {
+        await checkAccess(releasesDir);
+        releasesDirPassed = true;
+      } else {
+        await executor.exec(`test -d "${releasesDir}"`);
+        releasesDirPassed = true;
+      }
+      releasesDirMsg = `Releases directory '${releasesDir}' exists on host`;
     } catch (err: unknown) {
-      checks.push({
-        id: "rollback_permission",
-        title: "Rollback Permission Check (Dry-Run)",
-        passed: false,
-        message: `Rollback permission check failed: ${err instanceof Error ? err.message : "Permission denied"}`,
-      });
+      releasesDirPassed = false;
+      releasesDirMsg = `Releases directory '${releasesDir}' not found on host: ${err instanceof Error ? err.message : "Directory does not exist"}`;
     }
+    checks.push({
+      id: "releases_dir",
+      title: "Releases Directory",
+      passed: releasesDirPassed,
+      message: releasesDirMsg,
+    });
+
+    // Check 5: Current is a symbolic link (test -L)
+    const currentSymlink = body.target.currentSymlink || (body.target.cwd ? `${body.target.cwd}/current` : "/var/www/current");
+    let symlinkPassed = false;
+    let symlinkMsg = "";
+    try {
+      if (options.lstat) {
+        const stat = await options.lstat(currentSymlink);
+        symlinkPassed = stat.isSymbolicLink();
+      } else {
+        await executor.exec(`test -L "${currentSymlink}"`);
+        symlinkPassed = true;
+      }
+      symlinkMsg = symlinkPassed
+        ? `'${currentSymlink}' is a valid symbolic link`
+        : `'${currentSymlink}' exists but is not a symbolic link`;
+    } catch (err: unknown) {
+      try {
+        const stat = await lstat(currentSymlink);
+        symlinkPassed = stat.isSymbolicLink();
+        symlinkMsg = symlinkPassed
+          ? `'${currentSymlink}' is a valid symbolic link`
+          : `'${currentSymlink}' exists but is not a symbolic link`;
+      } catch {
+        symlinkPassed = false;
+        symlinkMsg = `'${currentSymlink}' is not a symbolic link: ${err instanceof Error ? err.message : "Symlink does not exist"}`;
+      }
+    }
+    checks.push({
+      id: "current_symlink",
+      title: "Current Symlink",
+      passed: symlinkPassed,
+      message: symlinkMsg,
+    });
+
+    // Check 6: Shared paths exist (one item each)
+    const sharedPaths = body.target.sharedPaths || body.target.sharedDirs || [];
+    if (sharedPaths.length === 0) {
+      checks.push({
+        id: "shared_paths",
+        title: "Shared Paths",
+        passed: true,
+        message: "No shared paths configured",
+      });
+    } else {
+      for (let i = 0; i < sharedPaths.length; i++) {
+        const sharedPath = sharedPaths[i];
+        let pathPassed = false;
+        let pathMsg = "";
+        try {
+          if (options.fsAccess) {
+            await checkAccess(sharedPath);
+            pathPassed = true;
+          } else {
+            await executor.exec(`test -e "${sharedPath}"`);
+            pathPassed = true;
+          }
+          pathMsg = `Shared path '${sharedPath}' exists on host`;
+        } catch (err: unknown) {
+          pathPassed = false;
+          pathMsg = `Shared path '${sharedPath}' not found on host: ${err instanceof Error ? err.message : "Path does not exist"}`;
+        }
+        checks.push({
+          id: `shared_path_${i}`,
+          title: `Shared Path: ${sharedPath}`,
+          passed: pathPassed,
+          message: pathMsg,
+        });
+      }
+    }
+
+    // Check 7: Rollback permission check (test -w on the parent directory of current)
+    const currentParentDir = path.dirname(currentSymlink);
+    let permPassed = false;
+    let permMsg = "";
+    try {
+      if (options.fsAccess) {
+        await checkAccess(currentParentDir, fsConstants.W_OK);
+        permPassed = true;
+      } else {
+        await executor.exec(`test -w "${currentParentDir}"`);
+        permPassed = true;
+      }
+      permMsg = `Parent directory '${currentParentDir}' is writable for non-disruptive symlink swap`;
+    } catch (err: unknown) {
+      permPassed = false;
+      permMsg = `Parent directory '${currentParentDir}' is not writable: ${err instanceof Error ? err.message : "Permission denied"}`;
+    }
+    checks.push({
+      id: "rollback_permission",
+      title: "Rollback Permission",
+      passed: permPassed,
+      message: permMsg,
+    });
 
     const verified = checks.every((c) => c.passed);
 

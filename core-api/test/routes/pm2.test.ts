@@ -210,7 +210,16 @@ describe("POST /v1/pm2/verify", () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body.verified).toBe(true);
-    expect(body.checks).toHaveLength(5);
+    expect(body.checks).toHaveLength(7);
+    expect(body.checks.map((c: any) => c.id)).toEqual([
+      "pm2_daemon",
+      "target_app",
+      "health_url",
+      "releases_dir",
+      "current_symlink",
+      "shared_path_0",
+      "rollback_permission",
+    ]);
     expect(body.checks.every((c: any) => c.passed)).toBe(true);
 
     expect(upsertFn).toHaveBeenCalledWith(
@@ -277,4 +286,135 @@ describe("POST /v1/pm2/verify", () => {
       })
     );
   });
+
+  it("returns verified: false when currentSymlink is not a symbolic link", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([{ name: "my-app", pm_id: 0, pm2_env: { status: "online" } }]);
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: rawPm2Output, stderr: "" };
+        if (cmd.startsWith("test -L")) throw new Error("not a symlink");
+        return { stdout: "", stderr: "" };
+      }),
+    };
+
+    const mockFsAccess = vi.fn().mockResolvedValue(undefined);
+    const mockLstat = vi.fn().mockResolvedValue({ isSymbolicLink: () => false });
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: mockExecutor,
+      fsAccess: mockFsAccess,
+      lstat: mockLstat,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "test-owner",
+        repo: "test-repo",
+        target: {
+          name: "my-app",
+          healthUrl: "http://localhost:3000/health",
+          currentSymlink: "/var/www/not-a-symlink",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.verified).toBe(false);
+    const symlinkCheck = body.checks.find((c: any) => c.id === "current_symlink");
+    expect(symlinkCheck.passed).toBe(false);
+  });
+
+  it("returns verified: false when a shared path does not exist", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([{ name: "my-app", pm_id: 0, pm2_env: { status: "online" } }]);
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: rawPm2Output, stderr: "" };
+        return { stdout: "", stderr: "" };
+      }),
+    };
+
+    const mockFsAccess = vi.fn(async (path: string) => {
+      if (path === "/var/www/missing-shared") throw new Error("ENOENT");
+    });
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: mockExecutor,
+      fsAccess: mockFsAccess,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "test-owner",
+        repo: "test-repo",
+        target: {
+          name: "my-app",
+          healthUrl: "http://localhost:3000/health",
+          sharedPaths: ["/var/www/shared-ok", "/var/www/missing-shared"],
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.verified).toBe(false);
+    expect(body.checks.find((c: any) => c.id === "shared_path_0").passed).toBe(true);
+    expect(body.checks.find((c: any) => c.id === "shared_path_1").passed).toBe(false);
+  });
+
+  it("returns verified: false when rollback permission check fails on parent directory of current", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([{ name: "my-app", pm_id: 0, pm2_env: { status: "online" } }]);
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: rawPm2Output, stderr: "" };
+        if (cmd.startsWith("test -w")) throw new Error("EACCES: permission denied");
+        return { stdout: "", stderr: "" };
+      }),
+    };
+
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: mockExecutor,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "test-owner",
+        repo: "test-repo",
+        target: {
+          name: "my-app",
+          healthUrl: "http://localhost:3000/health",
+          currentSymlink: "/var/www/current",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.verified).toBe(false);
+    const permCheck = body.checks.find((c: any) => c.id === "rollback_permission");
+    expect(permCheck.passed).toBe(false);
+  });
 });
+

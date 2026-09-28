@@ -337,7 +337,7 @@ export function RepoDetailView({
             <p className="mt-1 text-xs text-muted-foreground">
               {connection?.verifiedAt
                 ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
-                : "Connection unverified — run 5-item check in Setup"}
+                : "Connection unverified — run connection check in Setup"}
             </p>
           </div>
         </div>
