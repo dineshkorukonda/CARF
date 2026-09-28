@@ -1,62 +1,97 @@
 import { describe, expect, it, vi } from "vitest";
-import { recordRolloutOutcome, type RolloutOutcomePrismaClient } from "../../src/adapters/rolloutOutcome.js";
+import {
+  createPendingRolloutOutcome,
+  finalizeRolloutOutcome,
+  getPendingRolloutOutcomes,
+  type RolloutOutcomePrismaClient,
+} from "../../src/adapters/rolloutOutcome.js";
 
-describe("recordRolloutOutcome", () => {
-  it("creates a RolloutOutcome row connected to the Commit via the owner/repo/sha unique key", async () => {
-    const create = vi.fn().mockResolvedValue(undefined);
-    const prisma: RolloutOutcomePrismaClient = { rolloutOutcome: { create } };
-
-    await recordRolloutOutcome(prisma, {
-      owner: "acme",
-      repo: "widgets",
-      sha: "head456",
-      installationId: "inst-1",
-      rolledBack: true,
-      finalErrorRate: 0.2,
-      durationMs: 10_000,
-    });
-
-    expect(create).toHaveBeenCalledWith({
-      data: {
-        commit: { connect: { owner_repo_sha: { owner: "acme", repo: "widgets", sha: "head456" } } },
-        installationId: "inst-1",
-        rolledBack: true,
-        finalErrorRate: 0.2,
-        durationMs: 10_000,
+describe("RolloutOutcome persistence helpers", () => {
+  it("createPendingRolloutOutcome creates or upserts a PENDING row connected to Commit", async () => {
+    const upsert = vi.fn().mockResolvedValue({ id: "outcome-1", status: "PENDING" });
+    const prisma: RolloutOutcomePrismaClient = {
+      rolloutOutcome: {
+        findMany: vi.fn(),
+        upsert,
+        update: vi.fn(),
       },
-    });
-  });
+    };
 
-  it("omits installationId when not provided", async () => {
-    const create = vi.fn().mockResolvedValue(undefined);
-    const prisma: RolloutOutcomePrismaClient = { rolloutOutcome: { create } };
-
-    await recordRolloutOutcome(prisma, {
+    const result = await createPendingRolloutOutcome(prisma, {
       owner: "acme",
       repo: "widgets",
-      sha: "head456",
-      rolledBack: false,
-      finalErrorRate: 0.01,
-      durationMs: 30_000,
+      commitSha: "head456",
+      installationId: "inst-1",
+      threshold: 0.05,
+      window: 300,
     });
 
-    const [args] = create.mock.calls[0]!;
-    expect(args.data).not.toHaveProperty("installationId");
+    expect(result.id).toBe("outcome-1");
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          installationId_commitSha: {
+            installationId: "inst-1",
+            commitSha: "head456",
+          },
+        },
+        create: expect.objectContaining({
+          status: "PENDING",
+          threshold: 0.05,
+          window: 300,
+          commitSha: "head456",
+        }),
+      })
+    );
   });
 
-  it("propagates a rejection from the underlying create (e.g. no matching Commit row)", async () => {
-    const create = vi.fn().mockRejectedValue(new Error("no Commit found"));
-    const prisma: RolloutOutcomePrismaClient = { rolloutOutcome: { create } };
+  it("finalizeRolloutOutcome updates status and terminal metrics", async () => {
+    const update = vi.fn().mockResolvedValue({ id: "outcome-1", status: "ROLLED_BACK", rolledBack: true });
+    const prisma: RolloutOutcomePrismaClient = {
+      rolloutOutcome: {
+        findMany: vi.fn(),
+        upsert: vi.fn(),
+        update,
+      },
+    };
 
-    await expect(
-      recordRolloutOutcome(prisma, {
-        owner: "acme",
-        repo: "widgets",
-        sha: "unknown-sha",
-        rolledBack: false,
-        finalErrorRate: 0,
-        durationMs: 0,
-      })
-    ).rejects.toThrow("no Commit found");
+    const result = await finalizeRolloutOutcome(prisma, {
+      id: "outcome-1",
+      status: "ROLLED_BACK",
+      finalErrorRate: 0.15,
+      rolledBack: true,
+      rollbackVerified: true,
+      reason: "breach detected",
+    });
+
+    expect(result.status).toBe("ROLLED_BACK");
+    expect(update).toHaveBeenCalledWith({
+      where: { id: "outcome-1" },
+      data: expect.objectContaining({
+        status: "ROLLED_BACK",
+        finalErrorRate: 0.15,
+        rolledBack: true,
+        rollbackVerified: true,
+        reason: "breach detected",
+      }),
+    });
+  });
+
+  it("getPendingRolloutOutcomes finds rows with status PENDING", async () => {
+    const findMany = vi.fn().mockResolvedValue([{ id: "outcome-1", status: "PENDING" }]);
+    const prisma: RolloutOutcomePrismaClient = {
+      rolloutOutcome: {
+        findMany,
+        upsert: vi.fn(),
+        update: vi.fn(),
+      },
+    };
+
+    const result = await getPendingRolloutOutcomes(prisma);
+    expect(result.length).toBe(1);
+    expect(findMany).toHaveBeenCalledWith({
+      where: { status: "PENDING" },
+      orderBy: { startedAt: "asc" },
+    });
   });
 });

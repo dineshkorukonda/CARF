@@ -3,13 +3,10 @@ import { load as loadYaml } from "js-yaml";
 import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
-import { GitOpsAdapter } from "./adapters/gitops.js";
-import { KubectlAdapter } from "./adapters/kubectl.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
-import { PrometheusAdapter } from "./adapters/prometheus.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
-import { recordRolloutOutcome, type RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
+import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient, type RolloutOutcomeRecord } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
 import {
   acquireLock,
@@ -20,9 +17,9 @@ import {
   type StandaloneLoopLockPrismaClient,
 } from "./adapters/standaloneLoopLock.js";
 import { CarfConfigSchema, type CarfConfig } from "./config/carfConfigSchema.js";
-import { env } from "./config/env.js";
 import { mergeThresholdConfig } from "./config/mergeThresholdConfig.js";
 import { prisma as defaultPrisma } from "./db/client.js";
+import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
@@ -39,14 +36,12 @@ export interface WebhookOrchestratorDeps {
   carfConfig: CarfConfig | undefined;
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
-  /**
-   * Testable seam; defaults to building a `PM2Adapter` for `kind: "pm2"` (active), a
-   * `KubectlAdapter` for `kind: "kubernetes"` (preview), a `GitOpsAdapter` for
-   * `kind: "gitops"` (preview), or a `PrometheusAdapter` for `kind: "prometheus"` (preview).
-   */
+  /** Testable seam for building RollbackAdapter. Defaults to PM2Adapter. */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
   standaloneLoopRunner?: typeof runStandaloneLoop;
+  /** Background RolloutMonitor worker instance. */
+  rolloutMonitor?: RolloutMonitor;
   /** Testable seam for the durable Standalone-loop lock; defaults to the real db/client.ts singleton. */
   lockPrismaClient?: StandaloneLoopLockPrismaClient;
   /** How long a lock can go without a heartbeat before another instance may reclaim it. */
@@ -62,23 +57,17 @@ export interface WebhookOrchestratorDeps {
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
   if (adapterConfig.kind === "pm2") {
     // baseSha stands in for the previous release SHA. See issue #51.
-    return new PM2Adapter(baseSha);
-  }
-  if (adapterConfig.kind === "kubernetes") {
-    return new KubectlAdapter();
-  }
-  if (adapterConfig.kind === "gitops") {
-    // baseSha stands in for the previous Argo CD deployment revision. See issue #52.
-    return new GitOpsAdapter(baseSha, env.argoCdBaseUrl(), env.argoCdAuthToken());
-  }
-  if (adapterConfig.kind === "prometheus") {
-    return new PrometheusAdapter({
-      prometheusUrl: adapterConfig.prometheusUrl,
-      query: adapterConfig.query,
-      rollbackCommand: adapterConfig.rollbackCommand,
+    return new PM2Adapter(baseSha, {
+      releasesRoot: adapterConfig.releasesRoot,
+      currentSymlink: adapterConfig.currentSymlink,
+      cwd: adapterConfig.cwd,
+      buildCommand: adapterConfig.buildCommand,
+      layout: adapterConfig.layout,
+      healthUrl: adapterConfig.healthUrl,
+      probeCount: adapterConfig.probeCount,
     });
   }
-  throw new Error(`Adapter kind "${adapterConfig.kind}" is deprecated or unsupported. PM2 is the active adapter.`);
+  throw new Error(`Adapter kind "${(adapterConfig as { kind: string }).kind}" is unsupported. PM2 is the only supported adapter.`);
 }
 
 
@@ -88,9 +77,8 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
  * persist + compute threshold), then branches on .carf.yml's `mode`:
  *   - Augment (or no mode / no .carf.yml at all): stops here. GET /v1/threshold
  *     (src/routes/threshold.ts) serves the persisted result separately.
- *   - Standalone with adapter.kind "kubernetes", "dockerCompose", "pm2", "gitops", or
- *     "dockerSwarm": additionally kicks off runStandaloneLoop() in the background (not
- *     awaited -- the loop can run for the full threshold window, up to DEFAULT_CONFIG's
+ *   - Standalone with adapter.kind "pm2": additionally kicks off runStandaloneLoop() in the background
+ *     (not awaited -- the loop can run for the full threshold window, up to DEFAULT_CONFIG's
  *     largest baseWindow, which would hang the webhook's HTTP response if awaited).
  *   - Standalone with no adapter configured at all: logs an error and skips the loop.
  *     processCommit()'s result has already persisted successfully -- this is a partial
@@ -191,28 +179,61 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  if (adapterConfig.kind === "dockerCompose" || adapterConfig.kind === "dockerSwarm") {
-    deps.logger.error(
-      { adapter: adapterConfig },
-      `${adapterConfig.kind} adapter is deprecated. PM2 is the primary active adapter.`
-    );
-    return;
-  }
-
-  // pm2/gitops's rollback tag/release/revision is derived from baseSha (see
-  // defaultRollbackAdapterFactory), which is only safe to treat as "what's currently
-  // deployed" for a push event -- a pull_request's baseSha is the PR's base branch tip,
-  // not necessarily anything ever actually deployed. kubernetes's KubectlAdapter doesn't
-  // use baseSha, so it's unaffected.
-  if (
-    (adapterConfig.kind === "pm2" || adapterConfig.kind === "gitops") &&
-    target.event !== "push"
-  ) {
+  if (target.event !== "push") {
     deps.logger.error(
       { adapter: adapterConfig, event: target.event },
       `${adapterConfig.kind} adapter requires a push event to safely derive the previous release/revision from baseSha`
     );
     return;
+  }
+
+  const rolloutOutcomeClient =
+    deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
+
+  // Create PENDING RolloutOutcome row (idempotent per installationId, commitSha)
+  let pendingOutcome: RolloutOutcomeRecord | undefined;
+  try {
+    pendingOutcome = await createPendingRolloutOutcome(rolloutOutcomeClient, {
+      owner: target.owner,
+      repo: target.repo,
+      commitSha: target.headSha,
+      installationId: target.installationId,
+      threshold: result.finalThreshold,
+      window: result.finalWindow,
+    });
+  } catch (error) {
+    deps.logger.error({ error, sha: target.headSha }, "failed to create pending rollout outcome");
+  }
+
+  // Check if monitoring is paused for this repository
+  const repoConnClient = rolloutOutcomeClient as unknown as {
+    repoConnection?: {
+      findUnique: (args: {
+        where: { installationId_owner_repo: { installationId: string; owner: string; repo: string } };
+      }) => Promise<{ monitoringPaused?: boolean } | null>;
+    };
+  };
+  if (repoConnClient.repoConnection?.findUnique) {
+    try {
+      const conn = await repoConnClient.repoConnection.findUnique({
+        where: {
+          installationId_owner_repo: {
+            installationId: target.installationId,
+            owner: target.owner,
+            repo: target.repo,
+          },
+        },
+      });
+      if (conn?.monitoringPaused) {
+        deps.logger.info(
+          { owner: target.owner, repo: target.repo },
+          "monitoring is paused for this repository, skipping standalone monitor loop"
+        );
+        return;
+      }
+    } catch (err) {
+      deps.logger.error({ err }, "failed to check repository monitoringPaused state");
+    }
   }
 
   const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
@@ -228,6 +249,13 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
 
   const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
   const adapter = buildAdapter(adapterConfig, target.baseSha);
+  const targetName = adapterConfig.target ?? adapterConfig.targets?.[0] ?? "";
+
+  // If a background monitor worker is attached and pendingOutcome exists, enqueue monitor job
+  if (deps.rolloutMonitor && pendingOutcome) {
+    deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName);
+  }
+
   const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;
 
   // Renewed on an interval for as long as the loop runs, so a live loop's lock never goes
@@ -242,24 +270,20 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     });
   }, heartbeatIntervalMs);
 
-  const rolloutOutcomeClient =
-    deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
-
-  void loopRunner(target.headSha, adapter, result, adapterConfig.target)
+  void loopRunner(target.headSha, adapter, result, targetName)
     .then(async (loopResult) => {
       try {
-        await recordRolloutOutcome(rolloutOutcomeClient, {
-          owner: target.owner,
-          repo: target.repo,
-          sha: target.headSha,
-          installationId: target.installationId,
-          rolledBack: loopResult.rolledBack,
-          finalErrorRate: loopResult.finalErrorRate,
-          durationMs: loopResult.durationMs,
-        });
+        if (pendingOutcome) {
+          const { finalizeRolloutOutcome } = await import("./adapters/rolloutOutcome.js");
+          await finalizeRolloutOutcome(rolloutOutcomeClient, {
+            id: pendingOutcome.id,
+            status: loopResult.rolledBack ? "ROLLED_BACK" : "SUCCESS",
+            finalErrorRate: loopResult.finalErrorRate,
+            rolledBack: loopResult.rolledBack,
+            reason: loopResult.rolledBack ? "Threshold breach during standalone loop" : "Window completed successfully",
+          });
+        }
       } catch (error) {
-        // Distinct log message from the loop-failure case below -- the loop itself
-        // succeeded, only recording its outcome failed. Not fatal to anything else.
         deps.logger.error({ error, key }, "failed to record rollout outcome");
       }
     })

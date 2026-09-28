@@ -28,24 +28,22 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
   ["api/eval/history", ["GET"], () => import("../../src/app/api/eval/history/route")],
   ["api/github-app/install/manual", ["POST"], () => import("../../src/app/api/github-app/install/manual/route")],
   ["api/github-app/install/start", ["GET"], () => import("../../src/app/api/github-app/install/start/route")],
-  ["api/onboarding/status", ["GET"], () => import("../../src/app/api/onboarding/status/route")],
-  ["api/status/[installationId]", ["GET"], () => import("../../src/app/api/status/[installationId]/route")],
+  ["api/pm2/apps", ["GET"], () => import("../../src/app/api/pm2/apps/route")],
+  ["api/repo/connection-check", ["POST"], () => import("../../src/app/api/repo/connection-check/route")],
+  ["api/repo/pause", ["POST"], () => import("../../src/app/api/repo/pause/route")],
+  ["api/rollouts/[id]/rollback", ["POST"], () => import("../../src/app/api/rollouts/[id]/rollback/route")],
+  ["api/rollouts/[id]/samples", ["GET"], () => import("../../src/app/api/rollouts/[id]/samples/route")],
 ];
 
 const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["/", () => import("../../src/app/page")],
   ["(auth)/login", () => import("../../src/app/(auth)/login/page")],
   ["dashboard", () => import("../../src/app/dashboard/page")],
-  ["dashboard/onboarding", () => import("../../src/app/dashboard/onboarding/page")],
-  ["dashboard/account", () => import("../../src/app/dashboard/account/page")],
-  ["dashboard/analytics/[installationId]", () => import("../../src/app/dashboard/analytics/[installationId]/page")],
-  ["dashboard/config/[installationId]", () => import("../../src/app/dashboard/config/[installationId]/page")],
-  ["dashboard/config/[installationId]/rules", () => import("../../src/app/dashboard/config/[installationId]/rules/page")],
-  ["dashboard/installations", () => import("../../src/app/dashboard/installations/page")],
-  ["dashboard/status/[installationId]", () => import("../../src/app/dashboard/status/[installationId]/page")],
-  ["dashboard/verify/[installationId]", () => import("../../src/app/dashboard/verify/[installationId]/page")],
-  ["dashboard/testing", () => import("../../src/app/dashboard/testing/page")],
-  ["dashboard/integrations/[installationId]", () => import("../../src/app/dashboard/integrations/[installationId]/page")],
+  ["dashboard/repos", () => import("../../src/app/dashboard/repos/page")],
+  ["dashboard/repos/[...repo]", () => import("../../src/app/dashboard/repos/[...repo]/page")],
+  ["dashboard/setup", () => import("../../src/app/dashboard/setup/page")],
+  ["dashboard/verify", () => import("../../src/app/dashboard/verify/page")],
+  ["dashboard/settings", () => import("../../src/app/dashboard/settings/page")],
 ];
 
 const LAYOUT_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [

@@ -27,5 +27,6 @@ threshold:
 
 mode: standalone   # standalone | augment
 adapter:
-  kind: kubernetes  # kubernetes | dockerCompose | pm2 | gitops | dockerSwarm
-  target: "my-deployment"
+  kind: pm2
+  target: "api-server"
+

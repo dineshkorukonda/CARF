@@ -37,7 +37,7 @@ describe("AdapterKindSchema / AVAILABLE_ADAPTER_KINDS / LIVE_ADAPTER_KINDS", () 
 
 describe("AdapterConfigSchema", () => {
   it("accepts a well-formed adapter config", () => {
-    const result = AdapterConfigSchema.safeParse({ kind: "kubernetes", target: "deploy/api" });
+    const result = AdapterConfigSchema.safeParse({ kind: "pm2", target: "api" });
     expect(result.success).toBe(true);
   });
 

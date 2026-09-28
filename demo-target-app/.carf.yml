@@ -1,0 +1,13 @@
+mode: standalone
+
+adapter:
+  kind: pm2
+  target: demo-target-app
+  layout: releases
+  releasesRoot: /tmp/carf-demo/releases
+  currentSymlink: /tmp/carf-demo/current
+  healthUrl: http://localhost:3000/health
+  probeCount: 3
+
+threshold:
+  decay: 0.1

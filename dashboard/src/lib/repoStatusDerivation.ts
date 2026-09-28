@@ -1,0 +1,97 @@
+export type DerivedRepoStatus =
+  | "Not connected"
+  | "Not verified"
+  | "Connected, no rollouts yet"
+  | "Observing (PENDING)"
+  | "Last rollout succeeded"
+  | "Last rollout rolled back"
+  | "Adapter error";
+
+export interface RepoStatusInput {
+  /** Whether .carf.yml exists or a DB storedConfig is present */
+  isConfigured: boolean;
+  /** Whether the 5-item connection check has passed (verifiedAt is not null) */
+  isVerified: boolean;
+  /** Whether an active rollout is currently in PENDING state */
+  hasPendingRollout?: boolean;
+  /** The terminal or active status of the most recent rollout */
+  latestOutcomeStatus?: "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED" | null;
+  /** Total count of recorded RolloutOutcome rows for this repository */
+  totalRollouts: number;
+}
+
+/**
+ * Derives repository operational status strictly from recorded data.
+ * Rules:
+ * - Shows "Not connected" if no config exists.
+ * - Shows "Not verified" until connection check has passed.
+ * - Never shows a healthy state without at least one terminal outcome.
+ */
+export function deriveRepoStatus(input: RepoStatusInput): DerivedRepoStatus {
+  if (!input.isConfigured) {
+    return "Not connected";
+  }
+  if (!input.isVerified) {
+    return "Not verified";
+  }
+  if (input.hasPendingRollout || input.latestOutcomeStatus === "PENDING") {
+    return "Observing (PENDING)";
+  }
+  if (input.totalRollouts === 0 || !input.latestOutcomeStatus) {
+    return "Connected, no rollouts yet";
+  }
+  if (input.latestOutcomeStatus === "SUCCESS") {
+    return "Last rollout succeeded";
+  }
+  if (input.latestOutcomeStatus === "ROLLED_BACK") {
+    return "Last rollout rolled back";
+  }
+  if (input.latestOutcomeStatus === "FAILED") {
+    return "Adapter error";
+  }
+  return "Connected, no rollouts yet";
+}
+
+export function getStatusBadgeVariant(status: DerivedRepoStatus): {
+  colorClass: string;
+  dotClass: string;
+} {
+  switch (status) {
+    case "Observing (PENDING)":
+      return {
+        colorClass: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+        dotClass: "bg-amber-500 animate-pulse",
+      };
+    case "Last rollout succeeded":
+      return {
+        colorClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+        dotClass: "bg-emerald-500",
+      };
+    case "Last rollout rolled back":
+      return {
+        colorClass: "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
+        dotClass: "bg-rose-500",
+      };
+    case "Adapter error":
+      return {
+        colorClass: "bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800",
+        dotClass: "bg-red-600",
+      };
+    case "Connected, no rollouts yet":
+      return {
+        colorClass: "bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800",
+        dotClass: "bg-blue-500",
+      };
+    case "Not verified":
+      return {
+        colorClass: "bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-800",
+        dotClass: "bg-yellow-500",
+      };
+    case "Not connected":
+    default:
+      return {
+        colorClass: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+        dotClass: "bg-slate-400",
+      };
+  }
+}

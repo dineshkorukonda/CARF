@@ -1,7 +1,7 @@
 export type OutcomeState =
   | { kind: "no_signal"; label: "No signal"; description: "Commit touched no sensitive code, config, or infra files." }
   | { kind: "healthy"; label: "Healthy"; description: "Rollout error rate remained below the dynamic threshold." }
-  | { kind: "rolled_back"; label: "Rolled back"; errorRate?: number; description: "Dynamic error budget breached. Rollback executed." }
+  | { kind: "rolled_back"; label: "Rolled back"; errorRate?: number; description: "Error-rate threshold breached. Rollback executed." }
   | { kind: "no_target"; label: "No target configured"; description: "Standalone adapter target not configured or handled externally." }
   | { kind: "pending"; label: "Pending / Augment"; description: "Observation loop in progress, or threshold delegated to external orchestrator." };
 
@@ -24,7 +24,7 @@ export function classifyRolloutOutcome(commit: {
       kind: "rolled_back",
       label: "Rolled back",
       errorRate: commit.finalErrorRate ?? undefined,
-      description: "Dynamic error budget breached. Rollback executed.",
+      description: "Error-rate threshold breached. Rollback executed.",
     };
   }
 

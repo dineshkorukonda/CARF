@@ -21,7 +21,7 @@ describe("CarfConfigSchema", () => {
         },
       },
       mode: "standalone",
-      adapter: { kind: "kubernetes", target: "my-deployment" },
+      adapter: { kind: "pm2", target: "my-deployment" },
     });
     expect(result.success).toBe(true);
   });
@@ -49,16 +49,38 @@ describe("CarfConfigSchema", () => {
 
   it("rejects shell injection characters in adapter.target", () => {
     const result = CarfConfigSchema.safeParse({
-      adapter: { kind: "kubernetes", target: "my-deployment; rm -rf /" },
+      adapter: { kind: "pm2", target: "my-deployment; rm -rf /" },
     });
     expect(result.success).toBe(false);
   });
 
   it("accepts valid adapter.target", () => {
     const result = CarfConfigSchema.safeParse({
-      adapter: { kind: "kubernetes", target: "my-deployment-v1" },
+      adapter: { kind: "pm2", target: "my-deployment-v1" },
     });
     expect(result.success).toBe(true);
+  });
+
+  it("accepts adapter.targets array and PM2 options", () => {
+    const result = CarfConfigSchema.safeParse({
+      adapter: {
+        kind: "pm2",
+        targets: ["api", "worker"],
+        layout: "releases",
+        releasesRoot: "/var/www/releases",
+        currentSymlink: "/var/www/current",
+        healthUrl: "http://localhost:3000/health",
+        probeCount: 3,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects removed adapter kinds (kubernetes, gitops, dockerCompose, dockerSwarm)", () => {
+    expect(CarfConfigSchema.safeParse({ adapter: { kind: "kubernetes", target: "my-app" } }).success).toBe(false);
+    expect(CarfConfigSchema.safeParse({ adapter: { kind: "gitops", target: "my-app" } }).success).toBe(false);
+    expect(CarfConfigSchema.safeParse({ adapter: { kind: "dockerCompose", target: "web" } }).success).toBe(false);
+    expect(CarfConfigSchema.safeParse({ adapter: { kind: "dockerSwarm", target: "web" } }).success).toBe(false);
   });
 
   it("accepts a partial threshold.types entry (only baseThreshold, no baseWindow)", () => {
@@ -78,11 +100,6 @@ describe("CarfConfigSchema", () => {
       adapter: { kind: "chaos-monkey", target: "x" },
     });
     expect(result.success).toBe(false);
-  });
-
-  it("accepts adapter.kind 'gitops' and 'dockerSwarm'", () => {
-    expect(CarfConfigSchema.safeParse({ adapter: { kind: "gitops", target: "my-app" } }).success).toBe(true);
-    expect(CarfConfigSchema.safeParse({ adapter: { kind: "dockerSwarm", target: "web" } }).success).toBe(true);
   });
 
   it("requires patterns to be a non-empty array on a classification rule", () => {

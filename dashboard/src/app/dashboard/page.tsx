@@ -6,9 +6,7 @@ import { env } from "../../config/env";
 import { signGithubAppJwt } from "../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../adapters/github/installationTokenClient";
 import { listInstallationRepos, type InstallationRepo } from "../../adapters/github/reposClient";
-import { ensureCoreApiKey } from "../../lib/coreApiAccess";
-import { fetchRecentCommits, type RecentCommit } from "../../adapters/coreApi/client";
-import { OverviewView } from "./OverviewView";
+import { RepoListView } from "./RepoListView";
 
 export default async function DashboardPage() {
   const account = await getCurrentAccount();
@@ -16,7 +14,7 @@ export default async function DashboardPage() {
 
   const installations = await listInstallationsForAccount(prisma, account.id);
   if (installations.length === 0) {
-    redirect("/dashboard/onboarding");
+    redirect("/dashboard/settings");
   }
 
   const primary = installations[0]!;
@@ -28,24 +26,48 @@ export default async function DashboardPage() {
     const { token } = await createInstallationToken(primary.installationId, appJwt);
     repos = await listInstallationRepos(token);
   } catch (err) {
-    console.error("[dashboard/overview] failed to load repos:", err);
+    console.error("[dashboard/page] failed to load repos:", err);
   }
 
-  // Fetch recent commits from core-api
-  let commits: RecentCommit[] = [];
-  try {
-    const apiKey = await ensureCoreApiKey(prisma, primary);
-    commits = await fetchRecentCommits(env.coreApiBaseUrl(), apiKey);
-  } catch (err) {
-    console.error("[dashboard/overview] failed to load commits:", err);
-  }
+  // Fetch repo connections, rollouts, and commits
+  const installationIds = installations.map((i) => String(i.installationId));
+
+  const [connections, rollouts, commits] = await Promise.all([
+    prisma.repoConnection.findMany({
+      where: {
+        installationId: { in: installationIds },
+      },
+    }),
+    prisma.rolloutOutcome.findMany({
+      where: {
+        installationId: { in: installationIds },
+      },
+      orderBy: {
+        startedAt: "desc",
+      },
+      take: 200,
+    }),
+    prisma.commit.findMany({
+      where: {
+        installationId: { in: installationIds },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 200,
+    }),
+  ]);
 
   return (
-    <OverviewView
-      installation={primary}
-      repos={repos}
+    <RepoListView
+      repos={repos.map((r) => ({
+        ...r,
+        owner: r.owner.login,
+        private: Boolean(r.private),
+      }))}
+      connections={connections}
+      rollouts={rollouts}
       commits={commits}
-      accountEmail={account.email}
     />
   );
 }

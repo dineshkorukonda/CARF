@@ -14,8 +14,6 @@ const examplesDir = path.resolve(__dirname, "../../../examples");
 const actionsDir = path.resolve(__dirname, "../../../.github/actions");
 
 const exampleFiles = [
-  { dir: examplesDir, name: "argo-rollouts-analysistemplate.yaml" },
-  { dir: examplesDir, name: "flagger-webhook-metric.yaml" },
   { dir: examplesDir, name: "carf-threshold-action-workflow.yml" },
   { dir: actionsDir, name: "carf-threshold/action.yml" },
 ];

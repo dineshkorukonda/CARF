@@ -111,7 +111,7 @@ export default async function HomePage() {
           </div>
           <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
             Watch the video-style walkthrough step through commit classification, dynamic threshold
-            decay, and autonomous rollback — or take the controls in manual sandbox mode.
+            decay, and automated rollback — or take the controls in manual sandbox mode.
           </p>
 
           <div className="mt-6">

@@ -6,9 +6,24 @@ import { promisify } from "node:util";
  * pm2) that shell out. Injectable so unit tests never actually spawn a process — tests
  * inject a fake, production code gets `defaultExec`.
  */
-export type ExecFn = (command: string) => Promise<{ stdout: string; stderr: string }>;
+export type ExecFn = (command: string, options?: { cwd?: string }) => Promise<{ stdout: string; stderr: string }>;
 
 export const defaultExec: ExecFn = promisify(execCallback);
+
+export interface CommandExecutor {
+  exec(command: string, options?: { cwd?: string }): Promise<{ stdout: string; stderr: string }>;
+}
+
+export class LocalCommandExecutor implements CommandExecutor {
+  constructor(private readonly execFn: ExecFn = defaultExec) {}
+
+  async exec(command: string, options?: { cwd?: string }): Promise<{ stdout: string; stderr: string }> {
+    if (options !== undefined) {
+      return this.execFn(command, options);
+    }
+    return this.execFn(command);
+  }
+}
 
 const TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
 
@@ -21,3 +36,4 @@ export function assertSafeTarget(target: string, paramName: string = "target"): 
     throw new Error(`Invalid ${paramName} "${target}": contains illegal shell characters`);
   }
 }
+

@@ -18,47 +18,21 @@ npm run dev
 - `npm run typecheck` — `tsc --noEmit`
 - `npm run build` / `npm start` — compile and run the production build
 
-## Standalone mode: rollback adapters + health-check loop
-
+## Standalone mode: PM2 rollback adapter + health-check loop
+ 
 `src/adapters/loop.ts` (`runStandaloneLoop`) polls a `RollbackAdapter` at a configurable
 interval for the duration of a commit's `ThresholdResult.finalWindow`, triggering
 `adapter.rollback()` and exiting early the moment `checkHealth()` reports an error rate
-at or above `finalThreshold`. Adapters implementing `RollbackAdapter`:
+at or above `finalThreshold`.
 
-- `src/adapters/dockerCompose.ts` — `DockerComposeAdapter`, shells out to the `docker
-  compose` CLI. `checkHealth` reads `docker compose ps --format json <target>` and derives
-  `errorRate` from the fraction of containers that aren't `State: running` or whose
-  `Health` isn't `"healthy"`. `rollback` redeploys a configured previous image tag via
-  `IMAGE_TAG=<tag> docker compose up -d <target>` (assumes the compose file pins the
-  service image to `${IMAGE_TAG}`).
-- `src/adapters/kubectl.ts` — `KubectlAdapter`, shells out to `kubectl`. `checkHealth`
-  reads `kubectl get deployment <target> -o json` and derives `errorRate` from
-  `status.unavailableReplicas / spec.replicas`. `rollback` runs
-  `kubectl rollout undo deployment/<target>`.
-- `src/adapters/pm2.ts` — `PM2Adapter`, shells out to `pm2`. `checkHealth` reads `pm2
-  jlist`, filters to entries whose `name` matches `target`, and derives `errorRate` from
-  the fraction whose `pm2_env.status` isn't `"online"`. `rollback` assumes a
-  Capistrano-style release layout (`${releasesRoot}/${sha}`, default `/var/www/releases`)
-  reached through a `currentSymlink` (default `/var/www/current`): it repoints the symlink
-  at the previous release and runs `pm2 reload <target>`.
-- `src/adapters/gitops.ts` — `GitOpsAdapter`, backed by Argo CD's REST API (requires
-  `ARGOCD_BASE_URL`/`ARGOCD_AUTH_TOKEN`, see `.env.example`). `checkHealth` reads
-  `GET /api/v1/applications/<target>`; `errorRate` is binary (1 unless
-  `status.health.status === "Healthy"`). `rollback` looks up the target's deployment
-  history for the entry matching the previous revision and calls Argo CD's rollback
-  endpoint with that entry's id.
-- `src/adapters/dockerSwarm.ts` — `DockerSwarmAdapter`, shells out to `docker service`.
-  `checkHealth` reads `docker service ps <target> --filter desired-state=running --format
-  json` and derives `errorRate` from the fraction of tasks whose `CurrentState` doesn't
-  start with `"Running"`. `rollback` runs `docker service update --rollback <target>` —
-  Swarm tracks the previous spec itself, no previous-version bookkeeping needed.
+**PM2** is the supported standalone runtime adapter (`src/adapters/pm2.ts`):
+- `checkHealth`: reads `pm2 jlist`, checks process state across configured `targets` (and restart deltas), plus optional HTTP health probes (`healthUrl`).
+- `rollback`: supports two deploy layouts (`adapter.layout`):
+  - `"releases"`: Capistrano-style release directories (`${releasesRoot}/${sha}`) reached through `currentSymlink` (default `/var/www/current`). Rollback repoints the symlink to the previous release and runs `pm2 reload <targets>`.
+  - `"git"`: in-place git checkout (`git checkout <previousSha>` in `cwd`), optional `buildCommand`, followed by `pm2 reload <targets>`.
+- `rollbackWithVerification`: re-polls health after reload to verify recovery.
 
-All exec-based adapters take an injectable exec function (defaulting to Node's real
-`child_process.exec`, promisified), and `GitOpsAdapter` takes an injectable fetch
-function, so unit tests never shell out or hit the network for real — see
-`test/adapters/dockerCompose.test.ts`, `test/adapters/kubectl.test.ts`,
-`test/adapters/pm2.test.ts`, `test/adapters/gitops.test.ts`, and
-`test/adapters/dockerSwarm.test.ts`.
+All exec commands route through an injectable executor (`CommandExecutor` / `ExecFn`), defaulting to local execution, so unit tests never shell out for real (see `test/adapters/pm2.test.ts`).
 
 ### Manual validation against `demo-target-app/`
 
@@ -173,8 +147,7 @@ unchanged.
 - `threshold` — overrides `src/threshold/engine.ts`'s `DEFAULT_CONFIG`,
   per field: an omitted field (or omitted type) keeps its built-in
   default.
-- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "kubernetes"`,
-  `"dockerCompose"`, `"pm2"`, `"gitops"`, or `"dockerSwarm"` drives a real rollback adapter
+- `mode` / `adapter` — `mode: "standalone"` with `adapter.kind: "pm2"` drives a real PM2 rollback adapter
   kickoff from `src/webhookOrchestrator.ts`'s `handleWebhookCommit()` on every webhook.
   `mode: "augment"`
   (or no `mode` at all) just persists and stops — `GET /v1/threshold` serves the result
