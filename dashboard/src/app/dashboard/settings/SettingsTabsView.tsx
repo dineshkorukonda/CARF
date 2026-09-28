@@ -2,18 +2,21 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Plus, Terminal, Shield, User, ExternalLink } from "lucide-react";
+import { Plus, Terminal, Shield, User, ExternalLink, AlertCircle, CheckCircle2 } from "lucide-react";
 import { ApiKeyCopyButton } from "./ApiKeyCopyButton";
 import { GithubAppProbeCard } from "./GithubAppProbeCard";
+import { ManualInstallForm } from "./ManualInstallForm";
 import { AccountSettingsView } from "./AccountSettingsView";
 import type { AccountRow, InstallationRow } from "../../../lib/accountService";
 
 interface SettingsTabsViewProps {
   account: AccountRow;
   installations: InstallationRow[];
+  bannerError?: string;
+  bannerSuccess?: string;
 }
 
-export function SettingsTabsView({ account, installations }: SettingsTabsViewProps) {
+export function SettingsTabsView({ account, installations, bannerError, bannerSuccess }: SettingsTabsViewProps) {
   const [activeTab, setActiveTab] = useState<"github" | "account">("github");
 
   return (
@@ -69,6 +72,34 @@ export function SettingsTabsView({ account, installations }: SettingsTabsViewPro
       {/* Tab 1: GitHub App & API Keys */}
       {activeTab === "github" && (
         <div className="space-y-6">
+          {bannerError && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-xs text-red-600 dark:text-red-400">
+              <AlertCircle className="size-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">GitHub Integration Alert</p>
+                <p className="mt-0.5">
+                  {bannerError === "invalid_install_state"
+                    ? "GitHub redirect state verification timed out or was not received. You can paste your Installation ID manually below to complete setup."
+                    : bannerError === "already_linked_to_another_account"
+                    ? "This installation ID is already linked to another CARF account."
+                    : bannerError === "invalid_installation_id"
+                    ? "The specified installation ID was not recognized as a valid numeric ID."
+                    : "The GitHub App install callback could not be completed automatically. Paste your numeric Installation ID below."}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {bannerSuccess && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-xs text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Installation Linked</p>
+                <p className="mt-0.5">Your GitHub App installation was successfully connected to your account.</p>
+              </div>
+            </div>
+          )}
+
           <GithubAppProbeCard />
 
           <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
@@ -136,6 +167,8 @@ export function SettingsTabsView({ account, installations }: SettingsTabsViewPro
               </div>
             )}
           </div>
+
+          <ManualInstallForm />
         </div>
       )}
 
