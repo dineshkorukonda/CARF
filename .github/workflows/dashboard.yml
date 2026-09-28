@@ -29,6 +29,8 @@ jobs:
       - run: npx prisma generate
       - run: npm run lint
       - run: npm run typecheck
+      - name: Verify Prisma schema parity with core-api
+        run: node ../scripts/check-schema-parity.mjs
 
   test:
     runs-on: ubuntu-latest
@@ -61,10 +63,8 @@ jobs:
           cache-dependency-path: dashboard/package-lock.json
       - run: npm ci
       - run: npx prisma generate
-      # Applies the committed migrations, and gives test/db/crud.test.ts the live database
-      # it needs -- that suite skips itself when DATABASE_URL is unset, so without this
-      # step it would pass by doing nothing.
-      - run: npx prisma migrate deploy
+      # core-api is the sole migration owner. Deploy core-api's canonical migrations on the ephemeral test container:
+      - run: npx prisma migrate deploy --schema=../core-api/prisma/schema.prisma
       - run: npm test
 
   build:
