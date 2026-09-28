@@ -141,10 +141,10 @@ export class PM2Adapter implements RollbackAdapter {
     return this.defaultTargets;
   }
 
-  async checkHealth(target?: string): Promise<{ errorRate: number; healthy: boolean }> {
+  async checkHealth(target?: string): Promise<PM2HealthResult> {
     const targets = this.resolveTargets(target);
     if (targets.length === 0) {
-      return { errorRate: 1, healthy: false };
+      return { errorRate: 1, healthy: false, processErrorRate: 1, httpErrorRate: 0 };
     }
 
     // 1. Process health via PM2
@@ -153,7 +153,7 @@ export class PM2Adapter implements RollbackAdapter {
     try {
       processes = JSON.parse(stdout);
     } catch {
-      return { errorRate: 1, healthy: false };
+      return { errorRate: 1, healthy: false, processErrorRate: 1, httpErrorRate: 0 };
     }
 
     const targetErrorRates: number[] = [];

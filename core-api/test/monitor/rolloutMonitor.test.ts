@@ -15,14 +15,14 @@ function createFakePrisma(
   return {
     outcomes,
     rolloutOutcome: {
-      async findMany(args) {
+      async findMany(args: any) {
         let list = Array.from(outcomes.values());
         if (args?.where?.status) {
           list = list.filter((o) => o.status === args.where!.status);
         }
         return list;
       },
-      async upsert(args) {
+      async upsert(args: any) {
         for (const existing of outcomes.values()) {
           if ((existing.installationId ?? "") === (args.create.installationId ?? "") && existing.commitSha === args.create.commitSha) {
             existing.threshold = args.update.threshold ?? existing.threshold;
@@ -47,7 +47,7 @@ function createFakePrisma(
         outcomes.set(newRecord.id, newRecord);
         return newRecord;
       },
-      async update(args) {
+      async update(args: any) {
         const existing = outcomes.get(args.where.id);
         if (!existing) {
           throw new Error(`Record ${args.where.id} not found`);
@@ -308,7 +308,7 @@ describe("RolloutMonitor State Machine", () => {
   });
 
   it("initiates immediate rollback if process crashes or restarts during startupGraceSeconds", async () => {
-    let currentTime = 1000;
+    const currentTime = 1000;
     const fakePrisma = createFakePrisma();
     const outcome: RolloutOutcomeRecord = {
       id: "outcome-crash",

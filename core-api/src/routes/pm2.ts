@@ -317,6 +317,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     } else {
       for (let i = 0; i < sharedPaths.length; i++) {
         const sharedPath = sharedPaths[i];
+        if (!sharedPath) continue;
         let pathPassed = false;
         let pathMsg = "";
         try {

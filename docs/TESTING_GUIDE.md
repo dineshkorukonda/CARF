@@ -68,8 +68,8 @@ In production, CARF runs as a hosted multi-tenant service at **`https://carf.ind
 Serverless environments do not have persistent daemon processes, long-running Docker containers, or PM2 process managers. Runtimes scale to zero and are managed by cloud providers (AWS, Cloudflare, Vercel).
 
 Therefore, CARF operates in **Augment Mode** (`mode: augment`):
-- CARF provides an API (`GET /v1/threshold?commit=$SHA`) that dynamically calibrates your error budget and observation window.
-- Your CI/CD deployment pipeline (GitHub Actions) queries CARF, shifts canary traffic (e.g. AWS Lambda Alias 10% routing), monitors error rates, and executes an automated rollback if the dynamic budget is breached.
+- CARF provides an API (`GET /v1/threshold?commit=$SHA`) that dynamically calibrates your error-rate threshold and observation window.
+- Your CI/CD deployment pipeline (GitHub Actions) queries CARF, shifts canary traffic (e.g. AWS Lambda Alias 10% routing), monitors error rates, and executes an automated rollback if the dynamic threshold is breached.
 
 ### 1. Configure `.carf.yml` for Serverless
 Place `.carf.yml` in your repository root:

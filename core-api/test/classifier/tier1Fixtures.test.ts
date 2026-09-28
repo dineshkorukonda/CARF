@@ -55,7 +55,7 @@ describe("Tier 1 Language Fixtures and Versioned Engine Config", () => {
 
     it("evaluates threshold and window correctly for a Java migration diff", () => {
       const files = [
-        { path: "src/main/resources/db/migration/V2__add_index.sql", additions: 15, deletions: 0 },
+        { path: "src/main/resources/db/migration/V2__add_index.sql", additions: 15, deletions: 0, before: "", after: "-- migration" },
       ];
       const vector = classifyCommit(files);
       expect(vector).not.toBeNull();
@@ -131,7 +131,7 @@ describe("Tier 1 Language Fixtures and Versioned Engine Config", () => {
 
     it("evaluates threshold and window correctly for Next.js config change", () => {
       const files = [
-        { path: "next.config.ts", additions: 10, deletions: 2 },
+        { path: "next.config.ts", additions: 10, deletions: 2, before: "", after: "export default {};" },
       ];
       const vector = classifyCommit(files);
       expect(vector).not.toBeNull();

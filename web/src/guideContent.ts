@@ -38,7 +38,7 @@ export const GETTING_STARTED = {
     },
     {
       title: "Push a commit",
-      body: "CARF classifies the AST diff on every push. Live Status shows the dynamic error budget, soak window, and rollout outcome for that project. Optional Thresholds live on the project page; extra platforms live under Integrations.",
+      body: "CARF classifies the AST diff on every push. Live Status shows the dynamic error-rate threshold, soak window, and rollout outcome for that project. Optional Thresholds live on the project page; extra platforms live under Integrations.",
     },
   ],
 };
@@ -50,7 +50,7 @@ export const GUIDE_PLATFORMS: PlatformGuide[] = [
     mode: "standalone",
     badge: "Standalone adapter (Active)",
     summary:
-      "Zero-downtime cluster reload for Node apps on a VPS, EC2, or bare metal. CARF watches PM2 process health and reloads the previous release when the soak budget is breached.",
+      "Zero-downtime cluster reload for Node apps on a VPS, EC2, or bare metal. CARF watches PM2 process health and reloads the previous release when the soak threshold is breached.",
     whenToUse:
       "Use this when the app already runs under PM2 in cluster mode and you want CARF to execute rollback itself.",
     steps: [
