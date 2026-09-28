@@ -28,7 +28,7 @@ describe("loadCarfConfig", () => {
         types: { infra: { baseThreshold: 0.02, baseWindow: 45 } },
       },
       mode: "standalone",
-      adapter: { kind: "kubernetes", target: "my-deployment" },
+      adapter: { kind: "pm2", target: "my-deployment" },
     });
   });
 

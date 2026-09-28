@@ -31,7 +31,7 @@ export function Topbar({
         <RefreshReposButton size="sm" />
         <span className="hidden text-xs font-medium text-slate-600 sm:inline">{accountEmail}</span>
         <Link
-          href="/dashboard/account"
+          href="/dashboard/settings"
           className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
         >
           {initial}

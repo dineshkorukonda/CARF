@@ -77,60 +77,61 @@ export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
     status: "active",
     description: "PM2 process manager cluster reload (actively verified)",
   },
-  kubernetes: {
-    kind: "kubernetes",
-    name: "Kubernetes (kubectl)",
-    status: "preview",
-    description: "Kubernetes rollout undo via kubectl (preview / in-development)",
-  },
-  gitops: {
-    kind: "gitops",
-    name: "GitOps (Argo CD)",
-    status: "preview",
-    description: "Argo CD application sync / revision rollback (preview / in-development)",
-  },
-  prometheus: {
-    kind: "prometheus",
-    name: "Prometheus APM",
-    status: "preview",
-    description: "Prometheus query metrics adapter (preview / in-development)",
-  },
-  dockerCompose: {
-    kind: "dockerCompose",
-    name: "Docker Compose",
-    status: "deprecated",
-    description: "Docker compose service rollback (deprecated)",
-  },
-  dockerSwarm: {
-    kind: "dockerSwarm",
-    name: "Docker Swarm",
-    status: "deprecated",
-    description: "Docker swarm service update (deprecated)",
-  },
 };
 
 /**
- * `mode: "standalone"` with `adapter.kind: "pm2"` (active), `"kubernetes"` (preview),
- * `"gitops"` (preview), or `"prometheus"` (preview) is wired to a `runStandaloneLoop()`
+ * `mode: "standalone"` with `adapter.kind: "pm2"` is wired to a `runStandaloneLoop()`
  * kickoff by `src/webhookOrchestrator.ts`'s `handleWebhookCommit()`.
- * `adapter.target` is the PM2 process name, Kubernetes Deployment name, or Argo CD Application name.
- * `dockerCompose` and `dockerSwarm` are deprecated.
+ * PM2 is the only supported standalone adapter.
  */
-const AdapterSchema = z
+export const AdapterLayoutSchema = z.enum(["releases", "git"]);
+export type AdapterLayout = z.infer<typeof AdapterLayoutSchema>;
+
+export const AdapterSchema = z
   .object({
-    kind: z.enum(["pm2", "kubernetes", "gitops", "prometheus", "dockerCompose", "dockerSwarm"]),
+    kind: z.literal("pm2"),
+    /** Single PM2 process name (alias for targets: [target]) */
     target: z
       .string()
       .min(1)
       .regex(
         ADAPTER_TARGET_REGEX,
         "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
-      ),
-    prometheusUrl: z.string().url().optional(),
-    query: z.string().optional(),
-    rollbackCommand: z.string().optional(),
+      )
+      .optional(),
+    /** Multiple PM2 process names */
+    targets: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .regex(
+            ADAPTER_TARGET_REGEX,
+            "targets must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+          )
+      )
+      .min(1)
+      .optional(),
+    /** Deployment layout: "releases" (symlink) or "git" (in-place checkout) */
+    layout: AdapterLayoutSchema.optional(),
+    /** Root directory containing release directories for "releases" layout. Default: /var/www/releases */
+    releasesRoot: z.string().optional(),
+    /** Symlink path for "releases" layout. Default: /var/www/current */
+    currentSymlink: z.string().optional(),
+    /** Working directory for "git" layout */
+    cwd: z.string().optional(),
+    /** Reinstall or build command to run after git checkout on rollback (for "git" layout) */
+    buildCommand: z.string().optional(),
+    /** Optional HTTP health check URL or endpoint */
+    healthUrl: z.string().optional(),
+    /** Number of HTTP probes per poll interval */
+    probeCount: z.number().int().positive().optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => data.target !== undefined || (data.targets !== undefined && data.targets.length > 0), {
+    message: "adapter requires either 'target' or 'targets' to be specified",
+    path: ["target"],
+  });
 
 export const CarfConfigSchema = z
   .object({
