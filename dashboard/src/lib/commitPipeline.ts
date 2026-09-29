@@ -61,8 +61,8 @@ export function rollbackDecision(input: {
   }
   return {
     kind: "awaiting",
-    title: "Classified — no standalone rollout yet",
-    detail: "Change vector and threshold are stored. A standalone observation loop starts when this repo is in standalone mode and a deploy is watched.",
+    title: "Not watching live yet",
+    detail: "This SHA is classified. Soak and rollback only start after that commit is what PM2 is actually running (pull/deploy on the host CARF is configured to watch).",
   };
 }
 
