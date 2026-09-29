@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
@@ -5,6 +6,10 @@ import { prisma } from "../../../../lib/prisma";
 import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { env } from "../../../../config/env";
 import { reconcileGitLayoutVerify, type VerifyResult, type VerifyTarget } from "../../../../lib/gitLayoutVerify";
+
+function asJson(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
 
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -62,6 +67,8 @@ export async function POST(request: NextRequest) {
 
     if (reconciled.verified) {
       try {
+        const storedConfig = asJson(target);
+        const verificationReport = asJson(reconciled.checks);
         await prisma.repoConnection.upsert({
           where: {
             installationId_owner_repo: {
@@ -74,14 +81,14 @@ export async function POST(request: NextRequest) {
             installationId: String(installationId),
             owner,
             repo,
-            storedConfig: target,
+            storedConfig,
             verifiedAt: new Date(),
-            verificationReport: reconciled.checks,
+            verificationReport,
           },
           update: {
-            storedConfig: target,
+            storedConfig,
             verifiedAt: new Date(),
-            verificationReport: reconciled.checks,
+            verificationReport,
           },
         });
       } catch (dbErr) {
