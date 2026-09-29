@@ -58,6 +58,12 @@ interface SetupWizardProps {
   initialRepoFullName?: string;
 }
 
+function storedPm2Seed(connections: RepoConnectionDef[], repoFullName: string) {
+  const fields = pm2FieldsFromStoredConfig(findRepoConnection(connections, repoFullName)?.storedConfig);
+  if (fields.targetName && isCarfHostProcess(fields.targetName)) return {};
+  return fields;
+}
+
 export function SetupWizard({
   installations,
   initialRepos,
@@ -65,6 +71,8 @@ export function SetupWizard({
   initialRepoFullName = "",
 }: SetupWizardProps) {
   const router = useRouter();
+  const seedRepo = initialRepoFullName || initialRepos[0]?.full_name || "";
+  const initialPm2 = storedPm2Seed(connections, seedRepo);
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(initialRepoFullName ? 2 : 1);
   const [selectedInstallationId, setSelectedInstallationId] = useState<string>(
     installations[0]?.installationId || ""
@@ -72,23 +80,21 @@ export function SetupWizard({
 
   // Step 1: Repo selection
   const repos = initialRepos;
-  const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(
-    initialRepoFullName || initialRepos[0]?.full_name || ""
-  );
+  const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(seedRepo);
 
   // Step 2: PM2 discovery
   const [pm2Apps, setPm2Apps] = useState<Pm2App[]>([]);
   const [loadingPm2, setLoadingPm2] = useState<boolean>(false);
   const [pm2Error, setPm2Error] = useState<string | null>(null);
-  const [selectedTargetName, setSelectedTargetName] = useState<string>("");
+  const [selectedTargetName, setSelectedTargetName] = useState<string>(initialPm2.targetName ?? "");
 
   // Step 3: Target configuration
-  const [layout, setLayout] = useState<"releases" | "git">("releases");
-  const [healthUrl, setHealthUrl] = useState<string>("http://127.0.0.1:3000/healthz");
+  const [layout, setLayout] = useState<"releases" | "git">(initialPm2.layout ?? "releases");
+  const [healthUrl, setHealthUrl] = useState<string>(initialPm2.healthUrl ?? "http://127.0.0.1:3000/healthz");
   const [startupGraceSeconds, setStartupGraceSeconds] = useState<number>(15);
-  const [cwd, setCwd] = useState<string>("/var/www/app");
-  const [releasesDir, setReleasesDir] = useState<string>("/var/www/releases");
-  const [currentSymlink, setCurrentSymlink] = useState<string>("/var/www/current");
+  const [cwd, setCwd] = useState<string>(initialPm2.cwd ?? "/var/www/app");
+  const [releasesDir, setReleasesDir] = useState<string>(initialPm2.releasesDir ?? "/var/www/releases");
+  const [currentSymlink, setCurrentSymlink] = useState<string>(initialPm2.currentSymlink ?? "/var/www/current");
   const [sharedDirs, setSharedDirs] = useState<string>("/var/www/shared/node_modules");
 
   // Step 4: Verification
@@ -110,16 +116,16 @@ export function SetupWizard({
   const selectedRepo = repos.find((r) => r.full_name === selectedRepoFullName);
   const selectedConnection = findRepoConnection(connections, selectedRepoFullName);
 
-  useEffect(() => {
-    const fields = pm2FieldsFromStoredConfig(selectedConnection?.storedConfig);
-    if (fields.targetName && isCarfHostProcess(fields.targetName)) return;
-    if (fields.layout) setLayout(fields.layout);
-    if (fields.cwd) setCwd(fields.cwd);
-    if (fields.healthUrl) setHealthUrl(fields.healthUrl);
-    if (fields.targetName) setSelectedTargetName(fields.targetName);
-    if (fields.releasesDir) setReleasesDir(fields.releasesDir);
-    if (fields.currentSymlink) setCurrentSymlink(fields.currentSymlink);
-  }, [selectedConnection?.id, selectedConnection?.storedConfig]);
+  const applyStoredPm2Fields = (stored: unknown) => {
+    const next = pm2FieldsFromStoredConfig(stored);
+    if (next.targetName && isCarfHostProcess(next.targetName)) return;
+    if (next.layout) setLayout(next.layout);
+    if (next.cwd) setCwd(next.cwd);
+    if (next.healthUrl) setHealthUrl(next.healthUrl);
+    if (next.targetName) setSelectedTargetName(next.targetName);
+    if (next.releasesDir) setReleasesDir(next.releasesDir);
+    if (next.currentSymlink) setCurrentSymlink(next.currentSymlink);
+  };
 
   // Fetch PM2 apps when entering step 2 or on manual refresh
   const fetchPm2Apps = useCallback(async () => {
@@ -158,7 +164,7 @@ export function SetupWizard({
     } finally {
       setLoadingPm2(false);
     }
-  }, [selectedInstallationId, selectedRepo?.name, selectedConnection?.storedConfig]);
+  }, [selectedInstallationId, selectedRepo, selectedConnection]);
 
   useEffect(() => {
     if ((currentStep === 2 || currentStep === 4) && pm2Apps.length === 0) {
@@ -400,7 +406,11 @@ export function SetupWizard({
                 <label className="text-xs font-medium text-foreground">Repository</label>
                 <select
                   value={selectedRepoFullName}
-                  onChange={(e) => setSelectedRepoFullName(e.target.value)}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSelectedRepoFullName(next);
+                    applyStoredPm2Fields(findRepoConnection(connections, next)?.storedConfig);
+                  }}
                   className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {repos.map((repo) => (
