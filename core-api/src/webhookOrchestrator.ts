@@ -273,6 +273,31 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     adapterConfig.startupGraceSeconds ??
     60;
 
+  if (typeof adapter.applyRelease === "function") {
+    try {
+      await adapter.applyRelease(target.headSha, targetName);
+    } catch (error) {
+      deps.logger.error({ error, key, sha: target.headSha }, "failed to apply commit on the host before soak");
+      if (pendingOutcome) {
+        try {
+          const { finalizeRolloutOutcome } = await import("./adapters/rolloutOutcome.js");
+          await finalizeRolloutOutcome(rolloutOutcomeClient, {
+            id: pendingOutcome.id,
+            status: "FAILED",
+            rolledBack: false,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        } catch (finalizeError) {
+          deps.logger.error({ error: finalizeError, key }, "failed to record applyRelease failure");
+        }
+      }
+      await releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((releaseError: unknown) => {
+        deps.logger.error({ error: releaseError, key }, "failed to release standalone loop lock");
+      });
+      return;
+    }
+  }
+
   // If a background monitor worker is attached and pendingOutcome exists, enqueue monitor job
   if (deps.rolloutMonitor && pendingOutcome) {
     deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName, startupGraceSeconds);

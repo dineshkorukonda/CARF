@@ -182,6 +182,22 @@ describe("PM2Adapter.rollback", () => {
     expect(exec).toHaveBeenNthCalledWith(3, "cd /var/www/app && pm2 reload web worker");
   });
 
+  it("applyRelease fetches and checks out the new SHA then reloads (git layout)", async () => {
+    const exec = mockExec("");
+    const adapter = new PM2Adapter("abc123", {
+      exec,
+      layout: "git",
+      cwd: "/opt/sahaay/my-app",
+      target: "sahaay",
+    });
+
+    await adapter.applyRelease("def456", "sahaay");
+
+    expect(exec).toHaveBeenNthCalledWith(1, "cd /opt/sahaay/my-app && git fetch origin");
+    expect(exec).toHaveBeenNthCalledWith(2, "cd /opt/sahaay/my-app && git checkout def456");
+    expect(exec).toHaveBeenNthCalledWith(3, "cd /opt/sahaay/my-app && pm2 reload sahaay");
+  });
+
   it("propagates the failure (never reloads) when the previous release directory doesn't exist on this host", async () => {
     const exec = vi.fn().mockRejectedValue(new Error("Command failed: test -d ... exit code 1"));
     const adapter = new PM2Adapter("missing-sha", { exec });

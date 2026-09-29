@@ -158,6 +158,7 @@ function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrch
     lockPrismaClient: new FakeLockPrismaClient(),
     rolloutOutcomePrismaClient: new FakeRolloutOutcomePrismaClient(),
     apiKeyPrismaClient: new FakeInstallationApiKeyPrismaClient(),
+    rollbackAdapterFactory: () => ({ checkHealth: vi.fn(), rollback: vi.fn() }),
     ...overrides,
   };
 }
@@ -259,6 +260,25 @@ describe("handleWebhookCommit", () => {
     expect(call[0]).toBe("head456"); // sha
     expect(call[1]).toBe(fakeAdapter);
     expect(call[3]).toBe("web"); // target string
+  });
+
+  it("applies the head SHA on the host before the soak loop so health is the new commit", async () => {
+    const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: true, finalErrorRate: 1, durationMs: 0 });
+    const applyRelease = vi.fn().mockResolvedValue(undefined);
+    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn(), applyRelease };
+    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "sahaay" } },
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(applyRelease).toHaveBeenCalledWith("head456", "sahaay");
+    expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
+    expect(applyRelease.mock.invocationCallOrder[0]).toBeLessThan(standaloneLoopRunner.mock.invocationCallOrder[0]!);
   });
 
   it("Standalone + pm2 adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback release there)", async () => {
