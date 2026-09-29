@@ -10,7 +10,7 @@ import {
   GitHubContentsError,
 } from "../../../../adapters/github/contentsClient";
 import { applyModeAdapterPatch } from "../../../../lib/carfConfigWriter";
-import type { AdapterKind } from "../../../../lib/carfConfigSchema";
+import { AdapterConfigSchema, type AdapterConfig, type AdapterKind } from "../../../../lib/carfConfigSchema";
 import { env } from "../../../../config/env";
 
 /**
@@ -21,7 +21,7 @@ import { env } from "../../../../config/env";
  * and redirects) so the status page's inline wizard can consume the response
  * without a navigation.
  *
- * Body: { installationId, owner, repo, mode, adapterKind?, adapterTarget? }
+ * Body: { installationId, owner, repo, mode, adapterKind?, adapterTarget?, layout?, healthUrl?, cwd?, ... }
  * Response: { success: true, mode, adapterKind?, adapterTarget? }
  */
 export async function POST(request: NextRequest) {
@@ -36,15 +36,31 @@ export async function POST(request: NextRequest) {
   let mode = "";
   let adapterKind = "";
   let adapterTarget = "";
+  let adapterExtras: Partial<AdapterConfig> = {};
 
   try {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     installationId = String(body.installationId ?? "");
     owner = String(body.owner ?? "");
     repo = String(body.repo ?? "");
     mode = String(body.mode ?? "");
     adapterKind = String(body.adapterKind ?? "");
     adapterTarget = String(body.adapterTarget ?? "");
+    adapterExtras = {
+      ...(body.layout === "releases" || body.layout === "git" ? { layout: body.layout } : {}),
+      ...(typeof body.healthUrl === "string" && body.healthUrl ? { healthUrl: body.healthUrl } : {}),
+      ...(typeof body.cwd === "string" && body.cwd ? { cwd: body.cwd } : {}),
+      ...(typeof body.releasesRoot === "string" && body.releasesRoot ? { releasesRoot: body.releasesRoot } : {}),
+      ...(typeof body.currentSymlink === "string" && body.currentSymlink
+        ? { currentSymlink: body.currentSymlink }
+        : {}),
+      ...(Array.isArray(body.sharedPaths)
+        ? { sharedPaths: body.sharedPaths.filter((p): p is string => typeof p === "string" && p.length > 0) }
+        : {}),
+      ...(typeof body.startupGraceSeconds === "number"
+        ? { startupGraceSeconds: body.startupGraceSeconds }
+        : {}),
+    };
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -78,7 +94,11 @@ export async function POST(request: NextRequest) {
       mode: mode === "standalone" ? "standalone" : "augment",
       adapter:
         mode === "standalone"
-          ? { kind: adapterKind as AdapterKind, target: adapterTarget }
+          ? AdapterConfigSchema.parse({
+              kind: adapterKind as AdapterKind,
+              target: adapterTarget,
+              ...adapterExtras,
+            })
           : undefined,
     });
 
