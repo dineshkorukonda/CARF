@@ -29,8 +29,9 @@ export function projectThresholdsHref(installationId: string, repoFullName: stri
   return `/dashboard/config/${installation}/rules?repo=${encodeURIComponent(repo)}`;
 }
 
-export function repoSetupHref(owner: string, repo: string): string {
-  return `/dashboard/setup?repo=${encodeURIComponent(`${owner}/${repo}`)}`;
+export function repoSetupHref(owner: string, repo: string, opts?: { edit?: boolean }): string {
+  const href = `/dashboard/setup?repo=${encodeURIComponent(`${owner}/${repo}`)}`;
+  return opts?.edit ? `${href}&edit=1` : href;
 }
 
 export function projectPageHref(owner: string, repo: string): string {

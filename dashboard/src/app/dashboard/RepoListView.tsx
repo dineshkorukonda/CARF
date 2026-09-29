@@ -9,10 +9,8 @@ import {
   RotateCcw,
   Clock,
   ArrowRight,
-  Sliders,
 } from "lucide-react";
 import { deriveRepoStatus, getStatusBadgeVariant } from "../../lib/repoStatusDerivation";
-import { repoSetupHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
 
 interface RepoItem {
@@ -317,15 +315,8 @@ export function RepoListView({
                       href={`/dashboard/repos/${repo.owner}/${repo.name}`}
                       className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
                     >
-                      <span>Inspect Rollouts</span>
+                      <span>Open project</span>
                       <ArrowRight className="size-3" />
-                    </Link>
-                    <Link
-                      href={repoSetupHref(repo.owner, repo.name)}
-                      className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <Sliders className="size-3" />
-                      <span>Setup</span>
                     </Link>
                   </div>
                 </div>

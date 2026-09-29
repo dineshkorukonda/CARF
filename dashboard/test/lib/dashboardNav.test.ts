@@ -73,6 +73,12 @@ describe("repo onboarding hrefs", () => {
     );
   });
 
+  it("opens an already-linked repo in edit mode instead of a fresh onboarding", () => {
+    expect(repoSetupHref("dineshkorukonda", "Sahaay", { edit: true })).toBe(
+      "/dashboard/setup?repo=dineshkorukonda%2FSahaay&edit=1"
+    );
+  });
+
   it("opens rollouts on the project page", () => {
     expect(projectPageHref("dineshkorukonda", "Sahaay")).toBe("/dashboard/repos/dineshkorukonda/Sahaay");
   });

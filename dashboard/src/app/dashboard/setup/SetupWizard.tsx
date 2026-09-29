@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
+import { findRepoConnection, pm2FieldsFromStoredConfig } from "../../../lib/connectionLookup";
+import { projectPageHref } from "../../../lib/dashboardNav";
 
 interface InstallationDef {
   id: string;
@@ -46,6 +48,7 @@ interface RepoConnectionDef {
   repo: string;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
+  storedConfig?: unknown;
 }
 
 interface SetupWizardProps {
@@ -105,11 +108,17 @@ export function SetupWizard({
   const [commitError, setCommitError] = useState<string | null>(null);
 
   const selectedRepo = repos.find((r) => r.full_name === selectedRepoFullName);
-  const selectedConnection = connections.find(
-    (c) =>
-      c.owner.toLowerCase() === selectedRepo?.owner.login.toLowerCase() &&
-      c.repo.toLowerCase() === selectedRepo?.name.toLowerCase()
-  );
+  const selectedConnection = findRepoConnection(connections, selectedRepoFullName);
+
+  useEffect(() => {
+    const fields = pm2FieldsFromStoredConfig(selectedConnection?.storedConfig);
+    if (fields.layout) setLayout(fields.layout);
+    if (fields.cwd) setCwd(fields.cwd);
+    if (fields.healthUrl) setHealthUrl(fields.healthUrl);
+    if (fields.targetName) setSelectedTargetName(fields.targetName);
+    if (fields.releasesDir) setReleasesDir(fields.releasesDir);
+    if (fields.currentSymlink) setCurrentSymlink(fields.currentSymlink);
+  }, [selectedConnection?.id, selectedConnection?.storedConfig]);
 
   // Fetch PM2 apps when entering step 2 or on manual refresh
   const fetchPm2Apps = useCallback(async () => {
@@ -319,6 +328,26 @@ export function SetupWizard({
           </button>
         ))}
       </div>
+
+      {selectedConnection && selectedRepo && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              {selectedRepo.full_name} is already linked
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              PM2 target and `.carf.yml` from the last save are kept. You do not need to onboard again.
+            </p>
+          </div>
+          <a
+            href={projectPageHref(selectedRepo.owner.login, selectedRepo.name)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+          >
+            Open project
+            <ArrowRight className="size-3.5" />
+          </a>
+        </div>
+      )}
 
       {/* Step Content */}
       <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
@@ -787,16 +816,24 @@ export function SetupWizard({
                 Back
               </button>
               <div className="flex flex-col items-end gap-1">
+                {selectedRepo && (
+                  <a
+                    href={projectPageHref(selectedRepo.owner.login, selectedRepo.name)}
+                    className="mb-1 text-[11px] font-medium text-primary hover:underline"
+                  >
+                    Skip — open project
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={() => setCurrentStep(5)}
-                  disabled={!verificationResult?.verified}
+                  disabled={!verificationResult?.verified && !selectedConnection}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                 >
                   <span>Continue to .carf.yml Setup</span>
                   <ArrowRight className="size-3.5" />
                 </button>
-                {!verificationResult?.verified && (
+                {!verificationResult?.verified && !selectedConnection && (
                   <p className="text-[11px] text-muted-foreground">
                     All connection checks must pass before the repo is marked verified.
                   </p>

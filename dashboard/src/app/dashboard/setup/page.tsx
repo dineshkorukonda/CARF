@@ -6,16 +6,19 @@ import { env } from "../../../config/env";
 import { signGithubAppJwt } from "../../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../../adapters/github/installationTokenClient";
 import { listInstallationRepos, type InstallationRepo } from "../../../adapters/github/reposClient";
+import { findRepoConnection, splitRepoFullName } from "../../../lib/connectionLookup";
+import { projectPageHref } from "../../../lib/dashboardNav";
 import { SetupWizard } from "./SetupWizard";
 
 export default async function SetupPage(props: {
-  searchParams?: Promise<{ repo?: string }>;
+  searchParams?: Promise<{ repo?: string; edit?: string }>;
 }) {
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
 
   const searchParams = props.searchParams ? await props.searchParams : {};
   const initialRepoFullName = typeof searchParams.repo === "string" ? searchParams.repo : "";
+  const forceEdit = searchParams.edit === "1";
 
   const installations = await listInstallationsForAccount(prisma, account.id);
   if (installations.length === 0) {
@@ -41,6 +44,15 @@ export default async function SetupPage(props: {
       },
     },
   });
+
+  // Already linked: don't send the user through onboarding again.
+  if (initialRepoFullName && !forceEdit) {
+    const existing = findRepoConnection(connections, initialRepoFullName);
+    const parts = splitRepoFullName(initialRepoFullName);
+    if (existing && parts) {
+      redirect(projectPageHref(parts.owner, parts.repo));
+    }
+  }
 
   return (
     <SetupWizard
