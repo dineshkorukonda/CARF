@@ -38,7 +38,7 @@ EXCEPTION
     WHEN undefined_column THEN NULL;
 END $$;
 
-CREATE TABLE IF NOT EXISTS "RolloutSample" (\
+CREATE TABLE IF NOT EXISTS "RolloutSample" (
     "id" TEXT NOT NULL,
     "rolloutId" TEXT NOT NULL,
     "ts" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
