@@ -196,12 +196,12 @@ export function SetupWizard({
       .map((s) => s.trim())
       .filter(Boolean);
 
-    let yml = `version: "1.0"\nmode: standalone\nadapter:\n  kind: pm2\n  target: "${selectedTargetName || "app"}"\n  layout: ${layout}\n  healthUrl: "${healthUrl}"\n  startupGraceSeconds: ${startupGraceSeconds}\n`;
+    let yml = `mode: standalone\nadapter:\n  kind: pm2\n  target: "${selectedTargetName || "app"}"\n  layout: ${layout}\n  healthUrl: "${healthUrl}"\n  startupGraceSeconds: ${startupGraceSeconds}\n`;
 
     if (layout === "releases") {
       yml += `  releasesRoot: "${releasesDir}"\n  currentSymlink: "${currentSymlink}"\n`;
       if (sharedList.length > 0) {
-        yml += `  sharedDirs:\n`;
+        yml += `  sharedPaths:\n`;
         sharedList.forEach((dir) => {
           yml += `    - "${dir}"\n`;
         });
@@ -226,22 +226,38 @@ export function SetupWizard({
     setCommitSuccess(false);
 
     try {
-      const formData = new FormData();
-      formData.append("installationId", selectedInstallationId);
-      formData.append("owner", selectedRepo.owner.login);
-      formData.append("repo", selectedRepo.name);
-      formData.append("mode", "standalone");
-      formData.append("adapterKind", "pm2");
-      formData.append("adapterTarget", selectedTargetName);
+      const sharedList = sharedDirs
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
 
-      const res = await fetch("/api/config/save", {
+      const res = await fetch("/api/repo/link", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId: selectedInstallationId,
+          owner: selectedRepo.owner.login,
+          repo: selectedRepo.name,
+          mode: "standalone",
+          adapterKind: "pm2",
+          adapterTarget: selectedTargetName,
+          layout,
+          healthUrl,
+          startupGraceSeconds,
+          ...(layout === "git" ? { cwd } : {}),
+          ...(layout === "releases"
+            ? {
+                releasesRoot: releasesDir,
+                currentSymlink,
+                sharedPaths: sharedList,
+              }
+            : {}),
+        }),
       });
 
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`Failed to commit .carf.yml: ${text}`);
+        throw new Error(data.error || `Failed to commit .carf.yml (HTTP ${res.status})`);
       }
 
       setCommitSuccess(true);
