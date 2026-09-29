@@ -4,6 +4,7 @@ import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { ensureCoreApiKey } from "../../../../lib/coreApiAccess";
 import { env } from "../../../../config/env";
+import { reconcileGitLayoutVerify, type VerifyResult, type VerifyTarget } from "../../../../lib/gitLayoutVerify";
 
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     installationId?: string;
     owner?: string;
     repo?: string;
-    target?: { name?: string };
+    target?: VerifyTarget & { name?: string };
   };
   if (!installationId || !owner || !repo || !target || !target.name) {
     return NextResponse.json(
@@ -56,8 +57,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data = await res.json();
-    return NextResponse.json(data);
+    const data = (await res.json()) as VerifyResult;
+    const reconciled = reconcileGitLayoutVerify(target, data);
+
+    if (reconciled.verified) {
+      try {
+        await prisma.repoConnection.upsert({
+          where: {
+            installationId_owner_repo: {
+              installationId: String(installationId),
+              owner,
+              repo,
+            },
+          },
+          create: {
+            installationId: String(installationId),
+            owner,
+            repo,
+            storedConfig: target,
+            verifiedAt: new Date(),
+            verificationReport: reconciled.checks,
+          },
+          update: {
+            storedConfig: target,
+            verifiedAt: new Date(),
+            verificationReport: reconciled.checks,
+          },
+        });
+      } catch (dbErr) {
+        console.error("[api/repo/connection-check] Failed to persist RepoConnection:", dbErr);
+      }
+    }
+
+    return NextResponse.json(reconciled);
   } catch (err: unknown) {
     console.error("[api/repo/connection-check] Error:", err);
     return NextResponse.json({ error: "Failed to connect to core API for verification" }, { status: 502 });
