@@ -29,6 +29,10 @@ bun install
 echo "==> Building dashboard..."
 bun run build
 
+echo "==> Repairing rollout schema (RolloutAuditLog, etc.)..."
+cd "$ROOT/core-api"
+bun run db:repair-rollout-schema || echo "WARN: schema repair failed; dashboard will fail-soft missing tables"
+
 echo "==> Restarting $CORE_APP and $DASH_APP..."
 pm2 restart "$CORE_APP" --update-env
 pm2 restart "$DASH_APP" --update-env

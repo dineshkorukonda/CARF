@@ -53,62 +53,81 @@ export default async function RepoDetailPage(props: {
 
   const installationIds = installations.map((i) => String(i.installationId));
 
-  const activity = await readOrEmpty(
+  const connectionRead = await readOrEmpty(
+    "[dashboard/repos] failed to load repo connection:",
+    () =>
+      prisma.repoConnection.findFirst({
+        where: {
+          installationId: { in: installationIds },
+          owner: { equals: owner, mode: "insensitive" },
+          repo: { equals: repoName, mode: "insensitive" },
+        },
+      }),
+    null,
+  );
+  const rolloutsRead = await readOrEmpty(
+    "[dashboard/repos] failed to load rollouts:",
+    () =>
+      prisma.rolloutOutcome.findMany({
+        where: {
+          installationId: { in: installationIds },
+          owner: { equals: owner, mode: "insensitive" },
+          repo: { equals: repoName, mode: "insensitive" },
+        },
+        include: {
+          samples: {
+            orderBy: { ts: "asc" },
+          },
+        },
+        orderBy: {
+          startedAt: "desc",
+        },
+        take: 100,
+      }),
+    [],
+  );
+  const commitsRead = await readOrEmpty(
+    "[dashboard/repos] failed to load commits:",
+    () =>
+      prisma.commit.findMany({
+        where: {
+          installationId: { in: installationIds },
+          owner: { equals: owner, mode: "insensitive" },
+          repo: { equals: repoName, mode: "insensitive" },
+        },
+        include: {
+          changeVector: true,
+          threshold: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 100,
+      }),
+    [],
+  );
+  const auditRead = await readOrEmpty(
     "[dashboard/repos] failed to load rollout activity:",
     () =>
-      Promise.all([
-        prisma.repoConnection.findFirst({
-          where: {
-            installationId: { in: installationIds },
-            owner: { equals: owner, mode: "insensitive" },
-            repo: { equals: repoName, mode: "insensitive" },
-          },
-        }),
-        prisma.rolloutOutcome.findMany({
-          where: {
-            installationId: { in: installationIds },
-            owner: { equals: owner, mode: "insensitive" },
-            repo: { equals: repoName, mode: "insensitive" },
-          },
-          include: {
-            samples: {
-              orderBy: { ts: "asc" },
-            },
-          },
-          orderBy: {
-            startedAt: "desc",
-          },
-          take: 100,
-        }),
-        prisma.commit.findMany({
-          where: {
-            installationId: { in: installationIds },
-            owner: { equals: owner, mode: "insensitive" },
-            repo: { equals: repoName, mode: "insensitive" },
-          },
-          include: {
-            changeVector: true,
-            threshold: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 100,
-        }),
-        prisma.rolloutAuditLog.findMany({
-          where: {
-            owner: { equals: owner, mode: "insensitive" },
-            repo: { equals: repoName, mode: "insensitive" },
-          },
-          orderBy: {
-            ts: "desc",
-          },
-          take: 50,
-        }),
-      ]),
-    [null, [], [], []] as const,
+      prisma.rolloutAuditLog.findMany({
+        where: {
+          owner: { equals: owner, mode: "insensitive" },
+          repo: { equals: repoName, mode: "insensitive" },
+        },
+        orderBy: {
+          ts: "desc",
+        },
+        take: 50,
+      }),
+    [],
   );
-  const [connection, rollouts, commits, auditLogs] = activity.value;
+
+  const connection = connectionRead.value;
+  const rollouts = rolloutsRead.value;
+  const commits = commitsRead.value;
+  const auditLogs = auditRead.value;
+  const activityError =
+    connectionRead.error || rolloutsRead.error || commitsRead.error || auditRead.error;
 
   return (
     <RepoDetailView
@@ -120,7 +139,7 @@ export default async function RepoDetailPage(props: {
       rollouts={rollouts as unknown as RolloutItem[]}
       commits={commits as unknown as CommitWithDetails[]}
       auditLogs={auditLogs as unknown as AuditLogItem[]}
-      activityError={activity.error}
+      activityError={activityError}
     />
   );
 }
