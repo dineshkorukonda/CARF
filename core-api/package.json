@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "evaluate": "tsx src/evaluation/run.ts"
+    "evaluate": "tsx src/evaluation/run.ts",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:repair-rollout-schema": "prisma db execute --file prisma/repair-rollout-schema.sql --schema prisma/schema.prisma"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
