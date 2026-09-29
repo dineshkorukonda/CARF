@@ -1,10 +1,31 @@
 import { describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
-import { registerPm2Route } from "../../src/routes/pm2.js";
+import { registerPm2Route, resolvePm2VerifyLayout } from "../../src/routes/pm2.js";
 import { hashApiKey } from "../../src/auth/apiKey.js";
 
 const TEST_API_KEY = "carf_key_test_12345";
 const TEST_KEY_HASH = hashApiKey(TEST_API_KEY);
+
+describe("resolvePm2VerifyLayout", () => {
+  it("uses an explicit git layout", () => {
+    expect(resolvePm2VerifyLayout({ name: "sahaay", layout: "git", cwd: "/opt/sahaay/my-app" })).toBe("git");
+  });
+
+  it("uses an explicit releases layout even when cwd is set", () => {
+    expect(
+      resolvePm2VerifyLayout({
+        name: "app",
+        layout: "releases",
+        cwd: "/var/www/app",
+        currentSymlink: "/var/www/current",
+      })
+    ).toBe("releases");
+  });
+
+  it("infers git from cwd when layout is omitted and no releases paths are set", () => {
+    expect(resolvePm2VerifyLayout({ name: "sahaay", cwd: "/opt/sahaay/my-app" })).toBe("git");
+  });
+});
 
 function createMockPrisma(installationId = "inst-100") {
   return {
@@ -459,6 +480,49 @@ describe("POST /v1/pm2/verify", () => {
     expect(ids).not.toContain("current_symlink");
     expect(ids).toContain("working_directory");
     expect(ids).toContain("git_metadata");
+    expect(body.verified).toBe(true);
+  });
+
+  it("treats cwd-only targets as git layout when layout is omitted", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([{ name: "sahaay", pm_id: 0, pm2_env: { status: "online" } }]);
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: rawPm2Output, stderr: "" };
+        return { stdout: "", stderr: "" };
+      }),
+    };
+    const mockFsAccess = vi.fn().mockResolvedValue(undefined);
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+
+    await registerPm2Route(app, {
+      prismaClient: { ...createMockPrisma(), repoConnection: { upsert: vi.fn().mockResolvedValue({}) } } as any,
+      executor: mockExecutor,
+      fsAccess: mockFsAccess,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "dineshkorukonda",
+        repo: "Sahaay",
+        target: {
+          name: "sahaay",
+          healthUrl: "http://127.0.0.1:3000/",
+          cwd: "/opt/sahaay/my-app",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.layout).toBe("git");
+    const ids = body.checks.map((c: { id: string }) => c.id);
+    expect(ids).not.toContain("releases_dir");
+    expect(ids).not.toContain("current_symlink");
     expect(body.verified).toBe(true);
   });
 });

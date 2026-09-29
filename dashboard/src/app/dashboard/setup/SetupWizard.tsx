@@ -25,7 +25,7 @@ interface InstallationDef {
 }
 
 interface VerificationCheckItem {
-  id: "pm2_daemon" | "target_app" | "health_url" | "layout_paths" | "rollback_permission";
+  id: string;
   title: string;
   passed: boolean;
   message: string;
@@ -93,6 +93,7 @@ export function SetupWizard({
   const [verificationResult, setVerificationResult] = useState<{
     verified: boolean;
     checks: VerificationCheckItem[];
+    layout?: "git" | "releases";
   } | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
@@ -715,6 +716,20 @@ export function SetupWizard({
                     </span>
                   </div>
                 </div>
+
+                {layout === "git" &&
+                  verificationResult.checks.some(
+                    (c) => c.id === "releases_dir" || c.id === "current_symlink"
+                  ) && (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                      <p className="font-semibold">core-api ran Capistrano releases checks on a git layout.</p>
+                      <p className="mt-0.5">
+                        Pull latest <code className="font-mono">main</code> and restart{" "}
+                        <code className="font-mono">carf-core-api</code>, then run this check again. The dashboard
+                        already selected git; the API process is still on the old verify path.
+                      </p>
+                    </div>
+                  )}
 
                 <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
                   {verificationResult.checks.map((c) => (
