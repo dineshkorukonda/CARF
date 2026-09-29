@@ -326,13 +326,26 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             passed: true,
             message: `'${workDir}' contains a .git directory`,
           });
-        } catch (err: unknown) {
-          checks.push({
-            id: "git_metadata",
-            title: "Git Checkout",
-            passed: false,
-            message: `'${workDir}' is not a git checkout (missing .git): ${err instanceof Error ? err.message : "not a git repo"}`,
-          });
+        } catch (dirErr: unknown) {
+          try {
+            const { stdout } = await executor.exec(`git -C "${workDir}" rev-parse --is-inside-work-tree`);
+            const inside = stdout.trim() === "true";
+            checks.push({
+              id: "git_metadata",
+              title: "Git Checkout",
+              passed: inside,
+              message: inside
+                ? `'${workDir}' is inside a git work tree`
+                : `'${workDir}' is not a git checkout (git rev-parse returned ${stdout.trim() || "empty"})`,
+            });
+          } catch (err: unknown) {
+            checks.push({
+              id: "git_metadata",
+              title: "Git Checkout",
+              passed: false,
+              message: `'${workDir}' is not a git checkout (missing .git): ${err instanceof Error ? err.message : dirErr instanceof Error ? dirErr.message : "not a git repo"}`,
+            });
+          }
         }
       }
 
@@ -510,7 +523,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
           update: {
             verifiedAt: verified ? new Date() : null,
             verificationReport: checks,
-            storedConfig: body.target,
+            ...(verified ? { storedConfig: body.target } : {}),
           },
         });
       } catch (dbErr) {

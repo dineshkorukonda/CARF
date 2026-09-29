@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findRepoConnection, pm2FieldsFromStoredConfig, splitRepoFullName } from "../../src/lib/connectionLookup";
+import { findRepoConnection, pickPm2App, pm2FieldsFromStoredConfig, splitRepoFullName } from "../../src/lib/connectionLookup";
 
 describe("splitRepoFullName", () => {
   it("splits owner/repo", () => {
@@ -48,5 +48,23 @@ describe("pm2FieldsFromStoredConfig", () => {
         cwd: "/opt/sahaay/my-app",
       })
     ).toMatchObject({ targetName: "sahaay", layout: "git", cwd: "/opt/sahaay/my-app" });
+  });
+});
+
+describe("pickPm2App", () => {
+  const apps = [
+    { name: "carf-dashboard", cwd: "/root/CARF/dashboard" },
+    { name: "carf-core-api", cwd: "/root/CARF/core-api" },
+    { name: "sahaay", cwd: "/opt/sahaay/my-app" },
+  ];
+
+  it("prefers a process named like the GitHub repo over carf-dashboard", () => {
+    expect(pickPm2App(apps, { repoName: "Sahaay" })?.name).toBe("sahaay");
+  });
+
+  it("ignores a stored carf-* target left by a bad verify", () => {
+    expect(
+      pickPm2App(apps, { repoName: "Sahaay", storedName: "carf-dashboard" })?.name
+    ).toBe("sahaay");
   });
 });

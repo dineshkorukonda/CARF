@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
-import { findRepoConnection, pm2FieldsFromStoredConfig } from "../../../lib/connectionLookup";
+import { findRepoConnection, isCarfHostProcess, pm2FieldsFromStoredConfig, pickPm2App } from "../../../lib/connectionLookup";
 import { projectPageHref } from "../../../lib/dashboardNav";
 
 interface InstallationDef {
@@ -112,6 +112,7 @@ export function SetupWizard({
 
   useEffect(() => {
     const fields = pm2FieldsFromStoredConfig(selectedConnection?.storedConfig);
+    if (fields.targetName && isCarfHostProcess(fields.targetName)) return;
     if (fields.layout) setLayout(fields.layout);
     if (fields.cwd) setCwd(fields.cwd);
     if (fields.healthUrl) setHealthUrl(fields.healthUrl);
@@ -132,24 +133,35 @@ export function SetupWizard({
         throw new Error(err.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
-      setPm2Apps(data.apps || []);
-      if (data.apps && data.apps.length > 0 && !selectedTargetName) {
-        setSelectedTargetName(data.apps[0].name);
-        if (data.apps[0].cwd) {
-          setCwd(data.apps[0].cwd);
-          setReleasesDir(`${data.apps[0].cwd}/releases`);
-          setCurrentSymlink(`${data.apps[0].cwd}/current`);
+      const apps = (data.apps || []) as Pm2App[];
+      setPm2Apps(apps);
+      const stored = pm2FieldsFromStoredConfig(selectedConnection?.storedConfig);
+      const picked = pickPm2App(apps, {
+        repoName: selectedRepo?.name ?? "",
+        storedName: stored.targetName,
+      });
+      if (picked) {
+        setSelectedTargetName(picked.name);
+        const useStoredCwd =
+          Boolean(stored.cwd) && stored.targetName && !stored.targetName.toLowerCase().startsWith("carf-");
+        const nextCwd = useStoredCwd ? stored.cwd! : picked.cwd;
+        if (nextCwd) {
+          setCwd(nextCwd);
+          setReleasesDir(`${nextCwd}/releases`);
+          setCurrentSymlink(`${nextCwd}/current`);
         }
+        if (stored.layout) setLayout(stored.layout);
+        if (stored.healthUrl && useStoredCwd) setHealthUrl(stored.healthUrl);
       }
     } catch (err: unknown) {
       setPm2Error(err instanceof Error ? err.message : "Failed to load PM2 apps from core API");
     } finally {
       setLoadingPm2(false);
     }
-  }, [selectedInstallationId, selectedTargetName]);
+  }, [selectedInstallationId, selectedRepo?.name, selectedConnection?.storedConfig]);
 
   useEffect(() => {
-    if (currentStep === 2 && pm2Apps.length === 0) {
+    if ((currentStep === 2 || currentStep === 4) && pm2Apps.length === 0) {
       queueMicrotask(() => {
         void fetchPm2Apps();
       });

@@ -49,3 +49,27 @@ export function pm2FieldsFromStoredConfig(stored: unknown): StoredPm2Setup {
   const currentSymlink = typeof o.currentSymlink === "string" ? o.currentSymlink : undefined;
   return { layout, cwd, healthUrl, targetName, releasesDir, currentSymlink };
 }
+
+export function isCarfHostProcess(name: string): boolean {
+  return /^carf[-_]/i.test(name.trim());
+}
+
+/**
+ * Never default Sahaay (or any product repo) onto carf-dashboard / carf-core-api.
+ * Those are the host CARF processes, not the target under test.
+ */
+export function pickPm2App<T extends { name: string; cwd?: string }>(
+  apps: T[],
+  opts: { repoName: string; storedName?: string },
+): T | undefined {
+  if (apps.length === 0) return undefined;
+  const byName = (n: string) => apps.find((a) => a.name.toLowerCase() === n.toLowerCase());
+  const stored = opts.storedName?.trim();
+  if (stored && !isCarfHostProcess(stored)) {
+    const match = byName(stored);
+    if (match) return match;
+  }
+  const repoMatch = opts.repoName.trim() ? byName(opts.repoName.trim()) : undefined;
+  if (repoMatch) return repoMatch;
+  return apps.find((a) => !isCarfHostProcess(a.name)) ?? apps[0];
+}
