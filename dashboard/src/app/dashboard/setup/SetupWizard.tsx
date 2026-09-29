@@ -661,7 +661,7 @@ export function SetupWizard({
               <div>
                 <h2 className="text-sm font-semibold text-foreground">Step 4: Execute Preflight Connection Verification</h2>
                 <p className="text-xs text-muted-foreground">
-                  Validates PM2 reachability, target process existence, HTTP health probe response, releases directory, symlink, shared paths, and rollback permissions.
+                  Validates PM2, the target process, the HTTP probe, and layout-specific paths ({layout === "git" ? "working directory and .git" : "releases directory, current symlink, and shared paths"}).
                 </p>
               </div>
               <button
@@ -736,7 +736,7 @@ export function SetupWizard({
 
             {!verificationResult && !verifying && (
               <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                Click &quot;Run Connection Check&quot; to test daemon access, process table status, HTTP probes, releases directory, symlink, shared paths, and rollback permissions.
+                Click &quot;Run Connection Check&quot; to test PM2, the process table, the HTTP probe, and {layout === "git" ? "the git working directory" : "releases directory, symlink, and shared paths"}.
               </div>
             )}
 

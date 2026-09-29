@@ -247,6 +247,104 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
       });
     }
 
+    // Layout-specific filesystem checks. Git checkout must not require Capistrano
+    // releases/ + current symlink; those paths only apply to layout: "releases".
+    const layout = body.target.layout === "git" ? "git" : "releases";
+
+    const testPath = async (p: string, flag: "-d" | "-e" | "-L" | "-w"): Promise<void> => {
+      if (flag === "-L") {
+        if (options.lstat) {
+          const stat = await options.lstat(p);
+          if (!stat.isSymbolicLink()) {
+            throw new Error("not a symbolic link");
+          }
+          return;
+        }
+        await executor.exec(`test -L "${p}"`);
+        return;
+      }
+      if (options.fsAccess) {
+        await checkAccess(p, flag === "-w" ? fsConstants.W_OK : undefined);
+        return;
+      }
+      await executor.exec(`test ${flag} "${p}"`);
+    };
+
+    if (layout === "git") {
+      const workDir = body.target.cwd;
+      if (!workDir) {
+        checks.push({
+          id: "working_directory",
+          title: "Working Directory",
+          passed: false,
+          message: "Git layout requires target.cwd (the in-place checkout path)",
+        });
+        checks.push({
+          id: "git_metadata",
+          title: "Git Checkout",
+          passed: false,
+          message: "Skipped: working directory is not set",
+        });
+      } else {
+        try {
+          await testPath(workDir, "-d");
+          checks.push({
+            id: "working_directory",
+            title: "Working Directory",
+            passed: true,
+            message: `Working directory '${workDir}' exists on host`,
+          });
+        } catch (err: unknown) {
+          checks.push({
+            id: "working_directory",
+            title: "Working Directory",
+            passed: false,
+            message: `Working directory '${workDir}' not found: ${err instanceof Error ? err.message : "Directory does not exist"}`,
+          });
+        }
+        try {
+          await testPath(`${workDir}/.git`, "-d");
+          checks.push({
+            id: "git_metadata",
+            title: "Git Checkout",
+            passed: true,
+            message: `'${workDir}' contains a .git directory`,
+          });
+        } catch (err: unknown) {
+          checks.push({
+            id: "git_metadata",
+            title: "Git Checkout",
+            passed: false,
+            message: `'${workDir}' is not a git checkout (missing .git): ${err instanceof Error ? err.message : "not a git repo"}`,
+          });
+        }
+      }
+
+      checks.push({
+        id: "shared_paths",
+        title: "Shared Paths",
+        passed: true,
+        message: "Shared paths are not used for git layout",
+      });
+
+      const permDir = workDir || ".";
+      try {
+        await testPath(permDir, "-w");
+        checks.push({
+          id: "rollback_permission",
+          title: "Rollback Permission",
+          passed: true,
+          message: `Directory '${permDir}' is writable for git checkout rollback`,
+        });
+      } catch (err: unknown) {
+        checks.push({
+          id: "rollback_permission",
+          title: "Rollback Permission",
+          passed: false,
+          message: `Directory '${permDir}' is not writable: ${err instanceof Error ? err.message : "Permission denied"}`,
+        });
+      }
+    } else {
     // Check 4: Releases directory exists
     const releasesDir = body.target.releasesDir || (body.target.cwd ? `${body.target.cwd}/releases` : "/var/www/releases");
     let releasesDirPassed = false;
@@ -365,6 +463,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
       passed: permPassed,
       message: permMsg,
     });
+    }
 
     const verified = checks.every((c) => c.passed);
 
