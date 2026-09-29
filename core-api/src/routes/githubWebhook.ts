@@ -13,8 +13,23 @@ export interface GithubWebhookRouteOptions {
  * target. Diff acquisition + classification are triggered by the caller, not here.
  */
 export async function registerGithubWebhookRoute(app: FastifyInstance, options: GithubWebhookRouteOptions) {
-  app.addContentTypeParser("application/json", { parseAs: "string" }, (_req, body, done) => {
-    done(null, body);
+  // HMAC verification needs the raw JSON string. Fastify only allows one
+  // application/json parser, so keep the webhook path as a string and parse
+  // every other JSON route (e.g. POST /v1/pm2/verify) back into an object.
+  app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+    const raw = typeof body === "string" ? body : Buffer.isBuffer(body) ? body.toString("utf8") : String(body ?? "");
+    const path = (req.url ?? "").split("?")[0];
+    if (path === "/webhooks/github") {
+      done(null, raw);
+      return;
+    }
+    try {
+      done(null, raw.length === 0 ? {} : JSON.parse(raw));
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error("invalid JSON");
+      (error as { statusCode?: number }).statusCode = 400;
+      done(error, undefined);
+    }
   });
 
   app.post("/webhooks/github", async (request, reply) => {
