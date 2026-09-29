@@ -12,6 +12,7 @@ import {
 import { applyModeAdapterPatch } from "../../../../lib/carfConfigWriter";
 import { AdapterConfigSchema, type AdapterConfig, type AdapterKind } from "../../../../lib/carfConfigSchema";
 import { env } from "../../../../config/env";
+import { generateInstallToken } from "../../../../lib/agentToken";
 
 /**
  * POST /api/repo/link
@@ -22,7 +23,7 @@ import { env } from "../../../../config/env";
  * without a navigation.
  *
  * Body: { installationId, owner, repo, mode, adapterKind?, adapterTarget?, layout?, healthUrl?, cwd?, ... }
- * Response: { success: true, mode, adapterKind?, adapterTarget? }
+ * Response: { success: true, mode, adapterKind?, adapterTarget?, installToken? }
  */
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
     );
 
     const storedConfig = adapterConfig ?? { mode: "augment" };
+    const { token: installToken, hash: installTokenHash, prefix: installTokenPrefix } = generateInstallToken();
 
     try {
       await prisma.repoConnection.upsert({
@@ -130,9 +132,15 @@ export async function POST(request: NextRequest) {
           repo,
           storedConfig,
           verifiedAt: null,
+          installTokenHash,
+          installTokenPrefix,
+          agentRevoked: false,
         },
         update: {
           storedConfig,
+          installTokenHash,
+          installTokenPrefix,
+          agentRevoked: false,
         },
       });
     } catch (dbErr) {
@@ -144,6 +152,7 @@ export async function POST(request: NextRequest) {
       mode,
       adapterKind: mode === "standalone" ? adapterKind : undefined,
       adapterTarget: mode === "standalone" ? adapterTarget : undefined,
+      installToken,
     });
   } catch (error: unknown) {
     console.error("[api/repo/link] Failed to commit .carf.yml:", error);

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { GitBranch, Activity, Cpu, RotateCcw } from "lucide-react";
+import { GitBranch, Activity, Cpu, RotateCcw, Terminal } from "lucide-react";
 import { getCurrentAccount } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import { CompatChecker } from "./CompatChecker";
@@ -59,6 +59,13 @@ export default async function HomePage() {
             <span>CARF</span>
           </Link>
           <div className="flex items-center gap-3">
+            <a
+              href="#install-server"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Terminal className="size-3.5 text-primary" />
+              <span>Install on your server</span>
+            </a>
             {account ? (
               <Button size="sm" render={<a href="/dashboard" />}>
                 Go to dashboard →
@@ -86,6 +93,18 @@ export default async function HomePage() {
             treated like a risky dependency bump. Install the GitHub App, pick a mode, and
             CARF is watching your next deploy.
           </p>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Button render={<a href={account ? "/dashboard" : "/login"} />}>
+              {account ? "Go to dashboard →" : "Install GitHub App →"}
+            </Button>
+            <a
+              href="#install-server"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
+            >
+              <Terminal className="size-3.5 text-primary" />
+              <span>Install on your server</span>
+            </a>
+          </div>
         </div>
 
         <div className="mt-8 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
@@ -96,6 +115,52 @@ export default async function HomePage() {
               <div className="mt-0.5 text-[11px] text-muted-foreground">{phase.caption}</div>
             </div>
           ))}
+        </div>
+
+        {/* Dedicated "Install on your server" Section */}
+        <div id="install-server" className="mt-14 scroll-mt-6">
+          <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
+                  <Terminal className="size-3" />
+                  <span>Host-Colocated PM2 Adapter</span>
+                </div>
+                <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">
+                  Run CARF directly on your own server.
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground max-w-xl">
+                  Colocate CARF&apos;s lightweight PM2 agent with your application processes. No database credentials ever touch your host — the agent authenticates with a repository-scoped token and communicates exclusively over HTTPS.
+                </p>
+              </div>
+              <div className="shrink-0">
+                <Button size="sm" variant="outline" render={<a href={account ? "/dashboard/setup" : "/login"} />}>
+                  Get install token →
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <pre className="rounded-lg border border-border bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-x-auto select-all">
+                curl -fsSL https://carf.indevs.in/install.sh | bash -s -- --token=&lt;install_token&gt;
+              </pre>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="font-semibold text-foreground">Zero DB Credentials</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Only holds an HTTPS bearer token. Database URLs and secrets never touch the agent.</div>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="font-semibold text-foreground">7 Preflight Host Checks</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Validates PM2 daemon, process table, HTTP probe, permissions, and rollback strategy.</div>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="font-semibold text-foreground">Automatic Daemon Life</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Managed under PM2 as <code className="font-mono">carf-agent</code> with automatic restart and heartbeat streaming.</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-14">

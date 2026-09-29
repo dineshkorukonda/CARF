@@ -100,7 +100,7 @@ describe("POST /v1/commits/refresh", () => {
     prisma.known.add("mid");
     prisma.known.add("old");
 
-    const classified: Array<{ sha: string; observeLive?: boolean }> = [];
+    const classified: Array<{ sha: string; observeLive?: boolean | undefined }> = [];
     app = Fastify();
     await registerRefreshCommitsRoute(app, {
       prismaClient: prisma,

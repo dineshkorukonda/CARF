@@ -28,7 +28,7 @@ class FakeSecurityPrismaClient implements DashboardPrismaClient {
         userId: create.userId,
         targetLogin: create.targetLogin,
         targetType: create.targetType,
-        repositorySelection: create.repositorySelection,
+        repositorySelection: create.repositorySelection ?? null,
         coreApiKey: null,
         createdAt: new Date(),
       };

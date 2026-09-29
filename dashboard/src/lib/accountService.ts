@@ -18,7 +18,7 @@ export interface InstallationRow {
   accountId?: string;
   targetLogin: string;
   targetType: string;
-  repositorySelection: string;
+  repositorySelection: string | null;
   coreApiKey: string | null;
   createdAt: Date;
 }
@@ -34,9 +34,9 @@ export interface DashboardPrismaClient {
         userId: string;
         targetLogin: string;
         targetType: string;
-        repositorySelection: string;
+        repositorySelection?: string | null;
       };
-      update: { targetLogin: string; targetType: string; repositorySelection: string };
+      update: { targetLogin: string; targetType: string; repositorySelection?: string | null };
     }): Promise<InstallationRow>;
     findMany(args: { where: { userId?: string; accountId?: string }; orderBy: { createdAt: "desc" } }): Promise<InstallationRow[]>;
     update(args: { where: { installationId: string }; data: { coreApiKey: string } }): Promise<InstallationRow>;
@@ -76,9 +76,9 @@ export async function linkInstallation(
       userId,
       targetLogin,
       targetType,
-      repositorySelection: installation.repository_selection,
+      repositorySelection: installation.repository_selection ?? null,
     },
-    update: { targetLogin, targetType, repositorySelection: installation.repository_selection },
+    update: { targetLogin, targetType, repositorySelection: installation.repository_selection ?? null },
   });
 }
 

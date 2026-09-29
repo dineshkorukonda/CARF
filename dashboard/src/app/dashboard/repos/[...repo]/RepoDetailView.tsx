@@ -10,15 +10,19 @@ import {
   Clock,
   ArrowLeft,
   AlertTriangle,
-  CheckCircle2,
   Pause,
   Play,
   Loader2,
   ChevronDown,
   ChevronRight,
   ShieldAlert,
-  Info,
   RefreshCw,
+  Server,
+  Copy,
+  Check,
+  ShieldCheck,
+  KeyRound,
+  Ban,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -31,9 +35,13 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ReferenceLine,
 } from "recharts";
-import { deriveRepoStatus, getStatusBadgeVariant } from "../../../../lib/repoStatusDerivation";
+import {
+  deriveRepoStatus,
+  getStatusBadgeVariant,
+  deriveAgentStatus,
+  getAgentBadgeVariant,
+} from "../../../../lib/repoStatusDerivation";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
 import { commitPageHref, repoSetupHref } from "../../../../lib/dashboardNav";
 
@@ -58,11 +66,10 @@ export interface RolloutItem {
 }
 
 export interface ChangeVectorItem {
-  infra: number;
-  dependency: number;
-  config: number;
   code: number;
-  codeComplexity: number;
+  config: number;
+  dependency: number;
+  infrastructure: number;
 }
 
 export interface ThresholdItem {
@@ -74,7 +81,8 @@ export interface ThresholdItem {
 export interface CommitWithDetails {
   id: string;
   sha: string;
-  baseSha: string;
+  message: string;
+  author: string;
   createdAt: Date | string;
   changeVector?: ChangeVectorItem | null;
   threshold?: ThresholdItem | null;
@@ -89,17 +97,24 @@ export interface AuditLogItem {
   ts: Date | string;
 }
 
+export interface RepoConnectionDetails {
+  id: string;
+  verifiedAt: Date | string | null;
+  monitoringPaused: boolean;
+  storedConfig?: unknown;
+  installTokenPrefix?: string | null;
+  agentLastHeartbeat?: Date | string | null;
+  agentRevoked?: boolean | null;
+  agentVersion?: string | null;
+  verificationReport?: unknown;
+}
+
 interface RepoDetailViewProps {
   owner: string;
   repo: string;
   defaultBranch: string;
   installationId: string;
-  connection?: {
-    id: string;
-    verifiedAt: Date | string | null;
-    monitoringPaused: boolean;
-    storedConfig?: unknown;
-  } | null;
+  connection?: RepoConnectionDetails | null;
   rollouts: RolloutItem[];
   commits: CommitWithDetails[];
   auditLogs: AuditLogItem[];
@@ -129,6 +144,21 @@ export function RepoDetailView({
     pendingRollout,
     countdownSeconds,
   } = useLiveRolloutPolling(rollouts, installationId);
+
+  // Agent State
+  const [agentRevoked, setAgentRevoked] = useState<boolean>(Boolean(connection?.agentRevoked));
+  const [revokingAgent, setRevokingAgent] = useState<boolean>(false);
+  const [generatingToken, setGeneratingToken] = useState<boolean>(false);
+  const [generatedToken, setGeneratedToken] = useState<string | null>(null);
+  const [copiedAgentCmd, setCopiedAgentCmd] = useState<boolean>(false);
+  const [showAgentSettings, setShowAgentSettings] = useState<boolean>(false);
+  const [agentActionMessage, setAgentActionMessage] = useState<string | null>(null);
+
+  const agentStatus = deriveAgentStatus({
+    agentLastHeartbeat: connection?.agentLastHeartbeat,
+    agentRevoked,
+  });
+  const agentBadge = getAgentBadgeVariant(agentStatus);
 
   // Filters
   const [outcomeFilter, setOutcomeFilter] = useState<string>("ALL");
@@ -216,19 +246,84 @@ export function RepoDetailView({
       });
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const err = await res.json();
+        throw new Error(err.error || `HTTP ${res.status}`);
       }
 
       setMonitoringPaused(nextPaused);
     } catch (err: unknown) {
-      alert(`Failed to update pause state: ${err instanceof Error ? err.message : "Error"}`);
+      alert(err instanceof Error ? err.message : "Failed to toggle pause state");
     } finally {
       setTogglingPause(false);
     }
   };
 
-  // Execute manual rollback
-  const executeRollback = async () => {
+  // Revoke Agent Token
+  const handleRevokeAgent = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to revoke the agent for ${owner}/${repo}? The agent on your server will be disconnected and unable to report heartbeats.`
+      )
+    ) {
+      return;
+    }
+
+    setRevokingAgent(true);
+    setAgentActionMessage(null);
+    try {
+      const res = await fetch("/api/repo/revoke-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installationId, owner, repo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      setAgentRevoked(true);
+      setGeneratedToken(null);
+      setAgentActionMessage("Agent token revoked. Agent status flipped to revoked.");
+    } catch (err: unknown) {
+      setAgentActionMessage(err instanceof Error ? err.message : "Failed to revoke agent");
+    } finally {
+      setRevokingAgent(false);
+    }
+  };
+
+  // Generate Fresh Token
+  const handleGenerateNewToken = async () => {
+    setGeneratingToken(true);
+    setAgentActionMessage(null);
+    try {
+      const res = await fetch("/api/repo/generate-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installationId, owner, repo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      setGeneratedToken(data.token);
+      setAgentRevoked(false);
+      setAgentActionMessage("New install token generated. Run the updated install command on your host.");
+    } catch (err: unknown) {
+      setAgentActionMessage(err instanceof Error ? err.message : "Failed to generate token");
+    } finally {
+      setGeneratingToken(false);
+    }
+  };
+
+  const centralOrigin = typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
+  const activeToken = generatedToken || (connection?.installTokenPrefix ? `${connection.installTokenPrefix}...` : "<install_token>");
+  const agentInstallCmd = `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${activeToken}`;
+
+  const copyAgentCmd = () => {
+    navigator.clipboard.writeText(agentInstallCmd);
+    setCopiedAgentCmd(true);
+    setTimeout(() => setCopiedAgentCmd(false), 2000);
+  };
+
+  // Trigger manual rollback
+  const handleManualRollback = async () => {
     if (!rollbackTarget) return;
     setRollingBack(true);
     setRollbackError(null);
@@ -236,7 +331,9 @@ export function RepoDetailView({
 
     try {
       const res = await fetch(
-        `/api/rollouts/${encodeURIComponent(rollbackTarget.id)}/rollback?installationId=${encodeURIComponent(
+        `/api/repo/${encodeURIComponent(owner)}/${encodeURIComponent(
+          repo
+        )}/rollback/${encodeURIComponent(rollbackTarget.commitSha)}?installationId=${encodeURIComponent(
           installationId
         )}`,
         { method: "POST" }
@@ -308,35 +405,31 @@ export function RepoDetailView({
       const cv = c.changeVector;
       return {
         sha: c.sha.slice(0, 7),
-        infra: cv ? Number(cv.infra.toFixed(2)) : 0,
-        dependency: cv ? Number(cv.dependency.toFixed(2)) : 0,
-        config: cv ? Number(cv.config.toFixed(2)) : 0,
-        code: cv ? Number(cv.code.toFixed(2)) : 0,
-        complexity: cv ? Number(cv.codeComplexity.toFixed(2)) : 0,
+        code: cv ? Number((cv.code * 100).toFixed(0)) : 0,
+        config: cv ? Number((cv.config * 100).toFixed(0)) : 0,
+        dependency: cv ? Number((cv.dependency * 100).toFixed(0)) : 0,
+        infra: cv ? Number((cv.infrastructure * 100).toFixed(0)) : 0,
       };
     }).reverse();
   }, [commits]);
 
-  // --- Graph 4 Data: Time to Verdict & Rollback Distribution ---
+  // --- Graph 4 Data: Outcome Breakdown ---
   const graph4Data = useMemo(() => {
-    return liveRollouts
-      .filter((r) => r.finishedAt != null)
-      .slice(0, 15)
-      .map((r) => {
-        const durationSec = Math.max(
-          1,
-          Math.floor((new Date(r.finishedAt!).getTime() - new Date(r.startedAt).getTime()) / 1000)
-        );
-        return {
-          sha: r.commitSha.slice(0, 7),
-          durationSeconds: durationSec,
-          outcome: r.status,
-          isRollback: r.status === "ROLLED_BACK",
-        };
-      }).reverse();
+    const counts = { SUCCESS: 0, ROLLED_BACK: 0, FAILED: 0, PENDING: 0 };
+    liveRollouts.forEach((r) => {
+      if (counts[r.status] !== undefined) {
+        counts[r.status]++;
+      }
+    });
+    return [
+      { name: "Promoted", count: counts.SUCCESS, fill: "#10b981" },
+      { name: "Rolled Back", count: counts.ROLLED_BACK, fill: "#ef4444" },
+      { name: "Failed", count: counts.FAILED, fill: "#f59e0b" },
+      { name: "Observing", count: counts.PENDING, fill: "#6366f1" },
+    ];
   }, [liveRollouts]);
 
-  // Filtered commits (prioritizes active/recent rollouts at top)
+  // Filtered Commits Table
   const filteredCommits = useMemo(() => {
     const list = commits.filter((c) => {
       const matchingRollout = liveRollouts.find((r) => r.commitSha === c.sha);
@@ -399,6 +492,12 @@ export function RepoDetailView({
                 <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
                 {derivedStatus}
               </span>
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
+              >
+                <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
+                {agentBadge.label}
+              </span>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {connection?.verifiedAt
@@ -429,6 +528,17 @@ export function RepoDetailView({
             )}
             <span>{monitoringPaused ? "Resume Monitoring" : "Pause Monitoring"}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowAgentSettings(!showAgentSettings)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
+          >
+            <Server className="size-3.5 text-primary" />
+            <span>Host Agent</span>
+            <ChevronDown className={`size-3 transition-transform ${showAgentSettings ? "rotate-180" : ""}`} />
+          </button>
+
           <Link
             href={repoSetupHref(owner, repo, { edit: true })}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
@@ -438,6 +548,110 @@ export function RepoDetailView({
           </Link>
         </div>
       </div>
+
+      {/* Expandable Host Agent Card */}
+      {showAgentSettings && (
+        <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in-50 duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Server className="size-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Host PM2 Agent Configuration</h3>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Colocated agent monitoring PM2 processes and streaming telemetry over HTTPS with zero database credentials.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${agentBadge.colorClass}`}>
+                <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
+                {agentBadge.label} {connection?.agentVersion ? `(v${connection.agentVersion})` : ""}
+              </span>
+            </div>
+          </div>
+
+          {agentActionMessage && (
+            <div className="rounded-lg border border-primary/20 bg-primary/10 p-3 text-xs text-primary">
+              {agentActionMessage}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">Last Heartbeat</div>
+              <div className="mt-1 font-semibold text-foreground font-mono">
+                {connection?.agentLastHeartbeat ? new Date(connection.agentLastHeartbeat).toLocaleString() : "Never reported"}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">Installed Version</div>
+              <div className="mt-1 font-semibold text-foreground font-mono">
+                {connection?.agentVersion || "N/A"}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">Token Prefix</div>
+              <div className="mt-1 font-semibold text-foreground font-mono">
+                {connection?.installTokenPrefix ? `${connection.installTokenPrefix}...` : "None"}
+              </div>
+            </div>
+          </div>
+
+          {/* Installer Command */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground">One-line Host Installer Command:</span>
+              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[11px]">
+                <ShieldCheck className="size-3.5" />
+                <span>Zero DB credentials • Scoped token</span>
+              </div>
+            </div>
+            <div className="relative">
+              <pre className="rounded-lg border border-border bg-slate-950 p-3 font-mono text-xs text-slate-100 overflow-x-auto select-all">
+                {agentInstallCmd}
+              </pre>
+              <button
+                type="button"
+                onClick={copyAgentCmd}
+                className="absolute top-2 right-2 inline-flex items-center gap-1 rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-200 hover:bg-slate-800 transition-colors"
+              >
+                {copiedAgentCmd ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                <span>{copiedAgentCmd ? "Copied" : "Copy"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Agent Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border">
+            <div className="text-[11px] text-muted-foreground">
+              To uninstall on host: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --uninstall</code>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleGenerateNewToken}
+                disabled={generatingToken}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted disabled:opacity-50"
+              >
+                {generatingToken ? <Loader2 className="size-3 animate-spin" /> : <KeyRound className="size-3" />}
+                <span>Generate Fresh Token</span>
+              </button>
+
+              {!agentRevoked && (
+                <button
+                  type="button"
+                  onClick={handleRevokeAgent}
+                  disabled={revokingAgent}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 shadow-xs hover:bg-red-500/20 disabled:opacity-50"
+                >
+                  {revokingAgent ? <Loader2 className="size-3 animate-spin" /> : <Ban className="size-3" />}
+                  <span>Revoke Agent</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Paused Alert Banner */}
       {monitoringPaused && (
@@ -478,14 +692,14 @@ export function RepoDetailView({
             <div>
               <h2 className="text-sm font-semibold text-foreground">Error Rate vs. Threshold Over Time</h2>
               <p className="text-[11px] text-muted-foreground">
-                High-resolution telemetry samples recorded during observation window.
+                Live soak observation samples comparing error rate to the dynamic threshold.
               </p>
             </div>
             {liveRollouts.length > 0 && (
               <select
                 value={selectedRolloutId}
                 onChange={(e) => setSelectedRolloutId(e.target.value)}
-                className="rounded border border-border bg-background px-2 py-1 font-mono text-[11px] text-foreground focus:outline-none"
+                className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {liveRollouts.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -496,510 +710,446 @@ export function RepoDetailView({
             )}
           </div>
 
-          <div className="mt-4">
-            {graph1Data.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 text-center p-6">
-                <Clock className="size-6 text-muted-foreground/60" />
-                <p className="mt-2 text-xs font-semibold text-foreground">No telemetry samples recorded</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Intermediate poll samples appear here while a rollout is being monitored.
-                </p>
-              </div>
+          <div className="mt-4 h-64 w-full">
+            {graph1Data.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={graph1Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} unit="%" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      fontSize: 12,
+                      borderRadius: 8,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line
+                    type="monotone"
+                    dataKey="errorRate"
+                    name="Observed Error Rate (%)"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
+                  <Line
+                    type="stepAfter"
+                    dataKey="threshold"
+                    name="Threshold (%)"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={graph1Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                    <XAxis dataKey="time" tickLine={false} axisLine={false} fontSize={10} />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      fontSize={10}
-                      unit="%"
-                      domain={[0, (dataMax: number) => Math.max(dataMax + 1, (selectedRollout?.threshold ?? 0.05) * 100 + 1)]}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "0.5rem",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <ReferenceLine
-                      y={Number(((selectedRollout?.threshold ?? 0.05) * 100).toFixed(2))}
-                      label={{ value: "Threshold Ceiling", fill: "#f43f5e", fontSize: 10 }}
-                      stroke="#f43f5e"
-                      strokeDasharray="4 4"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="errorRate"
-                      name="Observed Error Rate (%)"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={{ r: 2 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                No telemetry samples recorded for this rollout yet.
               </div>
             )}
           </div>
         </div>
 
-        {/* Graph 2: Threshold and Window per Commit */}
+        {/* Graph 2: Threshold & Window per Commit */}
         <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <div className="border-b border-border pb-3">
-            <h2 className="text-sm font-semibold text-foreground">Threshold & Window per Commit</h2>
+            <h2 className="text-sm font-semibold text-foreground">Dynamic Threshold & Window by Commit</h2>
             <p className="text-[11px] text-muted-foreground">
-              Calibrated error-rate ceiling (%) and observation window (seconds) across recent commits.
+              Calibrated sensitivity and observation soak windows per commit change type.
             </p>
           </div>
 
-          <div className="mt-4">
-            {graph2Data.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 text-center p-6">
-                <Info className="size-6 text-muted-foreground/60" />
-                <p className="mt-2 text-xs font-semibold text-foreground">No commit thresholds recorded</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Thresholds will be calculated upon webhook commit delivery.
-                </p>
-              </div>
+          <div className="mt-4 h-64 w-full">
+            {graph2Data.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={graph2Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="sha" tick={{ fontSize: 10, fontFamily: "monospace" }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} unit="%" />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} unit="s" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      fontSize: 12,
+                      borderRadius: 8,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="threshold" name="Threshold (%)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="right" dataKey="window" name="Window (s)" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={graph2Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                    <XAxis dataKey="sha" tickLine={false} axisLine={false} fontSize={10} fontStyle="monospace" />
-                    <YAxis yAxisId="left" tickLine={false} axisLine={false} fontSize={10} unit="%" />
-                    <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} fontSize={10} unit="s" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "0.5rem",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar yAxisId="left" dataKey="threshold" name="Threshold (%)" fill="#6366f1" radius={[2, 2, 0, 0]} />
-                    <Bar yAxisId="right" dataKey="window" name="Window (s)" fill="#0ea5e9" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                No commit classifications recorded.
               </div>
             )}
           </div>
         </div>
 
-        {/* Graph 3: Change-Vector Breakdown per Commit */}
+        {/* Graph 3: Change Vector Breakdown */}
         <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <div className="border-b border-border pb-3">
-            <h2 className="text-sm font-semibold text-foreground">Change-Vector Breakdown per Commit</h2>
+            <h2 className="text-sm font-semibold text-foreground">Change-Vector Composition (%)</h2>
             <p className="text-[11px] text-muted-foreground">
-              Semantic breakdown of AST change factors (infra, dependency, config, code, complexity).
+              Weighted proportion of code, config, dependency, and infrastructure modifications.
             </p>
           </div>
 
-          <div className="mt-4">
-            {graph3Data.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 text-center p-6">
-                <Info className="size-6 text-muted-foreground/60" />
-                <p className="mt-2 text-xs font-semibold text-foreground">No change vectors recorded</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  AST classifications will appear once commits are analyzed.
-                </p>
-              </div>
+          <div className="mt-4 h-64 w-full">
+            {graph3Data.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={graph3Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="sha" tick={{ fontSize: 10, fontFamily: "monospace" }} />
+                  <YAxis tick={{ fontSize: 10 }} unit="%" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      fontSize: 12,
+                      borderRadius: 8,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="code" name="Code" stackId="a" fill="#3b82f6" />
+                  <Bar dataKey="config" name="Config" fill="#f59e0b" stackId="a" />
+                  <Bar dataKey="dependency" name="Dependency" fill="#ec4899" stackId="a" />
+                  <Bar dataKey="infra" name="Infra" fill="#10b981" stackId="a" />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={graph3Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                    <XAxis dataKey="sha" tickLine={false} axisLine={false} fontSize={10} fontStyle="monospace" />
-                    <YAxis tickLine={false} axisLine={false} fontSize={10} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "0.5rem",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar dataKey="infra" name="Infra" stackId="a" fill="#8b5cf6" />
-                    <Bar dataKey="dependency" name="Dep" stackId="a" fill="#3b82f6" />
-                    <Bar dataKey="config" name="Config" stackId="a" fill="#f59e0b" />
-                    <Bar dataKey="code" name="Code" stackId="a" fill="#10b981" />
-                    <Bar dataKey="complexity" name="Complexity" stackId="a" fill="#ec4899" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                No vector compositions available.
               </div>
             )}
           </div>
         </div>
 
-        {/* Graph 4: Time to Verdict & Rollback Distribution */}
+        {/* Graph 4: Rollout Outcomes */}
         <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <div className="border-b border-border pb-3">
-            <h2 className="text-sm font-semibold text-foreground">Time to Verdict Distribution</h2>
+            <h2 className="text-sm font-semibold text-foreground">Rollout Outcomes Breakdown</h2>
             <p className="text-[11px] text-muted-foreground">
-              Total observation time (seconds) to terminal outcome (Success vs. Rolled Back).
+              Aggregate distribution of successful rollouts, rollbacks, and failures.
             </p>
           </div>
 
-          <div className="mt-4">
-            {graph4Data.length === 0 ? (
-              <div className="flex h-56 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 text-center p-6">
-                <Clock className="size-6 text-muted-foreground/60" />
-                <p className="mt-2 text-xs font-semibold text-foreground">No terminal rollouts recorded</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Completed observation loops will display elapsed duration here.
-                </p>
-              </div>
+          <div className="mt-4 h-64 w-full">
+            {liveRollouts.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={graph4Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--card))",
+                      borderColor: "hsl(var(--border))",
+                      fontSize: 12,
+                      borderRadius: 8,
+                    }}
+                  />
+                  <Bar dataKey="count" name="Rollouts" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={graph4Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.2} />
-                    <XAxis dataKey="sha" tickLine={false} axisLine={false} fontSize={10} fontStyle="monospace" />
-                    <YAxis tickLine={false} axisLine={false} fontSize={10} unit="s" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "var(--card)",
-                        borderColor: "var(--border)",
-                        borderRadius: "0.5rem",
-                        fontSize: "11px",
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar dataKey="durationSeconds" name="Duration (s)" fill="#10b981" radius={[2, 2, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                No rollouts observed yet.
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* ── Commits & Rollouts Section ── */}
-      <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border p-5">
+      {/* ── Commits & Rollout Lifecycle Table ── */}
+      <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Commits & Rollout Lifecycle ({filteredCommits.length})</h2>
+            <h2 className="text-sm font-semibold text-foreground">
+              Commits & Rollout Lifecycle ({filteredCommits.length})
+            </h2>
             <p className="text-[11px] text-muted-foreground">
-              Open Pipeline for classifier 1/2, threshold metrics, and rollback. Expand a row for live error-rate and manual rollback.
+              History of analyzed commits, calibrated thresholds, and active or past rollouts.
             </p>
-            {refreshMessage && (
-              <p className="mt-1 text-[11px] text-muted-foreground">{refreshMessage}</p>
-            )}
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => void refreshCommits()}
+              onClick={refreshCommits}
               disabled={refreshingCommits}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-xs text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`size-3.5 ${refreshingCommits ? "animate-spin" : ""}`} />
-              Refresh commits
+              <RefreshCw className={`size-3 ${refreshingCommits ? "animate-spin" : ""}`} />
+              <span>{refreshingCommits ? "Pulling & classifying..." : "Refresh commits"}</span>
             </button>
-            <span className="text-xs text-muted-foreground">Filter by outcome:</span>
-            <select
-              value={outcomeFilter}
-              onChange={(e) => setOutcomeFilter(e.target.value)}
-              className="rounded border border-border bg-background px-2.5 py-1 text-xs text-foreground focus:outline-none"
-            >
-              <option value="ALL">All Outcomes</option>
-              <option value="SUCCESS">Success</option>
-              <option value="ROLLED_BACK">Rolled Back</option>
-              <option value="FAILED">Adapter Error</option>
-              <option value="PENDING">Observing</option>
-            </select>
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
+              {["ALL", "PENDING", "SUCCESS", "ROLLED_BACK", "FAILED", "NONE"].map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setOutcomeFilter(f)}
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    outcomeFilter === f
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {f === "NONE" ? "Unmonitored" : f.charAt(0) + f.slice(1).toLowerCase()}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {filteredCommits.length === 0 ? (
-          <div className="p-8 text-center text-xs text-muted-foreground">
-            No commits match the selected outcome filter.
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {filteredCommits.map((c) => {
+        {refreshMessage ? (
+          <p className="mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-foreground" role="status">
+            {refreshMessage}
+          </p>
+        ) : null}
+
+        <div className="mt-4 divide-y divide-border border border-border rounded-lg overflow-hidden">
+          {filteredCommits.length === 0 ? (
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              No commits match the selected outcome filter.
+            </div>
+          ) : (
+            filteredCommits.map((c) => {
               const rollout = liveRollouts.find((r) => r.commitSha === c.sha);
               const isExpanded = expandedCommitSha === c.sha;
 
               return (
-                <div key={c.id} className="transition-colors hover:bg-muted/10">
-                  <div
-                    onClick={() => setExpandedCommitSha(isExpanded ? null : c.sha)}
-                    className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between cursor-pointer"
-                  >
+                <div key={c.sha} className="transition-colors hover:bg-muted/10">
+                  <div className="flex items-center justify-between p-3 text-xs">
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
+                        onClick={() => setExpandedCommitSha(isExpanded ? null : c.sha)}
                         className="text-muted-foreground hover:text-foreground"
-                        aria-label="Toggle details"
                       >
-                        {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+                        {isExpanded ? (
+                          <ChevronDown className="size-4" />
+                        ) : (
+                          <ChevronRight className="size-4" />
+                        )}
                       </button>
+
                       <div>
                         <div className="flex items-center gap-2">
                           <Link
                             href={commitPageHref(owner, repo, c.sha)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="font-mono text-xs font-bold text-foreground hover:underline"
+                            className="font-mono font-semibold text-primary hover:underline"
                           >
                             {c.sha.slice(0, 7)}
                           </Link>
-                          {c.threshold?.activeTypes?.[0] && (
-                            <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.2 text-[10px] font-medium text-primary">
-                              {c.threshold.activeTypes[0]}
-                            </span>
-                          )}
-                          {rollout ? (
-                            <span
-                              className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                                rollout.status === "SUCCESS"
-                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                                  : rollout.status === "ROLLED_BACK"
-                                  ? "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400"
-                                  : rollout.status === "PENDING"
-                                  ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 animate-pulse"
-                                  : "bg-orange-500/10 border-orange-500/20 text-orange-600 dark:text-orange-400"
-                              }`}
-                            >
-                              {rollout.status === "PENDING"
-                                ? "Observing"
-                                : rollout.status === "SUCCESS"
-                                ? "Success"
-                                : rollout.status === "ROLLED_BACK"
-                                ? "Rolled Back"
-                                : "Adapter Error"}
-                            </span>
-                          ) : (
-                            <span className="rounded bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
-                              No Rollout
-                            </span>
-                          )}
+                          <span className="font-medium text-foreground truncate max-w-sm sm:max-w-md">
+                            {c.message}
+                          </span>
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground font-mono">
-                          <span>Base: {c.baseSha.slice(0, 7)}</span>
+                        <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                          <span>{c.author}</span>
                           <span>•</span>
                           <span>{new Date(c.createdAt).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 text-xs">
-                      <Link
-                        href={commitPageHref(owner, repo, c.sha)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-semibold text-foreground hover:bg-muted"
-                      >
-                        Pipeline
-                      </Link>
-                      <div className="text-right">
-                        <span className="text-[11px] text-muted-foreground">Threshold:</span>
-                        <div className="font-mono text-xs font-semibold text-foreground">
-                          {c.threshold ? `${(c.threshold.finalThreshold * 100).toFixed(1)}% / ${c.threshold.finalWindow}s` : "Default"}
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-3">
+                      {/* Rollout Status Badge */}
+                      {rollout ? (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                              rollout.status === "SUCCESS"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : rollout.status === "ROLLED_BACK"
+                                ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                                : rollout.status === "FAILED"
+                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 animate-pulse"
+                            }`}
+                          >
+                            {rollout.status === "SUCCESS"
+                              ? "Promoted"
+                              : rollout.status === "ROLLED_BACK"
+                              ? "Rolled Back"
+                              : rollout.status === "PENDING"
+                              ? "Observing"
+                              : rollout.status}
+                          </span>
 
-                      {rollout && rollout.status !== "ROLLED_BACK" && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRollbackTarget(rollout);
-                          }}
-                          className="inline-flex items-center gap-1 rounded-md border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/20"
-                        >
-                          <RotateCcw className="size-3" />
-                          <span>Rollback</span>
-                        </button>
+                          {rollout.status === "PENDING" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRollbackTarget(rollout);
+                                setRollbackError(null);
+                                setRollbackSuccess(null);
+                              }}
+                              className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/20"
+                            >
+                              <RotateCcw className="size-3" />
+                              <span>Roll Back</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-muted-foreground font-mono">No rollout</span>
                       )}
+
+                      {/* Threshold info pill */}
+                      {c.threshold ? (
+                        <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                          {(c.threshold.finalThreshold * 100).toFixed(1)}% / {c.threshold.finalWindow}s
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 
                   {/* Expanded Detail Panel */}
                   {isExpanded && (
-                    <div className="border-t border-border bg-muted/20 p-4 text-xs space-y-3">
+                    <div className="bg-muted/20 p-4 border-t border-border space-y-3 text-xs">
                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                        <div className="rounded border border-border bg-card p-3">
-                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Change Vectors</span>
-                          <div className="mt-1 font-mono text-[11px] space-y-0.5 text-foreground">
-                            <div>Infra: {c.changeVector?.infra.toFixed(2) ?? "0.00"}</div>
-                            <div>Dep: {c.changeVector?.dependency.toFixed(2) ?? "0.00"}</div>
-                            <div>Config: {c.changeVector?.config.toFixed(2) ?? "0.00"}</div>
-                            <div>Code: {c.changeVector?.code.toFixed(2) ?? "0.00"}</div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Change Vector</span>
+                          <div className="mt-1 font-mono text-[11px] text-foreground">
+                            Code: {c.changeVector ? (c.changeVector.code * 100).toFixed(0) : 0}% | Config:{" "}
+                            {c.changeVector ? (c.changeVector.config * 100).toFixed(0) : 0}%
                           </div>
                         </div>
-
-                        <div className="rounded border border-border bg-card p-3">
-                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Rollout Verdict</span>
-                          <div className="mt-1 font-mono text-[11px] space-y-0.5 text-foreground">
-                            <div>Status: {rollout?.status || "None"}</div>
-                            <div>Rolled Back: {rollout?.rolledBack ? "Yes" : "No"}</div>
-                            <div>Reason: {rollout?.reason || "N/A"}</div>
-                            <div>Verified: {rollout?.rollbackVerified ? "Yes" : "N/A"}</div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Dependencies / Infra</span>
+                          <div className="mt-1 font-mono text-[11px] text-foreground">
+                            Deps: {c.changeVector ? (c.changeVector.dependency * 100).toFixed(0) : 0}% | Infra:{" "}
+                            {c.changeVector ? (c.changeVector.infrastructure * 100).toFixed(0) : 0}%
                           </div>
                         </div>
-
-                        <div className="rounded border border-border bg-card p-3">
-                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Timing</span>
-                          <div className="mt-1 font-mono text-[11px] space-y-0.5 text-foreground">
-                            <div>Started: {rollout ? new Date(rollout.startedAt).toLocaleTimeString() : "—"}</div>
-                            <div>Finished: {rollout?.finishedAt ? new Date(rollout.finishedAt).toLocaleTimeString() : "—"}</div>
-                            <div>Samples: {rollout?.samples?.length ?? 0} samples</div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Calibrated Soak Window</span>
+                          <div className="mt-1 font-mono text-[11px] text-foreground">
+                            {c.threshold ? `${c.threshold.finalWindow} seconds` : "Default (300s)"}
                           </div>
                         </div>
-
-                        <div className="rounded border border-border bg-card p-3 flex flex-col justify-between">
-                          <span className="text-[10px] font-semibold uppercase text-muted-foreground">Rollback Controls</span>
-                          <div className="mt-2">
-                            {rollout?.status === "ROLLED_BACK" ? (
-                              <span className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-semibold">
-                                <CheckCircle2 className="size-3.5" />
-                                Rollback applied
-                              </span>
-                            ) : rollout ? (
-                              <button
-                                type="button"
-                                onClick={() => setRollbackTarget(rollout)}
-                                className="inline-flex items-center gap-1.5 rounded bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700"
-                              >
-                                <RotateCcw className="size-3" />
-                                <span>Trigger Rollback</span>
-                              </button>
-                            ) : (
-                              <span className="text-muted-foreground">No rollout active</span>
-                            )}
+                        <div>
+                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Active Rule Tags</span>
+                          <div className="mt-1 font-mono text-[11px] text-foreground">
+                            {c.threshold?.activeTypes?.join(", ") || "standard"}
                           </div>
                         </div>
                       </div>
+
+                      {rollout && (
+                        <div className="mt-2 rounded border border-border bg-card p-3">
+                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Rollout Telemetry Summary</span>
+                          <div className="mt-1 flex flex-wrap gap-4 text-[11px] font-mono text-foreground">
+                            <span>Started: {new Date(rollout.startedAt).toLocaleTimeString()}</span>
+                            <span>
+                              Finished: {rollout.finishedAt ? new Date(rollout.finishedAt).toLocaleTimeString() : "In progress"}
+                            </span>
+                            {rollout.reason && <span>Reason: {rollout.reason}</span>}
+                            <span>Samples recorded: {rollout.samples?.length || 0}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               );
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
       </div>
 
-      {/* ── Audit Log Table ── */}
-      <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-        <div className="border-b border-border p-5">
-          <h2 className="text-sm font-semibold text-foreground">Rollout Audit Trail ({auditLogs.length})</h2>
+      {/* ── Audit Logs Section ── */}
+      <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-sm font-semibold text-foreground">Automated Action Audit Trail</h2>
           <p className="text-[11px] text-muted-foreground">
-            Administrative record of rollbacks, pause actions, and target modifications.
+            Immutable log of rollbacks triggered by CARF, webhook events, and operator actions.
           </p>
         </div>
 
-        {auditLogs.length === 0 ? (
-          <div className="p-8 text-center text-xs text-muted-foreground">
-            No audit log entries recorded for this repository yet.
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {auditLogs.map((log) => (
-              <div key={log.id} className="flex items-center justify-between p-4 text-xs">
+        <div className="mt-3 divide-y divide-border border border-border rounded-lg overflow-hidden">
+          {auditLogs.length === 0 ? (
+            <div className="p-4 text-center text-xs text-muted-foreground">
+              No audit records logged yet.
+            </div>
+          ) : (
+            auditLogs.slice(0, 10).map((log) => (
+              <div key={log.id} className="flex items-center justify-between p-3 text-xs">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-foreground">{log.action}</span>
-                    <span
-                      className={`rounded px-1.5 py-0.2 text-[10px] font-mono ${
-                        log.result === "success"
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "bg-red-500/10 text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {log.result}
+                    <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      {log.actor}
                     </span>
                   </div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    Actor: {log.actor} • {new Date(log.ts).toLocaleString()}
+                    Result: <span className="font-mono text-foreground">{log.result}</span>
                   </div>
                 </div>
-                {Boolean(log.details) && (
-                  <pre className="font-mono text-[10px] text-muted-foreground max-w-xs truncate">
-                    {JSON.stringify(log.details)}
-                  </pre>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Manual Rollback Warning Modal ── */}
-      {rollbackTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl">
-            <div className="flex items-start gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                <ShieldAlert className="size-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-foreground">Confirm Manual Rollback</h3>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  You are about to roll back the active PM2 process to its prior release.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 rounded-lg border border-border bg-muted/30 p-3 text-xs font-mono">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Target Commit:</span>
-                <span className="font-bold text-foreground">{rollbackTarget.commitSha.slice(0, 7)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Target PM2 App:</span>
-                <span className="font-bold text-foreground">
-                  {(connection?.storedConfig as { name?: string } | null | undefined)?.name || "configured target"}
+                <span className="text-[11px] text-muted-foreground">
+                  {new Date(log.ts).toLocaleString()}
                 </span>
               </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ── Manual Rollback Modal ── */}
+      {rollbackTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <ShieldAlert className="size-5" />
+              <h3 className="text-base font-bold text-foreground">Confirm Manual Rollback</h3>
             </div>
 
-            {/* Critical Warning Alert */}
-            <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-400">
-              <p className="font-bold flex items-center gap-1.5">
-                <AlertTriangle className="size-4 shrink-0" />
-                <span>Important Operational Notice</span>
-              </p>
-              <p className="mt-1 text-rose-600 dark:text-rose-300">
-                Database schema migrations and data changes are NOT reverted by process rollback. Only application code and process execution symlinks are switched back.
-              </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Triggering a manual rollback will instruct the host adapter to reload PM2 to the previous
+              active release commit for:
+            </p>
+
+            <div className="my-4 rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs">
+              <div>Commit: <span className="font-bold text-foreground">{rollbackTarget.commitSha}</span></div>
+              <div className="mt-1">Window: {rollbackTarget.window}s</div>
+              <div className="mt-1">Threshold: {(rollbackTarget.threshold * 100).toFixed(1)}%</div>
             </div>
 
             {rollbackError && (
-              <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+              <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-2.5 text-xs text-red-600 dark:text-red-400">
                 {rollbackError}
               </div>
             )}
 
             {rollbackSuccess && (
-              <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
+              <div className="mb-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2.5 text-xs text-emerald-600 dark:text-emerald-400">
                 {rollbackSuccess}
               </div>
             )}
 
-            <div className="mt-6 flex items-center justify-end gap-2.5">
+            <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRollbackTarget(null)}
                 disabled={rollingBack}
-                className="rounded-lg border border-border px-4 py-2 text-xs font-medium text-foreground hover:bg-muted"
+                className="rounded-lg border border-border px-3.5 py-2 text-xs text-foreground hover:bg-muted"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={executeRollback}
+                onClick={handleManualRollback}
                 disabled={rollingBack}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {rollingBack ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
-                <span>{rollingBack ? "Executing Rollback..." : "Confirm Rollback"}</span>
+                <span>{rollingBack ? "Executing Rollback..." : "Rollback Process"}</span>
               </button>
             </div>
           </div>
