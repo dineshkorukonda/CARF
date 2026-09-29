@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { deriveRepoStatus, getStatusBadgeVariant } from "../../lib/repoStatusDerivation";
+import { commitPageHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
 
 interface RepoItem {
@@ -301,9 +302,12 @@ export function RepoListView({
                         {latestRollout && (
                           <>
                             <span>•</span>
-                            <span className="font-mono text-[11px]">
+                            <Link
+                              href={commitPageHref(repo.owner, repo.name, latestRollout.commitSha)}
+                              className="font-mono text-[11px] hover:underline"
+                            >
                               Latest: {latestRollout.commitSha.slice(0, 7)} ({latestRollout.status})
-                            </span>
+                            </Link>
                           </>
                         )}
                       </div>

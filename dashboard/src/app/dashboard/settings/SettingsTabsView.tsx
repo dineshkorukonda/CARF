@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Plus, Terminal, Shield, User, ExternalLink, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Plus, Shield, User, ExternalLink, AlertCircle, CheckCircle2 } from "lucide-react";
 import { ApiKeyCopyButton } from "./ApiKeyCopyButton";
 import { GithubAppProbeCard } from "./GithubAppProbeCard";
 import { ManualInstallForm } from "./ManualInstallForm";
