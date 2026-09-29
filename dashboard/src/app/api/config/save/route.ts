@@ -19,7 +19,7 @@ import type { AdapterKind } from "../../../../lib/carfConfigSchema";
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
   if (!account) {
-    return NextResponse.redirect(new URL("/login", env.baseUrl()));
+    return NextResponse.redirect(new URL("/login", env.baseUrl()), 303);
   }
 
   const form = await request.formData();
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation || !owner || !repo) {
-    return NextResponse.redirect(new URL("/dashboard?error=not_authorized", env.baseUrl()));
+    return NextResponse.redirect(new URL("/dashboard?error=not_authorized", env.baseUrl()), 303);
   }
 
   const backTo = new URL(`/dashboard/config/${installationId}`, env.baseUrl());
@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
     } else {
       failUrl.searchParams.set("error", "save_failed");
     }
-    return NextResponse.redirect(failUrl);
+    return NextResponse.redirect(failUrl, 303);
   }
 
   backTo.searchParams.set("saved", "1");
-  return NextResponse.redirect(backTo);
+  return NextResponse.redirect(backTo, 303);
 }
