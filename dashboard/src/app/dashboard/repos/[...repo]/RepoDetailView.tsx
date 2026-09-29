@@ -346,7 +346,7 @@ export function RepoDetailView({
             <p className="mt-1 text-xs text-muted-foreground">
               {connection?.verifiedAt
                 ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
-                : "Connection unverified — run connection check in Setup"}
+                : "Linked — host verify has not passed yet. Rollouts still run from .carf.yml."}
             </p>
           </div>
         </div>
@@ -373,11 +373,11 @@ export function RepoDetailView({
             <span>{monitoringPaused ? "Resume Monitoring" : "Pause Monitoring"}</span>
           </button>
           <Link
-            href={repoSetupHref(owner, repo)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90"
+            href={repoSetupHref(owner, repo, { edit: true })}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
           >
             <Terminal className="size-3.5" />
-            <span>Setup & Config</span>
+            <span>Edit connection</span>
           </Link>
         </div>
       </div>
