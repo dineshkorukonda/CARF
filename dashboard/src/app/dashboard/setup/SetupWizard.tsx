@@ -94,6 +94,7 @@ export function SetupWizard({
     verified: boolean;
     checks: VerificationCheckItem[];
     layout?: "git" | "releases";
+    staleCoreApi?: boolean;
   } | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
@@ -717,7 +718,19 @@ export function SetupWizard({
                   </div>
                 </div>
 
+                {verificationResult.staleCoreApi && (
+                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+                      <p className="font-semibold">core-api is still on the Capistrano verify path.</p>
+                      <p className="mt-0.5">
+                        Git-layout Capistrano failures were ignored so this repo can be marked verified.
+                        Restart <code className="font-mono">carf-core-api</code> after pulling{" "}
+                        <code className="font-mono">main</code> so working-directory checks run on the host.
+                      </p>
+                    </div>
+                  )}
+
                 {layout === "git" &&
+                  !verificationResult.staleCoreApi &&
                   verificationResult.checks.some(
                     (c) => c.id === "releases_dir" || c.id === "current_symlink"
                   ) && (
@@ -725,8 +738,7 @@ export function SetupWizard({
                       <p className="font-semibold">core-api ran Capistrano releases checks on a git layout.</p>
                       <p className="mt-0.5">
                         Pull latest <code className="font-mono">main</code> and restart{" "}
-                        <code className="font-mono">carf-core-api</code>, then run this check again. The dashboard
-                        already selected git; the API process is still on the old verify path.
+                        <code className="font-mono">carf-core-api</code>, then run this check again.
                       </p>
                     </div>
                   )}

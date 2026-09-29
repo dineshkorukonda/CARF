@@ -86,6 +86,61 @@ describe("POST /api/repo/connection-check", () => {
     expect(data.verified).toBe(true);
     expect(data.checks).toHaveLength(5);
   });
+
+  it("marks git layout verified when core-api still returns Capistrano path failures", async () => {
+    vi.mocked(auth.getCurrentAccount).mockResolvedValue({ id: "acc-1", email: "test@example.com" } as any);
+    vi.mocked(accountService.getInstallationForAccount).mockResolvedValue({
+      id: "inst-1",
+      installationId: "163039391",
+    } as any);
+    vi.mocked(coreApiAccess.ensureCoreApiKey).mockResolvedValue("test-key");
+    vi.mocked(prisma.repoConnection.upsert).mockResolvedValue({} as any);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          verified: false,
+          checks: [
+            { id: "pm2_daemon", title: "PM2", passed: true, message: "ok" },
+            { id: "target_app", title: "Target", passed: true, message: "ok" },
+            { id: "health_url", title: "Health", passed: true, message: "ok" },
+            { id: "releases_dir", title: "Releases", passed: false, message: "missing" },
+            { id: "current_symlink", title: "Current", passed: false, message: "not a link" },
+            { id: "shared_paths", title: "Shared", passed: true, message: "none" },
+            { id: "rollback_permission", title: "Perms", passed: true, message: "ok" },
+          ],
+        }),
+      })
+    );
+
+    const req = new NextRequest("http://localhost:3000/api/repo/connection-check", {
+      method: "POST",
+      body: JSON.stringify({
+        installationId: "163039391",
+        owner: "dineshkorukonda",
+        repo: "Sahaay",
+        target: {
+          name: "sahaay",
+          layout: "git",
+          cwd: "/opt/sahaay/my-app",
+          healthUrl: "http://127.0.0.1:3000/",
+        },
+      }),
+    });
+
+    const res = await connectionCheckHandler(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.verified).toBe(true);
+    expect(data.staleCoreApi).toBe(true);
+    expect(prisma.repoConnection.upsert).toHaveBeenCalled();
+    const upsertArg = vi.mocked(prisma.repoConnection.upsert).mock.calls[0]![0] as {
+      update: { verifiedAt: Date };
+    };
+    expect(upsertArg.update.verifiedAt).toBeInstanceOf(Date);
+  });
 });
 
 describe("POST /api/repo/pause", () => {
