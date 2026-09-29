@@ -342,8 +342,8 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             checks.push({
               id: "git_metadata",
               title: "Git Checkout",
-              passed: false,
-              message: `'${workDir}' is not a git checkout (missing .git): ${err instanceof Error ? err.message : dirErr instanceof Error ? dirErr.message : "not a git repo"}`,
+              passed: true,
+              message: `'${workDir}' has no .git metadata (${err instanceof Error ? err.message : "not a git repo"}). Connection verify still passes; git checkout rollback needs a clone.`,
             });
           }
         }

@@ -32,35 +32,39 @@ export function isGitVerifyTarget(target: VerifyTarget): boolean {
   return hasCwd && !target.releasesDir && !target.currentSymlink;
 }
 
+function isSkippableGitLayoutCheckId(id: string): boolean {
+  return isCapistranoCheckId(id) || id === "git_metadata";
+}
+
 /**
  * An outdated core-api always runs Capistrano releases/`current` checks. When the
  * wizard asked for git layout, those failures are not real git-checkout problems.
- * Rewrite them so the dashboard can mark the repo verified without waiting on a
- * core-api rebuild.
+ * A missing nested .git also must not block verify — many deploys are copies, not clones.
  */
 export function reconcileGitLayoutVerify(target: VerifyTarget, data: VerifyResult): VerifyResult {
   if (!isGitVerifyTarget(target)) {
     return { ...data, layout: data.layout === "git" ? "git" : "releases" };
   }
 
+  const needsRewrite = data.checks.some((c) => isSkippableGitLayoutCheckId(c.id) && !c.passed);
   const staleCoreApi = data.checks.some((c) => isCapistranoCheckId(c.id));
-  if (!staleCoreApi) {
-    return { ...data, layout: "git", staleCoreApi: false };
+  if (!needsRewrite) {
+    return { ...data, layout: "git", staleCoreApi };
   }
 
   const checks = data.checks.map((c) => {
-    if (!isCapistranoCheckId(c.id) || c.passed) return c;
-    return {
-      ...c,
-      passed: true,
-      message: `Skipped for git layout (cwd ${target.cwd ?? "set"}). core-api still ran Capistrano ${c.id}; restart carf-core-api to run working-directory checks instead.`,
-    };
+    if (!isSkippableGitLayoutCheckId(c.id) || c.passed) return c;
+    const reason =
+      c.id === "git_metadata"
+        ? `Git metadata is optional for connection verify (cwd ${target.cwd ?? "set"}).`
+        : `Skipped for git layout (cwd ${target.cwd ?? "set"}). core-api still ran Capistrano ${c.id}.`;
+    return { ...c, passed: true, message: reason };
   });
 
   return {
     verified: checks.every((c) => c.passed),
     checks,
     layout: "git",
-    staleCoreApi: true,
+    staleCoreApi,
   };
 }

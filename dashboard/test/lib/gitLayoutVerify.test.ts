@@ -51,4 +51,24 @@ describe("reconcileGitLayoutVerify", () => {
     expect(result.verified).toBe(true);
     expect(result.staleCoreApi).toBe(false);
   });
+
+  it("marks git layout verified when the only failure is missing .git", () => {
+    const result = reconcileGitLayoutVerify(
+      { name: "sahaay", layout: "git", cwd: "/opt/sahaay/my-app" },
+      {
+        verified: false,
+        layout: "git",
+        checks: [
+          { id: "pm2_daemon", title: "PM2", passed: true, message: "ok" },
+          { id: "target_app", title: "Target", passed: true, message: "ok" },
+          { id: "health_url", title: "Health", passed: true, message: "ok" },
+          { id: "working_directory", title: "cwd", passed: true, message: "ok" },
+          { id: "git_metadata", title: "git", passed: false, message: "missing .git" },
+          { id: "rollback_permission", title: "Perms", passed: true, message: "ok" },
+        ],
+      }
+    );
+    expect(result.verified).toBe(true);
+    expect(result.checks.find((c) => c.id === "git_metadata")?.passed).toBe(true);
+  });
 });
