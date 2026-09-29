@@ -1,7 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { authenticateAgentRequest } from "../auth";
-import type { RolloutStatus } from "@prisma/client";
+import type { Prisma, RolloutStatus } from "@prisma/client";
+
+interface RolloutSampleInput {
+  ts?: string | Date;
+  errorRate?: number;
+  perTarget?: Prisma.InputJsonValue;
+}
+
+interface RolloutOutcomeRequestBody {
+  commitSha?: string;
+  status?: RolloutStatus;
+  startedAt?: string | Date;
+  finishedAt?: string | Date;
+  threshold?: number;
+  window?: number;
+  finalErrorRate?: number | null;
+  rolledBack?: boolean;
+  reason?: string | null;
+  rollbackVerified?: boolean | null;
+  trigger?: string;
+  readyAt?: string | Date;
+  samples?: RolloutSampleInput[];
+}
 
 export async function POST(req: NextRequest) {
   const authResult = await authenticateAgentRequest(req);
@@ -10,9 +32,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { connection } = authResult;
-  let body: any;
+  let body: RolloutOutcomeRequestBody;
   try {
-    body = await req.json();
+    body = (await req.json()) as RolloutOutcomeRequestBody;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -96,8 +118,8 @@ export async function POST(req: NextRequest) {
   // If samples are provided in the payload, append them
   if (Array.isArray(body.samples) && body.samples.length > 0) {
     const sampleRows = body.samples
-      .filter((s: any) => typeof s.errorRate === "number")
-      .map((s: any) => ({
+      .filter((s): s is RolloutSampleInput & { errorRate: number } => typeof s?.errorRate === "number")
+      .map((s) => ({
         rolloutId: outcome.id,
         ts: s.ts ? new Date(s.ts) : new Date(),
         errorRate: Number(s.errorRate),

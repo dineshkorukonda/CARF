@@ -326,7 +326,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             passed: true,
             message: `'${workDir}' contains a .git directory`,
           });
-        } catch (dirErr: unknown) {
+        } catch {
           try {
             const { stdout } = await executor.exec(`git -C "${workDir}" rev-parse --is-inside-work-tree`);
             const inside = stdout.trim() === "true";

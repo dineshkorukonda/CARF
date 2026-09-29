@@ -10,14 +10,12 @@ import {
   Clock,
   ArrowLeft,
   AlertTriangle,
-  CheckCircle2,
   Pause,
   Play,
   Loader2,
   ChevronDown,
   ChevronRight,
   ShieldAlert,
-  Info,
   RefreshCw,
   Server,
   Copy,
@@ -37,7 +35,6 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
-  ReferenceLine,
 } from "recharts";
 import {
   deriveRepoStatus,

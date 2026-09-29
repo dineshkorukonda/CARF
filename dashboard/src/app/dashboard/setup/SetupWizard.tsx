@@ -16,7 +16,6 @@ import {
   ExternalLink,
   ShieldCheck,
   Server,
-  Key,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
@@ -120,7 +119,6 @@ export function SetupWizard({
     layout?: "git" | "releases";
     staleCoreApi?: boolean;
   } | null>(null);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   // Step 5: Save/commit
   const [copiedYaml, setCopiedYaml] = useState<boolean>(false);
@@ -273,11 +271,16 @@ export function SetupWizard({
   useEffect(() => {
     if (currentStep !== 4 || !selectedRepo) return;
 
-    if (!installToken) {
-      void ensureInstallToken();
-    }
-
     let isMounted = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    if (!installToken) {
+      timer = setTimeout(() => {
+        if (isMounted) {
+          void ensureInstallToken();
+        }
+      }, 0);
+    }
     const pollStatus = async () => {
       try {
         const res = await fetch(
@@ -307,6 +310,7 @@ export function SetupWizard({
     const interval = setInterval(pollStatus, 3000);
     return () => {
       isMounted = false;
+      if (timer) clearTimeout(timer);
       clearInterval(interval);
     };
   }, [currentStep, selectedRepo, selectedInstallationId, layout, installToken, ensureInstallToken]);
@@ -315,7 +319,6 @@ export function SetupWizard({
   const runVerification = async () => {
     if (!selectedRepo) return;
     setVerifying(true);
-    setVerificationError(null);
     try {
       const sharedList = sharedDirs
         .split(",")
@@ -352,8 +355,8 @@ export function SetupWizard({
 
       const data = await res.json();
       setVerificationResult(data);
-    } catch (err: unknown) {
-      setVerificationError(err instanceof Error ? err.message : "Verification request failed");
+    } catch {
+      // verification failed
     } finally {
       setVerifying(false);
     }
@@ -596,7 +599,14 @@ export function SetupWizard({
                   Select the PM2 application process that runs this repository&apos;s build on the host.
                 </p>
               </div>
-              <button
+            {pm2Error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
+                <AlertTriangle className="size-4 shrink-0" />
+                <span>{pm2Error}</span>
+              </div>
+            )}
+
+            <button
                 type="button"
                 onClick={fetchPm2Apps}
                 disabled={loadingPm2}
