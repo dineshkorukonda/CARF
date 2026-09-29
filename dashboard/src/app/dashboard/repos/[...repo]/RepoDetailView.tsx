@@ -100,6 +100,7 @@ interface RepoDetailViewProps {
   rollouts: RolloutItem[];
   commits: CommitWithDetails[];
   auditLogs: AuditLogItem[];
+  activityError?: string | null;
 }
 
 export function RepoDetailView({
@@ -111,6 +112,7 @@ export function RepoDetailView({
   rollouts,
   commits,
   auditLogs,
+  activityError,
 }: RepoDetailViewProps) {
   const [monitoringPaused, setMonitoringPaused] = useState<boolean>(
     connection?.monitoringPaused ?? false
@@ -312,6 +314,12 @@ export function RepoDetailView({
           <span>Back to Repositories</span>
         </Link>
       </div>
+
+      {activityError ? (
+        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" role="status">
+          {activityError}
+        </p>
+      ) : null}
 
       {/* Repository Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">

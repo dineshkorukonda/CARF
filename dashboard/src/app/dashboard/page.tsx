@@ -6,6 +6,7 @@ import { env } from "../../config/env";
 import { signGithubAppJwt } from "../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../adapters/github/installationTokenClient";
 import { listInstallationRepos, type InstallationRepo } from "../../adapters/github/reposClient";
+import { readOrEmpty } from "../../lib/repoActivity";
 import { RepoListView } from "./RepoListView";
 
 export default async function DashboardPage() {
@@ -29,34 +30,42 @@ export default async function DashboardPage() {
     console.error("[dashboard/page] failed to load repos:", err);
   }
 
-  // Fetch repo connections, rollouts, and commits
+  // Fetch repo connections, rollouts, and commits. A missing column here is a
+  // server migration gap (RolloutOutcome.trigger / readyAt), not a reason to
+  // blank the whole repositories page.
   const installationIds = installations.map((i) => String(i.installationId));
 
-  const [connections, rollouts, commits] = await Promise.all([
-    prisma.repoConnection.findMany({
-      where: {
-        installationId: { in: installationIds },
-      },
-    }),
-    prisma.rolloutOutcome.findMany({
-      where: {
-        installationId: { in: installationIds },
-      },
-      orderBy: {
-        startedAt: "desc",
-      },
-      take: 200,
-    }),
-    prisma.commit.findMany({
-      where: {
-        installationId: { in: installationIds },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 200,
-    }),
-  ]);
+  const activity = await readOrEmpty(
+    "[dashboard/page] failed to load rollout activity:",
+    () =>
+      Promise.all([
+        prisma.repoConnection.findMany({
+          where: {
+            installationId: { in: installationIds },
+          },
+        }),
+        prisma.rolloutOutcome.findMany({
+          where: {
+            installationId: { in: installationIds },
+          },
+          orderBy: {
+            startedAt: "desc",
+          },
+          take: 200,
+        }),
+        prisma.commit.findMany({
+          where: {
+            installationId: { in: installationIds },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 200,
+        }),
+      ]),
+    [[], [], []] as const,
+  );
+  const [connections, rollouts, commits] = activity.value;
 
   return (
     <RepoListView
@@ -68,6 +77,7 @@ export default async function DashboardPage() {
       connections={connections}
       rollouts={rollouts}
       commits={commits}
+      activityError={activity.error}
     />
   );
 }
