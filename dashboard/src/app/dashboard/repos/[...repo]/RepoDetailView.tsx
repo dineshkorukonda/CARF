@@ -147,7 +147,7 @@ export function RepoDetailView({
 
   // Derived repo status
   const derivedStatus = deriveRepoStatus({
-    isConfigured: Boolean(connection?.storedConfig),
+    isConfigured: Boolean(connection),
     isVerified: Boolean(connection?.verifiedAt),
     hasPendingRollout: liveRollouts.some((r) => r.status === "PENDING"),
     latestOutcomeStatus: liveRollouts[0]?.status ?? null,

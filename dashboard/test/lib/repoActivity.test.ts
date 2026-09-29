@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { activityErrorMessage, readOrEmpty } from "../../src/lib/repoActivity";
+import { activityErrorMessage, listIntegratedRepos, readOrEmpty } from "../../src/lib/repoActivity";
 
 describe("readOrEmpty", () => {
   it("returns the query result when the read succeeds", async () => {
@@ -32,5 +32,39 @@ describe("readOrEmpty", () => {
 
     expect(result.value).toEqual([]);
     expect(result.error).toMatch(/could not be loaded/);
+  });
+});
+
+describe("listIntegratedRepos", () => {
+  const github = [
+    {
+      id: 1,
+      name: "CARF",
+      full_name: "dineshkorukonda/CARF",
+      owner: "dineshkorukonda",
+      default_branch: "main",
+      private: false,
+    },
+    {
+      id: 2,
+      name: "Sahaay",
+      full_name: "dineshkorukonda/Sahaay",
+      owner: "dineshkorukonda",
+      default_branch: "main",
+      private: false,
+    },
+  ];
+
+  it("returns only GitHub repos that have a RepoConnection row", () => {
+    const listed = listIntegratedRepos(github, [
+      { owner: "dineshkorukonda", repo: "Sahaay" },
+    ]);
+    expect(listed.map((r) => r.name)).toEqual(["Sahaay"]);
+  });
+
+  it("includes a connection even when GitHub did not return that repo", () => {
+    const listed = listIntegratedRepos([], [{ owner: "dineshkorukonda", repo: "Sahaay" }]);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.full_name).toBe("dineshkorukonda/Sahaay");
   });
 });

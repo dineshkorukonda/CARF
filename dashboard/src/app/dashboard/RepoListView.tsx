@@ -208,15 +208,29 @@ export function RepoListView({
 
       {/* Connected Repositories List */}
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Repositories ({repos.length})</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">Connected repositories ({repos.length})</h2>
+          <Link
+            href="/dashboard/setup"
+            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
+          >
+            Connect repository
+          </Link>
+        </div>
 
         {repos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
             <FolderGit2 className="mx-auto size-8 text-muted-foreground/60" />
-            <p className="mt-2 text-xs font-semibold text-foreground">No repositories found</p>
+            <p className="mt-2 text-xs font-semibold text-foreground">No connected repositories</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Install the GitHub App or grant access to repositories in Settings.
+              Only repos that have completed CARF setup appear here. GitHub App access alone is not enough.
             </p>
+            <Link
+              href="/dashboard/setup"
+              className="mt-4 inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              Connect a repository
+            </Link>
           </div>
         ) : (
           <div className="divide-y divide-border rounded-xl border border-border bg-card shadow-xs overflow-hidden">
@@ -234,7 +248,7 @@ export function RepoListView({
 
               const latestRollout = repoRollouts[0];
               const derivedStatus = deriveRepoStatus({
-                isConfigured: Boolean(repoConn?.storedConfig),
+                isConfigured: Boolean(repoConn),
                 isVerified: Boolean(repoConn?.verifiedAt),
                 hasPendingRollout: repoRollouts.some((r) => r.status === "PENDING"),
                 latestOutcomeStatus: latestRollout?.status ?? null,
