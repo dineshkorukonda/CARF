@@ -20,6 +20,7 @@ vi.mock("@prisma/client", () => ({ PrismaClient: class {} }));
 
 const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise<unknown>]> = [
   ["api/auth/[...nextauth]", ["GET", "POST"], () => import("../../src/app/api/auth/[...nextauth]/route")],
+  ["api/auth/github", ["GET"], () => import("../../src/app/api/auth/github/route")],
   ["api/compat-check", ["POST"], () => import("../../src/app/api/compat-check/route")],
   ["api/config/save", ["POST"], () => import("../../src/app/api/config/save/route")],
   ["api/config/save-rules", ["POST"], () => import("../../src/app/api/config/save-rules/route")],
