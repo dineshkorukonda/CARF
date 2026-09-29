@@ -7,6 +7,7 @@ import {
   DASHBOARD_NAV_ITEMS,
   repoSetupHref,
   projectPageHref,
+  commitPageHref,
 } from "../../src/lib/dashboardNav";
 
 describe("installation chrome", () => {
@@ -81,6 +82,12 @@ describe("repo onboarding hrefs", () => {
 
   it("opens rollouts on the project page", () => {
     expect(projectPageHref("dineshkorukonda", "Sahaay")).toBe("/dashboard/repos/dineshkorukonda/Sahaay");
+  });
+
+  it("opens a per-commit pipeline page", () => {
+    expect(commitPageHref("dineshkorukonda", "Sahaay", "abc123def")).toBe(
+      "/dashboard/commits/dineshkorukonda/Sahaay/abc123def",
+    );
   });
 
   it("keeps the global sidebar to repositories, verify, and settings", () => {
