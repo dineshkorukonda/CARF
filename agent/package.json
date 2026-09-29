@@ -1,0 +1,24 @@
+{
+  "name": "@carf/agent",
+  "version": "0.1.0",
+  "description": "CARF host-colocated PM2 monitoring agent",
+  "type": "module",
+  "main": "agent.mjs",
+  "bin": {
+    "carf-agent": "./agent.mjs"
+  },
+  "scripts": {
+    "start": "node agent.mjs",
+    "verify": "node agent.mjs --verify",
+    "test": "vitest run"
+  },
+  "keywords": ["carf", "pm2", "rollback", "canary"],
+  "author": "CARF Team",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}

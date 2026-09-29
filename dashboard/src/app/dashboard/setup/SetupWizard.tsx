@@ -14,6 +14,8 @@ import {
   Play,
   FileCode,
   ExternalLink,
+  ShieldCheck,
+  Server,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
@@ -49,6 +51,11 @@ interface RepoConnectionDef {
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;
+  installTokenPrefix?: string | null;
+  agentLastHeartbeat?: Date | string | null;
+  agentRevoked?: boolean | null;
+  agentVersion?: string | null;
+  verificationReport?: unknown;
 }
 
 interface SetupWizardProps {
@@ -97,7 +104,14 @@ export function SetupWizard({
   const [currentSymlink, setCurrentSymlink] = useState<string>(initialPm2.currentSymlink ?? "/var/www/current");
   const [sharedDirs, setSharedDirs] = useState<string>("/var/www/shared/node_modules");
 
-  // Step 4: Verification
+  // Step 4: Agent Install & Verification
+  const [installToken, setInstallToken] = useState<string>("");
+  const [copiedInstallCmd, setCopiedInstallCmd] = useState<boolean>(false);
+  const [generatingToken, setGeneratingToken] = useState<boolean>(false);
+  const [agentStatus, setAgentStatus] = useState<"online" | "offline" | "never-installed" | "revoked">("never-installed");
+  const [agentVersion, setAgentVersion] = useState<string | null>(null);
+  const [agentLastHeartbeat, setAgentLastHeartbeat] = useState<string | null>(null);
+
   const [verifying, setVerifying] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<{
     verified: boolean;
@@ -105,7 +119,6 @@ export function SetupWizard({
     layout?: "git" | "releases";
     staleCoreApi?: boolean;
   } | null>(null);
-  const [verificationError, setVerificationError] = useState<string | null>(null);
 
   // Step 5: Save/commit
   const [copiedYaml, setCopiedYaml] = useState<boolean>(false);
@@ -174,11 +187,138 @@ export function SetupWizard({
     }
   }, [currentStep, pm2Apps.length, fetchPm2Apps]);
 
-  // Run 5-item verification
+  // Complete Step 3: commit .carf.yml and generate installToken
+  const completeStep3AndProceed = async () => {
+    if (!selectedRepo) return;
+    setCommitting(true);
+    setCommitError(null);
+
+    try {
+      const sharedList = sharedDirs
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const res = await fetch("/api/repo/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId: selectedInstallationId,
+          owner: selectedRepo.owner.login,
+          repo: selectedRepo.name,
+          mode: "standalone",
+          adapterKind: "pm2",
+          adapterTarget: selectedTargetName,
+          layout,
+          healthUrl,
+          startupGraceSeconds,
+          ...(layout === "git" ? { cwd } : {}),
+          ...(layout === "releases"
+            ? {
+                releasesRoot: releasesDir,
+                currentSymlink,
+                sharedPaths: sharedList,
+              }
+            : {}),
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as { error?: string; installToken?: string };
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to commit .carf.yml (HTTP ${res.status})`);
+      }
+
+      if (data.installToken) {
+        setInstallToken(data.installToken);
+      }
+      setCommitSuccess(true);
+      setCurrentStep(4);
+    } catch (err: unknown) {
+      setCommitError(err instanceof Error ? err.message : "Failed to link repository");
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  // Ensure install token in Step 4
+  const ensureInstallToken = useCallback(async () => {
+    if (installToken || !selectedRepo) return;
+    setGeneratingToken(true);
+    try {
+      const res = await fetch("/api/repo/generate-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId: selectedInstallationId,
+          owner: selectedRepo.owner.login,
+          repo: selectedRepo.name,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.token) {
+          setInstallToken(data.token);
+        }
+      }
+    } catch {
+      // non-blocking
+    } finally {
+      setGeneratingToken(false);
+    }
+  }, [installToken, selectedRepo, selectedInstallationId]);
+
+  // Step 4: Poll agent status & heartbeat checks every 3s
+  useEffect(() => {
+    if (currentStep !== 4 || !selectedRepo) return;
+
+    let isMounted = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    if (!installToken) {
+      timer = setTimeout(() => {
+        if (isMounted) {
+          void ensureInstallToken();
+        }
+      }, 0);
+    }
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(
+          `/api/repo/agent-status?installationId=${selectedInstallationId}&owner=${selectedRepo.owner.login}&repo=${selectedRepo.name}`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted) return;
+
+        if (data.agentStatus) setAgentStatus(data.agentStatus);
+        if (data.agentVersion) setAgentVersion(data.agentVersion);
+        if (data.agentLastHeartbeat) setAgentLastHeartbeat(data.agentLastHeartbeat);
+
+        if (Array.isArray(data.verificationReport) && data.verificationReport.length > 0) {
+          setVerificationResult({
+            verified: Boolean(data.verifiedAt),
+            checks: data.verificationReport,
+            layout,
+          });
+        }
+      } catch {
+        // silent polling catch
+      }
+    };
+
+    void pollStatus();
+    const interval = setInterval(pollStatus, 3000);
+    return () => {
+      isMounted = false;
+      if (timer) clearTimeout(timer);
+      clearInterval(interval);
+    };
+  }, [currentStep, selectedRepo, selectedInstallationId, layout, installToken, ensureInstallToken]);
+
+  // Run manual verification check
   const runVerification = async () => {
     if (!selectedRepo) return;
     setVerifying(true);
-    setVerificationError(null);
     try {
       const sharedList = sharedDirs
         .split(",")
@@ -215,8 +355,8 @@ export function SetupWizard({
 
       const data = await res.json();
       setVerificationResult(data);
-    } catch (err: unknown) {
-      setVerificationError(err instanceof Error ? err.message : "Verification request failed");
+    } catch {
+      // verification failed
     } finally {
       setVerifying(false);
     }
@@ -250,6 +390,16 @@ export function SetupWizard({
     navigator.clipboard.writeText(generateYaml());
     setCopiedYaml(true);
     setTimeout(() => setCopiedYaml(false), 2000);
+  };
+
+  const centralOrigin = typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
+  const displayToken = installToken || (selectedConnection?.installTokenPrefix ? `${selectedConnection.installTokenPrefix}...` : "<install_token>");
+  const installCommand = `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${displayToken}`;
+
+  const copyInstallCommand = () => {
+    navigator.clipboard.writeText(installCommand);
+    setCopiedInstallCmd(true);
+    setTimeout(() => setCopiedInstallCmd(false), 2500);
   };
 
   const commitToRepo = async () => {
@@ -327,7 +477,7 @@ export function SetupWizard({
           { step: 1, label: "1. Repository" },
           { step: 2, label: "2. PM2 App" },
           { step: 3, label: "3. Layout & Probe" },
-          { step: 4, label: "4. Verification" },
+          { step: 4, label: "4. Install Agent" },
           { step: 5, label: "5. .carf.yml" },
         ].map((item) => (
           <button
@@ -409,66 +559,58 @@ export function SetupWizard({
                   onChange={(e) => {
                     const next = e.target.value;
                     setSelectedRepoFullName(next);
-                    applyStoredPm2Fields(findRepoConnection(connections, next)?.storedConfig);
+                    const conn = findRepoConnection(connections, next);
+                    if (conn?.storedConfig) {
+                      applyStoredPm2Fields(conn.storedConfig);
+                    }
                   }}
                   className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {repos.map((repo) => (
-                    <option key={repo.id} value={repo.full_name}>
-                      {repo.full_name} ({repo.default_branch})
+                  {repos.map((r) => (
+                    <option key={r.id} value={r.full_name}>
+                      {r.full_name} {r.private ? "(Private)" : ""}
                     </option>
                   ))}
                 </select>
               </div>
-
-              {selectedConnection && (
-                <div className="mt-4 rounded-lg border border-border/80 bg-muted/30 p-3 text-xs">
-                  <span className="font-semibold text-foreground">Current Connection Status:</span>
-                  <div className="mt-1 flex items-center gap-2">
-                    {selectedConnection.verifiedAt ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                        <CheckCircle2 className="size-3.5" />
-                        Verified on {new Date(selectedConnection.verifiedAt).toLocaleString()}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
-                        <AlertTriangle className="size-3.5" />
-                        Not verified
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="mt-6 flex justify-end">
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                disabled={!selectedRepo}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                <span>Continue to PM2 Selection</span>
+                <span>Continue to PM2 App</span>
                 <ArrowRight className="size-3.5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 2: PM2 Discovery */}
+        {/* Step 2: PM2 Target Discovery */}
         {currentStep === 2 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Step 2: Select PM2 Process Target</h2>
+                <h2 className="text-sm font-semibold text-foreground">Step 2: Choose Target PM2 App</h2>
                 <p className="text-xs text-muted-foreground">
-                  Processes discovered directly from the host machine running core-api via read-only PM2 inspection.
+                  Select the PM2 application process that runs this repository&apos;s build on the host.
                 </p>
               </div>
-              <button
+            {pm2Error && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
+                <AlertTriangle className="size-4 shrink-0" />
+                <span>{pm2Error}</span>
+              </div>
+            )}
+
+            <button
                 type="button"
                 onClick={fetchPm2Apps}
                 disabled={loadingPm2}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:bg-muted"
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-xs text-foreground hover:bg-muted"
               >
                 <RefreshCw className={`size-3 ${loadingPm2 ? "animate-spin" : ""}`} />
                 <span>Refresh</span>
@@ -476,33 +618,23 @@ export function SetupWizard({
             </div>
 
             {loadingPm2 ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="size-6 animate-spin text-primary" />
-              </div>
-            ) : pm2Error ? (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
-                <p className="font-semibold">Failed to query host PM2:</p>
-                <p className="mt-0.5">{pm2Error}</p>
-                <div className="mt-3">
-                  <label className="text-xs font-medium text-foreground">Or enter target process name manually:</label>
-                  <input
-                    type="text"
-                    value={selectedTargetName}
-                    onChange={(e) => setSelectedTargetName(e.target.value)}
-                    placeholder="my-pm2-app"
-                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground"
-                  />
-                </div>
+              <div className="py-8 text-center text-xs text-muted-foreground">
+                <Loader2 className="mx-auto size-5 animate-spin text-primary" />
+                <p className="mt-2">Discovering PM2 processes on host...</p>
               </div>
             ) : pm2Apps.length === 0 ? (
-              <div className="py-6 text-center text-xs text-muted-foreground">
-                <p>No active PM2 processes found on host.</p>
+              <div className="rounded-lg border border-dashed border-border p-6 text-center">
+                <AlertTriangle className="mx-auto size-6 text-amber-500" />
+                <p className="mt-2 text-xs font-semibold text-foreground">No PM2 apps auto-detected</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  You can specify the target PM2 process name manually below, or install the agent directly on your server in Step 4.
+                </p>
                 <div className="mt-3 max-w-sm mx-auto">
                   <input
                     type="text"
                     value={selectedTargetName}
                     onChange={(e) => setSelectedTargetName(e.target.value)}
-                    placeholder="Enter PM2 app name manually"
+                    placeholder="Enter PM2 app name (e.g. my-app)"
                     className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground"
                   />
                 </div>
@@ -698,6 +830,13 @@ export function SetupWizard({
               )}
             </div>
 
+            {commitError && (
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
+                <p className="font-semibold">Error:</p>
+                <p className="mt-0.5">{commitError}</p>
+              </div>
+            )}
+
             <div className="mt-6 flex justify-between">
               <button
                 type="button"
@@ -708,128 +847,169 @@ export function SetupWizard({
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentStep(4)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                onClick={completeStep3AndProceed}
+                disabled={committing}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                <span>Continue to Verification Check</span>
+                {committing ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                <span>Generate Install Token & Continue</span>
                 <ArrowRight className="size-3.5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 4: Connection Verification */}
+        {/* Step 4: Install PM2 Agent & Connection Verification */}
         {currentStep === 4 && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">Step 4: Execute Preflight Connection Verification</h2>
-                <p className="text-xs text-muted-foreground">
-                  Validates PM2, the target process, the HTTP probe, and layout-specific paths ({layout === "git" ? "working directory and .git" : "releases directory, current symlink, and shared paths"}).
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={runVerification}
-                disabled={verifying}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {verifying ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />}
-                <span>{verifying ? "Checking..." : "Run Connection Check"}</span>
-              </button>
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Step 4: Install CARF Agent on your Server</h2>
+              <p className="text-xs text-muted-foreground">
+                Run the one-line installer command on your host server. The agent connects to your PM2 process, validates the 7 host verification checks, and reports heartbeats securely over HTTPS.
+              </p>
             </div>
 
-            {verificationError && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-600 dark:text-red-400">
-                <p className="font-semibold">Verification check request failed:</p>
-                <p className="mt-0.5">{verificationError}</p>
+            {/* Install Command Card */}
+            <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Server className="size-4 text-primary" />
+                  <span className="text-xs font-semibold text-foreground">Run on your host server</span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <ShieldCheck className="size-3.5 text-emerald-500" />
+                  <span>Scoped token • Zero database credentials</span>
+                </div>
               </div>
-            )}
 
-            {verificationResult && (
-              <div className="space-y-3">
-                <div
-                  className={`rounded-lg border p-3 text-xs flex items-center justify-between ${
-                    verificationResult.verified
-                      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
-                      : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400 font-semibold"
-                  }`}
+              <div className="relative">
+                <pre className="rounded-lg border border-border bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-x-auto select-all">
+                  {installCommand}
+                </pre>
+                <button
+                  type="button"
+                  onClick={copyInstallCommand}
+                  className="absolute top-2.5 right-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-200 shadow-xs hover:bg-slate-800 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    {verificationResult.verified ? (
-                      <CheckCircle2 className="size-4" />
-                    ) : (
-                      <XCircle className="size-4" />
-                    )}
-                    <span>
-                      {verificationResult.verified
-                        ? `Verification Successful: All ${verificationResult.checks.length} checks passed. Repository marked verified.`
-                        : "Verification Failed: Resolve failing checks before activating rollbacks."}
+                  {copiedInstallCmd ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+                  <span>{copiedInstallCmd ? "Copied!" : "Copy Command"}</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground pt-1">
+                <span>Requires Node.js &ge; 18. Idempotently configures PM2 daemon.</span>
+                {generatingToken && (
+                  <span className="inline-flex items-center gap-1 text-primary">
+                    <Loader2 className="size-3 animate-spin" /> Generating token...
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Live Agent Status Polling Box */}
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-semibold text-foreground">Agent Status:</span>
+                  {agentStatus === "online" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Agent Connected ✓ {agentVersion ? `(v${agentVersion})` : ""}
                     </span>
-                  </div>
+                  ) : agentStatus === "revoked" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                      <span className="size-2 rounded-full bg-red-500" />
+                      Agent Revoked
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      <Loader2 className="size-3 animate-spin text-amber-500" />
+                      Waiting for agent...
+                    </span>
+                  )}
                 </div>
 
-                {verificationResult.staleCoreApi && (
-                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-                      <p className="font-semibold">core-api is still on the Capistrano verify path.</p>
-                      <p className="mt-0.5">
-                        Git-layout Capistrano failures were ignored so this repo can be marked verified.
-                        Restart <code className="font-mono">carf-core-api</code> after pulling{" "}
-                        <code className="font-mono">main</code> so working-directory checks run on the host.
-                      </p>
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={runVerification}
+                    disabled={verifying}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
+                    title="Run connection check via central core API directly"
+                  >
+                    {verifying ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
+                    <span>Run Connection Check</span>
+                  </button>
+                </div>
+              </div>
 
-                {layout === "git" &&
-                  !verificationResult.staleCoreApi &&
-                  verificationResult.checks.some(
-                    (c) => c.id === "releases_dir" || c.id === "current_symlink"
-                  ) && (
-                    <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-                      <p className="font-semibold">core-api ran Capistrano releases checks on a git layout.</p>
-                      <p className="mt-0.5">
-                        Pull latest <code className="font-mono">main</code> and restart{" "}
-                        <code className="font-mono">carf-core-api</code>, then run this check again.
-                      </p>
-                    </div>
-                  )}
+              {agentLastHeartbeat && (
+                <p className="text-[11px] text-muted-foreground font-mono">
+                  Last heartbeat received: {new Date(agentLastHeartbeat).toLocaleTimeString()}
+                </p>
+              )}
 
-                <div className="divide-y divide-border border border-border rounded-lg overflow-hidden">
-                  {verificationResult.checks.map((c) => (
-                    <div key={c.id} className="p-3 text-xs flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-2.5">
-                        {c.passed ? (
-                          <CheckCircle2 className="size-4 text-emerald-500 shrink-0 mt-0.5" />
-                        ) : (
-                          <XCircle className="size-4 text-red-500 shrink-0 mt-0.5" />
-                        )}
-                        <div>
-                          <span className="font-semibold text-foreground">{c.title}</span>
-                          <p className="mt-0.5 text-muted-foreground">{c.message}</p>
-                        </div>
-                      </div>
-                      <span
-                        className={`rounded px-2 py-0.5 text-[10px] font-mono uppercase font-semibold ${
-                          c.passed
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "bg-red-500/10 text-red-600 dark:text-red-400"
-                        }`}
-                      >
-                        {c.passed ? "Passed" : "Failed"}
+              {/* 7 Verification Checks Display */}
+              {verificationResult && verificationResult.checks.length > 0 ? (
+                <div className="space-y-3">
+                  <div
+                    className={`rounded-lg border p-3 text-xs flex items-center justify-between ${
+                      verificationResult.verified
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold"
+                        : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400 font-semibold"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {verificationResult.verified ? (
+                        <CheckCircle2 className="size-4" />
+                      ) : (
+                        <XCircle className="size-4" />
+                      )}
+                      <span>
+                        {verificationResult.verified
+                          ? `Host verification complete: All ${verificationResult.checks.length} checks passed.`
+                          : "Host verification reported warnings or failures."}
                       </span>
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="divide-y divide-border border border-border rounded-lg overflow-hidden bg-card">
+                    {verificationResult.checks.map((c) => (
+                      <div key={c.id} className="p-3 text-xs flex items-start justify-between gap-4">
+                        <div className="flex items-start gap-2.5">
+                          {c.passed ? (
+                            <CheckCircle2 className="size-4 text-emerald-500 shrink-0 mt-0.5" />
+                          ) : (
+                            <XCircle className="size-4 text-red-500 shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <span className="font-semibold text-foreground">{c.title}</span>
+                            <p className="mt-0.5 text-muted-foreground">{c.message}</p>
+                          </div>
+                        </div>
+                        <span
+                          className={`rounded px-2 py-0.5 text-[10px] font-mono uppercase font-semibold ${
+                            c.passed
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-red-500/10 text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {c.passed ? "Passed" : "Failed"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="py-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg bg-card">
+                  {agentStatus === "never-installed"
+                    ? "Paste and run the install command on your host to report the 7 verification checks."
+                    : "No verification checks reported yet. Click 'Run Connection Check' or run 'node agent.mjs --verify' on your host."}
+                </div>
+              )}
+            </div>
 
-            {!verificationResult && !verifying && (
-              <div className="py-8 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                Click &quot;Run Connection Check&quot; to test PM2, the process table, the HTTP probe, and {layout === "git" ? "the git working directory" : "releases directory, symlink, and shared paths"}.
-              </div>
-            )}
-
-            <div className="mt-6 flex justify-between">
+            <div className="mt-6 flex justify-between items-center">
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
@@ -837,29 +1017,24 @@ export function SetupWizard({
               >
                 Back
               </button>
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex items-center gap-3">
                 {selectedRepo && (
                   <a
                     href={projectPageHref(selectedRepo.owner.login, selectedRepo.name)}
-                    className="mb-1 text-[11px] font-medium text-primary hover:underline"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-muted"
                   >
-                    Skip — open project
+                    <span>View Project & Rollouts</span>
+                    <ArrowRight className="size-3.5" />
                   </a>
                 )}
                 <button
                   type="button"
                   onClick={() => setCurrentStep(5)}
-                  disabled={!verificationResult?.verified && !selectedConnection}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                 >
-                  <span>Continue to .carf.yml Setup</span>
+                  <span>Review .carf.yml</span>
                   <ArrowRight className="size-3.5" />
                 </button>
-                {!verificationResult?.verified && !selectedConnection && (
-                  <p className="text-[11px] text-muted-foreground">
-                    All connection checks must pass before the repo is marked verified.
-                  </p>
-                )}
               </div>
             </div>
           </div>

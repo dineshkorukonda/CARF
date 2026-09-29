@@ -56,10 +56,21 @@ CREATE TABLE IF NOT EXISTS "RepoConnection" (
     "verificationReport" JSONB,
     "monitoringPaused" BOOLEAN NOT NULL DEFAULT false,
     "storedConfig" JSONB,
+    "installTokenHash" TEXT,
+    "installTokenPrefix" TEXT,
+    "agentLastHeartbeat" TIMESTAMP(3),
+    "agentVersion" TEXT,
+    "agentRevoked" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "RepoConnection_pkey" PRIMARY KEY ("id")
 );
+
+ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "installTokenHash" TEXT;
+ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "installTokenPrefix" TEXT;
+ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentLastHeartbeat" TIMESTAMP(3);
+ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentVersion" TEXT;
+ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentRevoked" BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS "RolloutAuditLog" (
     "id" TEXT NOT NULL,
@@ -79,6 +90,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "RolloutOutcome_installationId_commitSha_key" 
 CREATE INDEX IF NOT EXISTS "RolloutSample_rolloutId_ts_idx" ON "RolloutSample"("rolloutId", "ts");
 CREATE INDEX IF NOT EXISTS "RolloutSample_ts_idx" ON "RolloutSample"("ts");
 CREATE INDEX IF NOT EXISTS "RepoConnection_installationId_idx" ON "RepoConnection"("installationId");
+CREATE INDEX IF NOT EXISTS "RepoConnection_installTokenHash_idx" ON "RepoConnection"("installTokenHash");
 CREATE UNIQUE INDEX IF NOT EXISTS "RepoConnection_installationId_owner_repo_key" ON "RepoConnection"("installationId", "owner", "repo");
 CREATE INDEX IF NOT EXISTS "RolloutAuditLog_owner_repo_ts_idx" ON "RolloutAuditLog"("owner", "repo", "ts");
 CREATE INDEX IF NOT EXISTS "RolloutAuditLog_rolloutId_idx" ON "RolloutAuditLog"("rolloutId");
