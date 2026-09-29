@@ -8,7 +8,10 @@ describe("readOrEmpty", () => {
   });
 
   it("returns the empty value and a schema message when a column is missing", async () => {
-    const err = Object.assign(new Error("column trigger does not exist"), { code: "P2022" });
+    const err = Object.assign(new Error("column trigger does not exist"), {
+      code: "P2022",
+      meta: { modelName: "RolloutOutcome", column: "trigger" },
+    });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await readOrEmpty("rollouts", async () => {
       throw err;
@@ -16,7 +19,7 @@ describe("readOrEmpty", () => {
     errorSpy.mockRestore();
 
     expect(result.value).toEqual([]);
-    expect(result.error).toMatch(/db:migrate:deploy/);
+    expect(result.error).toMatch(/Missing: RolloutOutcome trigger/);
     expect(activityErrorMessage(err)).toBe(result.error);
   });
 

@@ -8,8 +8,16 @@
 export function activityErrorMessage(err: unknown): string {
   const code =
     err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "";
+  const meta =
+    err && typeof err === "object" && "meta" in err && (err as { meta: unknown }).meta && typeof (err as { meta: unknown }).meta === "object"
+      ? (err as { meta: Record<string, unknown> }).meta
+      : null;
+  const detail = meta
+    ? [meta.modelName, meta.table, meta.column, meta.field_name].filter((v) => typeof v === "string").join(" ")
+    : "";
   if (code === "P2021" || code === "P2022") {
-    return "Rollout history is unavailable because the database schema is behind the app. On the server, from core-api, run npm run db:migrate:deploy and reload.";
+    const suffix = detail ? ` Missing: ${detail}.` : "";
+    return `Rollout history is unavailable because the database is missing a table or column the app expects.${suffix} In Neon SQL, run core-api/prisma/repair-rollout-schema.sql then reload.`;
   }
   return "Rollout history could not be loaded. Repositories from the GitHub App are still listed.";
 }
