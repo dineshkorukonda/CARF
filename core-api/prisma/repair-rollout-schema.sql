@@ -23,11 +23,22 @@ ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "threshold" DOUBLE PRECISI
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "window" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "finishedAt" TIMESTAMP(3);
+ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "finalErrorRate" DOUBLE PRECISION;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "reason" TEXT;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackVerified" BOOLEAN;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
-CREATE TABLE IF NOT EXISTS "RolloutSample" (
+-- Ensure columns that were NOT NULL in legacy migrations are nullable in the state machine schema
+ALTER TABLE "RolloutOutcome" ALTER COLUMN "commitId" DROP NOT NULL;
+ALTER TABLE "RolloutOutcome" ALTER COLUMN "finalErrorRate" DROP NOT NULL;
+
+DO $$ BEGIN
+    ALTER TABLE "RolloutOutcome" ALTER COLUMN "durationMs" DROP NOT NULL;
+EXCEPTION
+    WHEN undefined_column THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "RolloutSample" (\
     "id" TEXT NOT NULL,
     "rolloutId" TEXT NOT NULL,
     "ts" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
