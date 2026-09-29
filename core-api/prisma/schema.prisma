@@ -1,3 +1,6 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -78,7 +81,7 @@ model Installation {
   userId              String
   targetLogin         String
   targetType          String
-  repositorySelection String
+  repositorySelection String?
   // core-api's per-installation bearer credential (issue #65), fetched lazily on first
   // use of the status view (#64) via GET /v1/installations/:id/api-key and cached here.
   coreApiKey          String?
@@ -101,6 +104,7 @@ model Commit {
   installationId  String?
   changeVector    ChangeVector?
   threshold       Threshold?
+  riskProfile     RiskProfile?
   rolloutOutcomes RolloutOutcome[]
   createdAt       DateTime         @default(now())
 
@@ -131,22 +135,35 @@ model Threshold {
   id             String   @id @default(cuid())
   commit         Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
   commitId       String   @unique
+  baseThreshold  Float?
   finalThreshold Float
+  baseWindow     Int?
   finalWindow    Int
-  // The ChangeType names (see src/threshold/engine.ts) that contributed to
-  // finalThreshold/finalWindow, i.e. ThresholdResult.activeTypes from computeThreshold().
-  // Added for #12 (GET /v1/threshold) so the webhook API can return it without
-  // recomputing from ChangeVector.
   activeTypes    String[] @default([])
   computedAt     DateTime @default(now())
 }
 
+// Risk-matrix classification flags and multiplier.
+model RiskProfile {
+  id                String   @id @default(cuid())
+  commitId          String   @unique
+  commit            Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  flags             String[]
+  multiplier        Float
+  calibratedCeiling Float
+}
+
+// Ephemeral evaluation run result comparing Condition A vs. Condition B.
+model EvalRun {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  iterations Int
+  summary    Json
+}
+
 // Durable replacement for webhookOrchestrator.ts's old in-memory `activeLoops` Set (see
 // issue #56): guards against a second core-api instance starting a concurrent Standalone
-// rollback loop for the same commit. `heartbeatAt` is renewed periodically by the
-// lock-holding instance while its loop runs; a lock whose heartbeat has gone stale (holder
-// crashed without releasing) is reclaimable by another instance rather than blocking that
-// commit's redeliveries forever.
+// rollback loop for the same commit.
 model StandaloneLoopLock {
   id          String   @id @default(cuid())
   owner       String
@@ -180,8 +197,8 @@ model RolloutOutcome {
   repo             String?
   commitSha        String
   installationId   String?
-  status           RolloutStatus   @default(PENDING)
   trigger          RolloutTrigger  @default(auto)
+  status           RolloutStatus   @default(PENDING)
   readyAt          DateTime?
   threshold        Float
   window           Int
@@ -226,11 +243,17 @@ model RepoConnection {
   verificationReport Json?
   monitoringPaused   Boolean   @default(false)
   storedConfig       Json?
+  installTokenHash   String?
+  installTokenPrefix String?
+  agentLastHeartbeat DateTime?
+  agentVersion       String?
+  agentRevoked       Boolean?  @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
   @@unique([installationId, owner, repo])
   @@index([installationId])
+  @@index([installTokenHash])
 }
 
 // Audit trail for administrative actions (manual rollback, pause monitoring, config edits).
@@ -251,11 +274,7 @@ model RolloutAuditLog {
 
 // Bearer credential proving a caller acts on behalf of a given GitHub App installation --
 // issue #65's decided auth mechanism for scoping dashboard-facing/authenticated reads
-// (e.g. GET /v1/threshold) to that installation's own data. One row per installationId
-// (auto-created the first time a webhook arrives for it -- see
-// src/auth/installationApiKeyService.ts); `keyHash` is a SHA-256 digest, never the
-// plaintext key itself, which is shown to the operator exactly once (in the server log)
-// at creation time and cannot be recovered afterward.
+// (e.g. GET /v1/threshold) to that installation's own data.
 model InstallationApiKey {
   id             String   @id @default(cuid())
   installationId String   @unique

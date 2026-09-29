@@ -111,3 +111,79 @@ export function getStatusBadgeVariant(status: DerivedRepoStatus): {
       };
   }
 }
+
+/**
+ * Agent operational status derived from last heartbeat and revocation state.
+ */
+export type AgentStatus = "online" | "offline" | "never-installed" | "revoked";
+
+export interface AgentStatusInput {
+  agentLastHeartbeat?: Date | string | null;
+  agentRevoked?: boolean | null;
+  now?: Date | number;
+}
+
+/**
+ * Derives agent status:
+ * - "revoked": if agentRevoked is true
+ * - "never-installed": if agentLastHeartbeat is null or undefined
+ * - "online": if agent sent a heartbeat within the last 5 minutes
+ * - "offline": if last heartbeat was more than 5 minutes ago
+ */
+export function deriveAgentStatus(input: AgentStatusInput): AgentStatus {
+  if (input.agentRevoked) {
+    return "revoked";
+  }
+  if (!input.agentLastHeartbeat) {
+    return "never-installed";
+  }
+
+  const lastMs = new Date(input.agentLastHeartbeat).getTime();
+  if (isNaN(lastMs)) {
+    return "never-installed";
+  }
+
+  const currentMs = typeof input.now === "number" ? input.now : input.now ? new Date(input.now).getTime() : Date.now();
+  const diffMs = currentMs - lastMs;
+
+  // 5 minutes threshold
+  if (diffMs <= 5 * 60 * 1000) {
+    return "online";
+  }
+
+  return "offline";
+}
+
+export function getAgentBadgeVariant(status: AgentStatus): {
+  label: string;
+  colorClass: string;
+  dotClass: string;
+} {
+  switch (status) {
+    case "online":
+      return {
+        label: "Agent Online",
+        colorClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+        dotClass: "bg-emerald-500",
+      };
+    case "offline":
+      return {
+        label: "Agent Offline",
+        colorClass: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",
+        dotClass: "bg-amber-500",
+      };
+    case "revoked":
+      return {
+        label: "Agent Revoked",
+        colorClass: "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800",
+        dotClass: "bg-rose-500",
+      };
+    case "never-installed":
+    default:
+      return {
+        label: "Agent Not Installed",
+        colorClass: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
+        dotClass: "bg-slate-400",
+      };
+  }
+}
