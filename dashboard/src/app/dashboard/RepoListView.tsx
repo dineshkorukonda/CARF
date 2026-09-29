@@ -60,6 +60,7 @@ interface RepoListViewProps {
   connections: RepoConnectionItem[];
   rollouts: RolloutOutcomeItem[];
   commits: CommitItem[];
+  activityError?: string | null;
 }
 
 export function RepoListView({
@@ -67,6 +68,7 @@ export function RepoListView({
   connections,
   rollouts,
   commits,
+  activityError,
 }: RepoListViewProps) {
   // Metrics
   const totalCommits = commits.length;
@@ -123,6 +125,12 @@ export function RepoListView({
           </Link>
         </div>
       </div>
+
+      {activityError ? (
+        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" role="status">
+          {activityError}
+        </p>
+      ) : null}
 
       {/* Metric Cards with Denominators */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
