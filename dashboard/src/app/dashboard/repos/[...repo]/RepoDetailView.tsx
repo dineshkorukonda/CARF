@@ -336,13 +336,27 @@ export function RepoDetailView({
       }).reverse();
   }, [liveRollouts]);
 
-  // Filtered commits
+  // Filtered commits (prioritizes active/recent rollouts at top)
   const filteredCommits = useMemo(() => {
-    return commits.filter((c) => {
+    const list = commits.filter((c) => {
       const matchingRollout = liveRollouts.find((r) => r.commitSha === c.sha);
       if (outcomeFilter === "ALL") return true;
       if (outcomeFilter === "NONE") return !matchingRollout;
       return matchingRollout?.status === outcomeFilter;
+    });
+
+    return list.slice().sort((a, b) => {
+      const rolloutA = liveRollouts.find((r) => r.commitSha === a.sha);
+      const rolloutB = liveRollouts.find((r) => r.commitSha === b.sha);
+      const timeA = Math.max(
+        rolloutA ? new Date(rolloutA.startedAt).getTime() : 0,
+        new Date(a.createdAt).getTime()
+      );
+      const timeB = Math.max(
+        rolloutB ? new Date(rolloutB.startedAt).getTime() : 0,
+        new Date(b.createdAt).getTime()
+      );
+      return timeB - timeA;
     });
   }, [commits, liveRollouts, outcomeFilter]);
 
@@ -711,7 +725,7 @@ export function RepoDetailView({
         ) : (
           <div className="divide-y divide-border">
             {filteredCommits.map((c) => {
-              const rollout = rollouts.find((r) => r.commitSha === c.sha);
+              const rollout = liveRollouts.find((r) => r.commitSha === c.sha);
               const isExpanded = expandedCommitSha === c.sha;
 
               return (
