@@ -525,5 +525,49 @@ describe("POST /v1/pm2/verify", () => {
     expect(ids).not.toContain("current_symlink");
     expect(body.verified).toBe(true);
   });
+
+  it("accepts git layout when cwd is inside a work tree without its own .git directory", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([{ name: "sahaay", pm_id: 0, pm2_env: { status: "online" } }]);
+    const mockExecutor = {
+      exec: vi.fn(async (cmd: string) => {
+        if (cmd === "pm2 jlist") return { stdout: rawPm2Output, stderr: "" };
+        if (cmd.includes("rev-parse")) return { stdout: "true\n", stderr: "" };
+        return { stdout: "", stderr: "" };
+      }),
+    };
+    const mockFsAccess = vi.fn(async (p: string) => {
+      if (String(p).endsWith(".git")) throw new Error("no .git dir");
+    });
+    const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
+
+    await registerPm2Route(app, {
+      prismaClient: { ...createMockPrisma(), repoConnection: { upsert: vi.fn().mockResolvedValue({}) } } as any,
+      executor: mockExecutor,
+      fsAccess: mockFsAccess,
+      httpFetch: mockHttpFetch,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+      payload: {
+        owner: "dineshkorukonda",
+        repo: "Sahaay",
+        target: {
+          name: "sahaay",
+          healthUrl: "http://127.0.0.1:3000/",
+          layout: "git",
+          cwd: "/opt/sahaay/my-app",
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.checks.find((c: { id: string }) => c.id === "git_metadata")?.passed).toBe(true);
+    expect(body.verified).toBe(true);
+  });
 });
 
