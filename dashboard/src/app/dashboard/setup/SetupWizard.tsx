@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   XCircle,
@@ -65,6 +66,7 @@ export function SetupWizard({
 
   // Step 1: Repo selection
   const repos = initialRepos;
+  const router = useRouter();
   const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(
     initialRepos[0]?.full_name || ""
   );
@@ -267,6 +269,9 @@ export function SetupWizard({
       }
 
       setCommitSuccess(true);
+      const ownerLogin = selectedRepo.owner.login;
+      const repoName = selectedRepo.name;
+      router.push(`/dashboard/repos/${encodeURIComponent(ownerLogin)}/${encodeURIComponent(repoName)}`);
     } catch (err: unknown) {
       setCommitError(err instanceof Error ? err.message : "Failed to commit .carf.yml");
     } finally {
@@ -827,10 +832,14 @@ export function SetupWizard({
                 Back
               </button>
               <a
-                href="/dashboard"
+                href={
+                  selectedRepo
+                    ? `/dashboard/repos/${encodeURIComponent(selectedRepo.owner.login)}/${encodeURIComponent(selectedRepo.name)}`
+                    : "/dashboard"
+                }
                 className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-4 py-2 text-xs font-semibold text-foreground hover:bg-muted"
               >
-                <span>Return to Dashboard</span>
+                <span>Open project</span>
               </a>
             </div>
           </div>

@@ -345,7 +345,7 @@ export function RepoDetailView({
             <p className="mt-1 text-xs text-muted-foreground">
               {connection?.verifiedAt
                 ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
-                : "Connection unverified — run connection check in Setup"}
+                : "Connection not verified yet. Re-run Connection Check in PM2 Setup after git layout preflight is deployed."}
             </p>
           </div>
         </div>
@@ -444,7 +444,7 @@ export function RepoDetailView({
                 <Clock className="size-6 text-muted-foreground/60" />
                 <p className="mt-2 text-xs font-semibold text-foreground">No telemetry samples recorded</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Intermediate poll samples appear here while a rollout is being monitored.
+                  Samples appear after a push webhook while `.carf.yml` is `mode: standalone`. CARF polls health during the soak window and writes each sample here.
                 </p>
               </div>
             ) : (
@@ -595,7 +595,7 @@ export function RepoDetailView({
                 <Clock className="size-6 text-muted-foreground/60" />
                 <p className="mt-2 text-xs font-semibold text-foreground">No terminal rollouts recorded</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Completed observation loops will display elapsed duration here.
+                  After a soak finishes (healthy or rolled back), duration shows here. Threshold bars above already come from classification on each commit.
                 </p>
               </div>
             ) : (
