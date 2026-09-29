@@ -15,6 +15,12 @@ describe("rollbackDecision", () => {
   it("skips evaluation when there is no change vector", () => {
     expect(rollbackDecision({ hasVector: false, rolloutStatus: null, reason: null }).kind).toBe("no_signal");
   });
+
+  it("does not call a classified SHA a rollout until live observation exists", () => {
+    const d = rollbackDecision({ hasVector: true, rolloutStatus: null, reason: null });
+    expect(d.kind).toBe("awaiting");
+    expect(d.title).toBe("Not watching live yet");
+  });
 });
 
 describe("pipelineSteps", () => {
