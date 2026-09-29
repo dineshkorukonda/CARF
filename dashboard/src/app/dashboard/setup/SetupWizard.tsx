@@ -759,14 +759,22 @@ export function SetupWizard({
               >
                 Back
               </button>
-              <button
-                type="button"
-                onClick={() => setCurrentStep(5)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-              >
-                <span>Continue to .carf.yml Setup</span>
-                <ArrowRight className="size-3.5" />
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(5)}
+                  disabled={!verificationResult?.verified}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <span>Continue to .carf.yml Setup</span>
+                  <ArrowRight className="size-3.5" />
+                </button>
+                {!verificationResult?.verified && (
+                  <p className="text-[11px] text-muted-foreground">
+                    All connection checks must pass before the repo is marked verified.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         )}

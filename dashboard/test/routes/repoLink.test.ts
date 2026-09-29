@@ -9,6 +9,7 @@ const signGithubAppJwt = vi.fn();
 const createInstallationToken = vi.fn();
 const getCarfConfigFile = vi.fn();
 const putCarfConfigFile = vi.fn();
+const repoConnectionUpsert = vi.fn();
 
 vi.mock("../../src/config/env", () => ({
   env: {
@@ -18,7 +19,13 @@ vi.mock("../../src/config/env", () => ({
   },
 }));
 vi.mock("../../src/lib/auth", () => ({ getCurrentAccount: () => getCurrentAccount() }));
-vi.mock("../../src/lib/prisma", () => ({ prisma: {} }));
+vi.mock("../../src/lib/prisma", () => ({
+  prisma: {
+    repoConnection: {
+      upsert: (...args: unknown[]) => repoConnectionUpsert(...args),
+    },
+  },
+}));
 vi.mock("../../src/lib/accountService", () => ({
   getInstallationForAccount: (...args: unknown[]) => getInstallationForAccount(...args),
 }));
@@ -60,6 +67,7 @@ describe("POST /api/repo/link", () => {
     createInstallationToken.mockResolvedValue({ token: "inst-token" });
     getCarfConfigFile.mockResolvedValue(null);
     putCarfConfigFile.mockResolvedValue(undefined);
+    repoConnectionUpsert.mockResolvedValue({});
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -103,5 +111,13 @@ describe("POST /api/repo/link", () => {
     expect(yaml).toContain("layout: git");
     expect(yaml).toContain("cwd: /opt/sahaay/my-app");
     expect(yaml).not.toContain("version:");
+    expect(repoConnectionUpsert).toHaveBeenCalled();
+    const upsertArgs = repoConnectionUpsert.mock.calls[0]![0] as {
+      create: { verifiedAt: Date | null; storedConfig: { target: string } };
+      update: { storedConfig: { target: string } };
+    };
+    expect(upsertArgs.create.verifiedAt).toBeNull();
+    expect(upsertArgs.create.storedConfig.target).toBe("sahaay");
+    expect(upsertArgs.update.storedConfig.target).toBe("sahaay");
   });
 });

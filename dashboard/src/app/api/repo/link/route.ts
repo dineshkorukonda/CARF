@@ -90,16 +90,18 @@ export async function POST(request: NextRequest) {
 
     const existingFile = await getCarfConfigFile(owner, repo, token).catch(() => null);
 
+    const adapterConfig =
+      mode === "standalone"
+        ? AdapterConfigSchema.parse({
+            kind: adapterKind as AdapterKind,
+            target: adapterTarget,
+            ...adapterExtras,
+          })
+        : undefined;
+
     const nextYaml = applyModeAdapterPatch(existingFile?.content ?? null, {
       mode: mode === "standalone" ? "standalone" : "augment",
-      adapter:
-        mode === "standalone"
-          ? AdapterConfigSchema.parse({
-              kind: adapterKind as AdapterKind,
-              target: adapterTarget,
-              ...adapterExtras,
-            })
-          : undefined,
+      adapter: adapterConfig,
     });
 
     await putCarfConfigFile(
@@ -110,6 +112,32 @@ export async function POST(request: NextRequest) {
       token,
       existingFile?.sha
     );
+
+    const storedConfig = adapterConfig ?? { mode: "augment" };
+
+    try {
+      await prisma.repoConnection.upsert({
+        where: {
+          installationId_owner_repo: {
+            installationId,
+            owner,
+            repo,
+          },
+        },
+        create: {
+          installationId,
+          owner,
+          repo,
+          storedConfig,
+          verifiedAt: null,
+        },
+        update: {
+          storedConfig,
+        },
+      });
+    } catch (dbErr) {
+      console.error("[api/repo/link] Failed to persist RepoConnection after commit:", dbErr);
+    }
 
     return NextResponse.json({
       success: true,

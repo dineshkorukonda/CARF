@@ -6,7 +6,7 @@ import { env } from "../../config/env";
 import { signGithubAppJwt } from "../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../adapters/github/installationTokenClient";
 import { listInstallationRepos, type InstallationRepo } from "../../adapters/github/reposClient";
-import { readOrEmpty } from "../../lib/repoActivity";
+import { listIntegratedRepos, readOrEmpty } from "../../lib/repoActivity";
 import { RepoListView } from "./RepoListView";
 
 export default async function DashboardPage() {
@@ -67,13 +67,15 @@ export default async function DashboardPage() {
   );
   const [connections, rollouts, commits] = activity.value;
 
+  const githubRepos = repos.map((r) => ({
+    ...r,
+    owner: r.owner.login,
+    private: Boolean(r.private),
+  }));
+
   return (
     <RepoListView
-      repos={repos.map((r) => ({
-        ...r,
-        owner: r.owner.login,
-        private: Boolean(r.private),
-      }))}
+      repos={listIntegratedRepos(githubRepos, connections)}
       connections={connections}
       rollouts={rollouts}
       commits={commits}
