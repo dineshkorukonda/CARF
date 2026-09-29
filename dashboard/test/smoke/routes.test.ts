@@ -42,6 +42,7 @@ const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["dashboard", () => import("../../src/app/dashboard/page")],
   ["dashboard/repos", () => import("../../src/app/dashboard/repos/page")],
   ["dashboard/repos/[...repo]", () => import("../../src/app/dashboard/repos/[...repo]/page")],
+  ["dashboard/commits/[owner]/[repo]/[sha]", () => import("../../src/app/dashboard/commits/[owner]/[repo]/[sha]/page")],
   ["dashboard/setup", () => import("../../src/app/dashboard/setup/page")],
   ["dashboard/verify", () => import("../../src/app/dashboard/verify/page")],
   ["dashboard/settings", () => import("../../src/app/dashboard/settings/page")],

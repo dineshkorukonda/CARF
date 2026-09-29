@@ -38,6 +38,10 @@ export function projectPageHref(owner: string, repo: string): string {
   return `/dashboard/repos/${owner}/${repo}`;
 }
 
+export function commitPageHref(owner: string, repo: string, sha: string): string {
+  return `/dashboard/commits/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(sha)}`;
+}
+
 export function projectCommitsHref(installationId: string, repoFullName: string): string | null {
   const installation = installationId.trim();
   const repo = repoFullName.trim();

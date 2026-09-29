@@ -33,6 +33,19 @@ function buildCrumbs(pathname: string): Crumb[] {
     ];
   }
 
+  if (pathname.startsWith("/dashboard/commits/")) {
+    const parts = pathname.replace("/dashboard/commits/", "").split("/").filter(Boolean);
+    const owner = parts[0] ? decodeURIComponent(parts[0]) : "";
+    const repo = parts[1] ? decodeURIComponent(parts[1]) : "";
+    const sha = parts[2] ? decodeURIComponent(parts[2]) : "";
+    const crumbs: Crumb[] = [{ label: "Repositories", href: "/dashboard" }];
+    if (owner && repo) {
+      crumbs.push({ label: `${owner}/${repo}`, href: `/dashboard/repos/${owner}/${repo}` });
+    }
+    crumbs.push({ label: sha ? sha.slice(0, 7) : "Commit" });
+    return crumbs;
+  }
+
   return [{ label: "Repositories", href: "/dashboard" }];
 }
 
