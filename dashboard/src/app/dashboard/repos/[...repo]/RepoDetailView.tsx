@@ -150,6 +150,7 @@ export function RepoDetailView({
         error?: string;
         pulled?: Array<{ sha: string }>;
         failed?: Array<{ sha: string }>;
+        soakSha?: string | null;
       };
       if (!res.ok) {
         setRefreshMessage(data.error ?? "Refresh failed");
@@ -157,7 +158,9 @@ export function RepoDetailView({
       }
       const pulled = data.pulled?.length ?? 0;
       const failed = data.failed?.length ?? 0;
-      if (pulled === 0 && failed === 0) {
+      if (data.soakSha) {
+        setRefreshMessage(`Live soak started on ${data.soakSha.slice(0, 7)}. Open Pipeline — rollback should decide on that SHA.`);
+      } else if (pulled === 0 && failed === 0) {
         setRefreshMessage("No missing commits on this branch.");
       } else if (failed === 0) {
         setRefreshMessage(`Classified ${pulled} commit${pulled === 1 ? "" : "s"} that the push tip had skipped.`);

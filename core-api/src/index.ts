@@ -58,14 +58,14 @@ const app = buildApp({
   },
   refreshCommits: {
     getInstallationToken: (installationId) => installationTokenClient.getInstallationToken(installationId),
-    classifyCommit: (target) =>
+    classifyCommit: (target, classifyOptions) =>
       handleWebhookCommit(target, {
         githubApiClient,
         installationTokenClient,
         carfConfig,
         logger: app.log,
         rolloutMonitor,
-        observeLive: false,
+        observeLive: classifyOptions?.observeLive === true,
       }),
   },
 });

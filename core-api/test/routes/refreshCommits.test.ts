@@ -7,10 +7,16 @@ import { registerRefreshCommitsRoute, type RefreshCommitsPrismaClient } from "..
 class FakePrisma implements RefreshCommitsPrismaClient {
   known = new Set<string>();
   apiKeys = new Map<string, string>();
+  rollouts = new Set<string>();
 
   commit = {
     findMany: async (args: { where: { sha: { in: string[] } } }) =>
       args.where.sha.in.filter((sha) => this.known.has(sha)).map((sha) => ({ sha })),
+  };
+
+  rolloutOutcome = {
+    findFirst: async (args: { where: { commitSha: string } }) =>
+      this.rollouts.has(args.where.commitSha) ? { id: "rollout-1" } : null,
   };
 
   installationApiKey = {
@@ -47,6 +53,7 @@ describe("POST /v1/commits/refresh", () => {
     const key = generateApiKey();
     prisma.apiKeys.set(key.hash, "inst-1");
     prisma.known.add("tip");
+    prisma.rollouts.add("tip");
 
     const classified: DeployTarget[] = [];
     app = Fastify();
@@ -79,9 +86,46 @@ describe("POST /v1/commits/refresh", () => {
       ],
       alreadyKnown: 1,
       failed: [],
+      soakSha: null,
     });
     expect(classified.map((target) => target.headSha)).toEqual(["old", "mid"]);
     expect(classified[0]).toMatchObject({ owner: "acme", repo: "widgets", installationId: "inst-1", event: "push", baseSha: "base" });
+  });
+
+  it("starts a live soak for the branch tip, including a tip that is already classified with no rollout", async () => {
+    const prisma = new FakePrisma();
+    const key = generateApiKey();
+    prisma.apiKeys.set(key.hash, "inst-1");
+    prisma.known.add("tip");
+    prisma.known.add("mid");
+    prisma.known.add("old");
+
+    const classified: Array<{ sha: string; observeLive?: boolean }> = [];
+    app = Fastify();
+    await registerRefreshCommitsRoute(app, {
+      prismaClient: prisma,
+      getInstallationToken: async () => "gh-token",
+      classifyCommit: async (target, options) => {
+        classified.push({ sha: target.headSha, observeLive: options?.observeLive });
+      },
+      listCommits: async () => [
+        { sha: "tip", parentSha: "mid" },
+        { sha: "mid", parentSha: "old" },
+        { sha: "old", parentSha: "base" },
+      ],
+    });
+    await app.ready();
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/commits/refresh",
+      headers: { authorization: `Bearer ${key.plaintext}` },
+      payload: { owner: "acme", repo: "widgets", branch: "main" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().soakSha).toBe("tip");
+    expect(classified).toEqual([{ sha: "tip", observeLive: true }]);
   });
 
   it("returns 400 when owner or repo is missing", async () => {

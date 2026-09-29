@@ -13,13 +13,22 @@ export interface RefreshCommitsPrismaClient extends InstallationAuthPrismaClient
       select: { sha: true };
     }): Promise<Array<{ sha: string }>>;
   };
+  rolloutOutcome?: {
+    findFirst(args: {
+      where: { installationId: string; owner: string; repo: string; commitSha: string };
+    }): Promise<{ id: string } | null>;
+  };
+}
+
+export interface ClassifyCommitOptions {
+  /** True only for the branch tip: start soak/rollback. Historical SHAs stay classify-only. */
+  observeLive?: boolean;
 }
 
 export interface RefreshCommitsRouteOptions {
   prismaClient?: RefreshCommitsPrismaClient;
   getInstallationToken: (installationId: string) => Promise<string>;
-  /** Classify one commit. Callers must not start a live rollback watch. */
-  classifyCommit: (target: DeployTarget) => Promise<void>;
+  classifyCommit: (target: DeployTarget, options?: ClassifyCommitOptions) => Promise<void>;
   listCommits?: (
     owner: string,
     repo: string,
@@ -37,9 +46,8 @@ interface RefreshBody {
 
 /**
  * POST /v1/commits/refresh — classify branch commits this installation does not
- * have yet. A GitHub push webhook only carries the branch tip (`after`), so
- * intermediate SHAs in one push never get a row. This backfills them. It does
- * not start the standalone soak: those SHAs are not what PM2 is running.
+ * have yet. Intermediate SHAs are classify-only. The branch tip starts a live
+ * soak when it has no rollout row yet (so a missed webhook can still roll back).
  */
 export async function registerRefreshCommitsRoute(app: FastifyInstance, options: RefreshCommitsRouteOptions) {
   const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as RefreshCommitsPrismaClient);
@@ -91,19 +99,57 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
 
     const pulled: Array<{ sha: string; baseSha: string }> = [];
     const failed: Array<{ sha: string; error: string }> = [];
+    const tip = branchCommits[0];
+    const tipSha = tip?.sha;
+    let soakSha: string | null = null;
     for (const commit of missing) {
       try {
-        await options.classifyCommit({
-          owner,
-          repo,
-          baseSha: commit.parentSha,
-          headSha: commit.sha,
-          installationId,
-          event: "push",
-        });
+        const observeLive = commit.sha === tipSha;
+        await options.classifyCommit(
+          {
+            owner,
+            repo,
+            baseSha: commit.parentSha,
+            headSha: commit.sha,
+            installationId,
+            event: "push",
+          },
+          { observeLive },
+        );
         pulled.push({ sha: commit.sha, baseSha: commit.parentSha });
+        if (observeLive) {
+          soakSha = commit.sha;
+        }
       } catch (error) {
         failed.push({ sha: commit.sha, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+
+    if (tip?.parentSha && !missing.some((commit) => commit.sha === tip.sha)) {
+      let hasRollout = false;
+      if (prismaClient.rolloutOutcome?.findFirst) {
+        const existing = await prismaClient.rolloutOutcome.findFirst({
+          where: { installationId, owner, repo, commitSha: tip.sha },
+        });
+        hasRollout = Boolean(existing);
+      }
+      if (!hasRollout) {
+        try {
+          await options.classifyCommit(
+            {
+              owner,
+              repo,
+              baseSha: tip.parentSha,
+              headSha: tip.sha,
+              installationId,
+              event: "push",
+            },
+            { observeLive: true },
+          );
+          soakSha = tip.sha;
+        } catch (error) {
+          failed.push({ sha: tip.sha, error: error instanceof Error ? error.message : String(error) });
+        }
       }
     }
 
@@ -111,6 +157,7 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
       pulled,
       alreadyKnown: known.size,
       failed,
+      soakSha,
     });
   });
 }

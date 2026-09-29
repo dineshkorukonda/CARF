@@ -18,6 +18,7 @@ export interface RefreshCommitsResult {
   pulled: Array<{ sha: string; baseSha: string }>;
   alreadyKnown: number;
   failed: Array<{ sha: string; error: string }>;
+  soakSha?: string | null;
 }
 
 /** `POST {baseUrl}/v1/commits/refresh` — classify branch commits the webhook tip skipped. */

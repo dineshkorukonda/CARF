@@ -214,6 +214,30 @@ export class PM2Adapter implements RollbackAdapter {
     };
   }
 
+  async applyRelease(sha: string, target?: string): Promise<void> {
+    assertSafeTarget(sha, "sha");
+    const targets = this.resolveTargets(target);
+    if (targets.length === 0) {
+      throw new Error("No target specified for PM2 applyRelease");
+    }
+
+    const targetArgs = targets.join(" ");
+
+    if (this.layout === "git") {
+      const cwdPrefix = this.cwd ? `cd ${this.cwd} && ` : "";
+      await this.executor.exec(`${cwdPrefix}git fetch origin`);
+      await this.executor.exec(`${cwdPrefix}git checkout ${sha}`);
+      if (this.buildCommand) {
+        await this.executor.exec(`${cwdPrefix}${this.buildCommand}`);
+      }
+      await this.executor.exec(`${cwdPrefix}pm2 reload ${targetArgs}`);
+    } else {
+      const releaseDir = `${this.releasesRoot}/${sha}`;
+      await this.executor.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
+      await this.executor.exec(`pm2 reload ${targetArgs}`);
+    }
+  }
+
   async rollback(target?: string): Promise<void> {
     const targets = this.resolveTargets(target);
     if (targets.length === 0) {

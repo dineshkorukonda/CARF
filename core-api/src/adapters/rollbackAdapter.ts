@@ -12,6 +12,8 @@ export interface RollbackAdapter {
     httpErrorRate?: number;
   }>;
   rollback(target?: string): Promise<void>;
+  /** Put `sha` live on the host so soak/health see that commit, not whatever was already running. */
+  applyRelease?(sha: string, target?: string): Promise<void>;
   rollbackWithVerification?(
     target?: string,
     graceSeconds?: number
