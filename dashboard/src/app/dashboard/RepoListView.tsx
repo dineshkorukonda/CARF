@@ -12,6 +12,7 @@ import {
   Sliders,
 } from "lucide-react";
 import { deriveRepoStatus, getStatusBadgeVariant } from "../../lib/repoStatusDerivation";
+import { repoSetupHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
 
 interface RepoItem {
@@ -112,17 +113,8 @@ export function RepoListView({
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">Repositories & Rollout Overview</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Monitor real-time error-rate observations, PM2 standalone process targets, and automated rollback verdicts.
+            Monitor real-time error-rate observations, PM2 standalone process targets, and automated rollback verdicts. Open a repository to see rollouts, or run setup from that repo.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/dashboard/setup"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
-          >
-            <Terminal className="size-3.5" />
-            <span>Connect PM2 Target</span>
-          </Link>
         </div>
       </div>
 
@@ -315,7 +307,7 @@ export function RepoListView({
                       <ArrowRight className="size-3" />
                     </Link>
                     <Link
-                      href="/dashboard/setup"
+                      href={repoSetupHref(repo.owner, repo.name)}
                       className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
                     >
                       <Sliders className="size-3" />

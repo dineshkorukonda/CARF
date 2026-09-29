@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   FolderGit2,
-  Activity,
-  Terminal,
   ShieldCheck,
   Sliders,
   ChevronsLeft,
@@ -18,16 +16,15 @@ import {
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
+import { DASHBOARD_NAV_ITEMS } from "../../lib/dashboardNav";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", exact: true, label: "Repositories", icon: FolderGit2 },
-  { href: "/dashboard/repos", exact: false, label: "Rollouts & Controls", icon: Activity },
-  { href: "/dashboard/setup", exact: false, label: "PM2 Setup", icon: Terminal },
-  { href: "/dashboard/verify", exact: false, label: "Verification Harness", icon: ShieldCheck },
-  { href: "/dashboard/settings", exact: false, label: "Settings", icon: Sliders },
-];
+const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
+  "/dashboard": FolderGit2,
+  "/dashboard/verify": ShieldCheck,
+  "/dashboard/settings": Sliders,
+};
 
 function NavLink({
   href,
@@ -136,13 +133,13 @@ export function SidebarShell({
             </div>
           )}
           <nav className="flex flex-col gap-0.5 px-3">
-            {NAV_ITEMS.map((item) => (
+            {DASHBOARD_NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.href}
                 href={item.href}
                 exact={item.exact}
                 collapsed={collapsed}
-                icon={item.icon}
+                icon={NAV_ICONS[item.href] ?? FolderGit2}
               >
                 {item.label}
               </NavLink>

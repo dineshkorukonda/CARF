@@ -33,6 +33,7 @@ import {
 } from "recharts";
 import { deriveRepoStatus, getStatusBadgeVariant } from "../../../../lib/repoStatusDerivation";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
+import { repoSetupHref } from "../../../../lib/dashboardNav";
 
 interface SampleItem {
   id: string;
@@ -345,7 +346,7 @@ export function RepoDetailView({
             <p className="mt-1 text-xs text-muted-foreground">
               {connection?.verifiedAt
                 ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
-                : "Connection not verified yet. Re-run Connection Check in PM2 Setup after git layout preflight is deployed."}
+                : "Connection unverified — run connection check in Setup"}
             </p>
           </div>
         </div>
@@ -372,7 +373,7 @@ export function RepoDetailView({
             <span>{monitoringPaused ? "Resume Monitoring" : "Pause Monitoring"}</span>
           </button>
           <Link
-            href="/dashboard/setup"
+            href={repoSetupHref(owner, repo)}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90"
           >
             <Terminal className="size-3.5" />
@@ -444,7 +445,7 @@ export function RepoDetailView({
                 <Clock className="size-6 text-muted-foreground/60" />
                 <p className="mt-2 text-xs font-semibold text-foreground">No telemetry samples recorded</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Samples appear after a push webhook while `.carf.yml` is `mode: standalone`. CARF polls health during the soak window and writes each sample here.
+                  Intermediate poll samples appear here while a rollout is being monitored.
                 </p>
               </div>
             ) : (
@@ -595,7 +596,7 @@ export function RepoDetailView({
                 <Clock className="size-6 text-muted-foreground/60" />
                 <p className="mt-2 text-xs font-semibold text-foreground">No terminal rollouts recorded</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  After a soak finishes (healthy or rolled back), duration shows here. Threshold bars above already come from classification on each commit.
+                  Completed observation loops will display elapsed duration here.
                 </p>
               </div>
             ) : (

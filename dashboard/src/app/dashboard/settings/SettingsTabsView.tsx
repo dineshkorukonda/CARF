@@ -146,11 +146,10 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
 
                     <div className="flex items-center gap-2">
                       <Link
-                        href="/dashboard/setup"
+                        href="/dashboard"
                         className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
                       >
-                        <Terminal className="size-3" />
-                        <span>Setup PM2 Target</span>
+                        <span>Open repositories</span>
                       </Link>
                       <a
                         href={`https://github.com/settings/installations/${inst.installationId}`}

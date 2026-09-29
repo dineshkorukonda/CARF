@@ -4,6 +4,9 @@ import {
   installationSectionHref,
   projectCommitsHref,
   projectThresholdsHref,
+  DASHBOARD_NAV_ITEMS,
+  repoSetupHref,
+  projectPageHref,
 } from "../../src/lib/dashboardNav";
 
 describe("installation chrome", () => {
@@ -60,5 +63,25 @@ describe("projectCommitsHref", () => {
 
   it("returns null without a repo so callers cannot drop project context", () => {
     expect(projectCommitsHref("42", "")).toBeNull();
+  });
+});
+
+describe("repo onboarding hrefs", () => {
+  it("scopes setup to the selected repository", () => {
+    expect(repoSetupHref("dineshkorukonda", "Sahaay")).toBe(
+      "/dashboard/setup?repo=dineshkorukonda%2FSahaay"
+    );
+  });
+
+  it("opens rollouts on the project page", () => {
+    expect(projectPageHref("dineshkorukonda", "Sahaay")).toBe("/dashboard/repos/dineshkorukonda/Sahaay");
+  });
+
+  it("keeps the global sidebar to repositories, verify, and settings", () => {
+    expect(DASHBOARD_NAV_ITEMS.map((item) => item.label)).toEqual([
+      "Repositories",
+      "Verification Harness",
+      "Settings",
+    ]);
   });
 });

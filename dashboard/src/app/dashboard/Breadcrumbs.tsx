@@ -16,7 +16,7 @@ interface Crumb {
  */
 function buildCrumbs(pathname: string): Crumb[] {
   if (pathname === "/dashboard") return [{ label: "Repositories" }];
-  if (pathname === "/dashboard/setup") return [{ label: "PM2 Setup" }];
+  if (pathname === "/dashboard/setup") return [{ label: "Connect repository" }];
   if (pathname === "/dashboard/verify") return [{ label: "Verify Harness" }];
   if (pathname === "/dashboard/settings" || pathname === "/dashboard/account" || pathname === "/dashboard/installations") {
     return [{ label: "Settings" }];

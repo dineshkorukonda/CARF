@@ -8,9 +8,14 @@ import { createInstallationToken } from "../../../adapters/github/installationTo
 import { listInstallationRepos, type InstallationRepo } from "../../../adapters/github/reposClient";
 import { SetupWizard } from "./SetupWizard";
 
-export default async function SetupPage() {
+export default async function SetupPage(props: {
+  searchParams?: Promise<{ repo?: string }>;
+}) {
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
+
+  const searchParams = props.searchParams ? await props.searchParams : {};
+  const initialRepoFullName = typeof searchParams.repo === "string" ? searchParams.repo : "";
 
   const installations = await listInstallationsForAccount(prisma, account.id);
   if (installations.length === 0) {
@@ -42,6 +47,7 @@ export default async function SetupPage() {
       installations={installations}
       initialRepos={repos}
       connections={connections}
+      initialRepoFullName={initialRepoFullName}
     />
   );
 }
