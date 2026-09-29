@@ -179,6 +179,21 @@ describe("handleWebhookCommit", () => {
     expect((deps.prismaClient as FakePrismaClient).commit.upsert).toHaveBeenCalledTimes(1);
   });
 
+  it("observeLive false classifies a historical commit and does not start the standalone loop", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const deps = baseDeps({
+      observeLive: false,
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      standaloneLoopRunner,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect((deps.prismaClient as FakePrismaClient).commit.upsert).toHaveBeenCalledTimes(1);
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+  });
+
   it("issues an installation API key on first webhook for a new installationId, and logs it once (issue #65)", async () => {
     const apiKeyPrismaClient = new FakeInstallationApiKeyPrismaClient();
     const deps = baseDeps({ apiKeyPrismaClient });

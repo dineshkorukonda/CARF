@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   FolderGit2,
   Terminal,
@@ -17,6 +18,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Info,
+  RefreshCw,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -131,6 +133,44 @@ export function RepoDetailView({
   // Filters
   const [outcomeFilter, setOutcomeFilter] = useState<string>("ALL");
   const [expandedCommitSha, setExpandedCommitSha] = useState<string | null>(null);
+  const [refreshingCommits, setRefreshingCommits] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const router = useRouter();
+
+  const refreshCommits = async () => {
+    setRefreshingCommits(true);
+    setRefreshMessage(null);
+    try {
+      const res = await fetch("/api/repo/refresh-commits", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ installationId, owner, repo, branch: defaultBranch }),
+      });
+      const data = (await res.json()) as {
+        error?: string;
+        pulled?: Array<{ sha: string }>;
+        failed?: Array<{ sha: string }>;
+      };
+      if (!res.ok) {
+        setRefreshMessage(data.error ?? "Refresh failed");
+        return;
+      }
+      const pulled = data.pulled?.length ?? 0;
+      const failed = data.failed?.length ?? 0;
+      if (pulled === 0 && failed === 0) {
+        setRefreshMessage("No missing commits on this branch.");
+      } else if (failed === 0) {
+        setRefreshMessage(`Classified ${pulled} commit${pulled === 1 ? "" : "s"} that the push tip had skipped.`);
+      } else {
+        setRefreshMessage(`Classified ${pulled}, ${failed} failed.`);
+      }
+      router.refresh();
+    } catch {
+      setRefreshMessage("Refresh failed");
+    } finally {
+      setRefreshingCommits(false);
+    }
+  };
 
   // Selected rollout for Graph 1
   const [selectedRolloutId, setSelectedRolloutId] = useState<string>(
@@ -632,8 +672,20 @@ export function RepoDetailView({
             <p className="text-[11px] text-muted-foreground">
               Open Pipeline for classifier 1/2, threshold metrics, and rollback. Expand a row for live error-rate and manual rollback.
             </p>
+            {refreshMessage && (
+              <p className="mt-1 text-[11px] text-muted-foreground">{refreshMessage}</p>
+            )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshCommits()}
+              disabled={refreshingCommits}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-60"
+            >
+              <RefreshCw className={`size-3.5 ${refreshingCommits ? "animate-spin" : ""}`} />
+              Refresh commits
+            </button>
             <span className="text-xs text-muted-foreground">Filter by outcome:</span>
             <select
               value={outcomeFilter}
