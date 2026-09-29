@@ -92,6 +92,10 @@ describe("server smoke test", () => {
       githubStatus: {},
       installationApiKey: {},
       commits: {},
+      refreshCommits: {
+        getInstallationToken: async () => "token",
+        classifyCommit: async () => undefined,
+      },
     });
     await app.ready();
 
@@ -99,6 +103,7 @@ describe("server smoke test", () => {
       expect((await app.inject({ method: "GET", url })).statusCode, `GET ${url}`).not.toBe(404);
     }
     expect((await app.inject({ method: "POST", url: "/webhooks/github", payload: "{}" })).statusCode).not.toBe(404);
+    expect((await app.inject({ method: "POST", url: "/v1/commits/refresh", payload: {} })).statusCode).not.toBe(404);
   });
 
   it("serves no route it was never asked to register", async () => {

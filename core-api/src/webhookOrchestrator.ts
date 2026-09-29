@@ -52,6 +52,12 @@ export interface WebhookOrchestratorDeps {
   rolloutOutcomePrismaClient?: RolloutOutcomePrismaClient;
   /** Testable seam for issuing installation API keys (issue #65); defaults to the real db/client.ts singleton. */
   apiKeyPrismaClient?: InstallationApiKeyPrismaClient;
+  /**
+   * When false, classify and persist the commit, then stop. Commit refresh uses this so
+   * a historical SHA is not soaked against whatever the live process is running now.
+   * Defaults to true (webhook delivery starts the standalone loop).
+   */
+  observeLive?: boolean;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -163,6 +169,14 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       return;
     }
     throw error;
+  }
+
+  if (deps.observeLive === false) {
+    deps.logger.info(
+      { sha: target.headSha, owner: target.owner, repo: target.repo },
+      "classified commit without starting a live rollback watch"
+    );
+    return;
   }
 
   const carfConfig = activeCarfConfig;

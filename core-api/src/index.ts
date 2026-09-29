@@ -56,6 +56,18 @@ const app = buildApp({
         rolloutMonitor,
       }),
   },
+  refreshCommits: {
+    getInstallationToken: (installationId) => installationTokenClient.getInstallationToken(installationId),
+    classifyCommit: (target) =>
+      handleWebhookCommit(target, {
+        githubApiClient,
+        installationTokenClient,
+        carfConfig,
+        logger: app.log,
+        rolloutMonitor,
+        observeLive: false,
+      }),
+  },
 });
 
 rolloutMonitor = new RolloutMonitor({

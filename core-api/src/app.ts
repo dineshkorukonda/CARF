@@ -4,6 +4,7 @@ import { registerGithubWebhookRoute, type GithubWebhookRouteOptions } from "./ro
 import { registerGithubStatusRoute, type GithubStatusRouteOptions } from "./routes/githubStatus.js";
 import { registerInstallationApiKeyRoute, type InstallationApiKeyRouteOptions } from "./routes/installationApiKey.js";
 import { registerCommitsRoute, type CommitsRouteOptions } from "./routes/commits.js";
+import { registerRefreshCommitsRoute, type RefreshCommitsRouteOptions } from "./routes/refreshCommits.js";
 import { registerReportRoute, type ReportRouteOptions } from "./routes/report.js";
 import { registerMetricsRoute } from "./routes/metrics.js";
 import { registerVersionRoute } from "./routes/version.js";
@@ -17,6 +18,7 @@ export interface BuildAppOptions {
   githubStatus?: GithubStatusRouteOptions;
   installationApiKey?: InstallationApiKeyRouteOptions;
   commits?: CommitsRouteOptions;
+  refreshCommits?: RefreshCommitsRouteOptions;
   pm2?: Pm2RouteOptions;
   rolloutRollback?: RolloutRollbackRouteOptions;
 }
@@ -33,6 +35,9 @@ export function buildApp(options: BuildAppOptions = {}) {
   void registerGithubStatusRoute(app, options.githubStatus);
   void registerInstallationApiKeyRoute(app, options.installationApiKey);
   void registerCommitsRoute(app, options.commits);
+  if (options.refreshCommits) {
+    void registerRefreshCommitsRoute(app, options.refreshCommits);
+  }
   void registerPm2Route(app, options.pm2);
   void registerRolloutRollbackRoute(app, options.rolloutRollback);
   void registerMetricsRoute(app);

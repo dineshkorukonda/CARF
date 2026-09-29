@@ -32,6 +32,7 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
   ["api/pm2/apps", ["GET"], () => import("../../src/app/api/pm2/apps/route")],
   ["api/repo/connection-check", ["POST"], () => import("../../src/app/api/repo/connection-check/route")],
   ["api/repo/pause", ["POST"], () => import("../../src/app/api/repo/pause/route")],
+  ["api/repo/refresh-commits", ["POST"], () => import("../../src/app/api/repo/refresh-commits/route")],
   ["api/rollouts/[id]/rollback", ["POST"], () => import("../../src/app/api/rollouts/[id]/rollback/route")],
   ["api/rollouts/[id]/samples", ["GET"], () => import("../../src/app/api/rollouts/[id]/samples/route")],
 ];

@@ -14,6 +14,34 @@ export interface RecentCommit {
 
 /** `GET {baseUrl}/v1/commits` -- installation-API-key auth (issue #65's mechanism). Used
  *  by the live status view (#64). */
+export interface RefreshCommitsResult {
+  pulled: Array<{ sha: string; baseSha: string }>;
+  alreadyKnown: number;
+  failed: Array<{ sha: string; error: string }>;
+}
+
+/** `POST {baseUrl}/v1/commits/refresh` — classify branch commits the webhook tip skipped. */
+export async function refreshRepoCommits(
+  baseUrl: string,
+  apiKey: string,
+  body: { owner: string; repo: string; branch: string },
+  fetchFn: FetchFn = fetch
+): Promise<RefreshCommitsResult> {
+  const response = await fetchFn(`${baseUrl}/v1/commits/refresh`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`core-api commit refresh failed (status ${response.status}): ${detail}`);
+  }
+  return (await response.json()) as RefreshCommitsResult;
+}
+
 export async function fetchRecentCommits(
   baseUrl: string,
   apiKey: string,
