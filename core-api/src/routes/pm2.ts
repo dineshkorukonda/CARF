@@ -24,6 +24,7 @@ export interface VerificationCheckItem {
 export interface VerificationResponse {
   verified: boolean;
   checks: VerificationCheckItem[];
+  layout?: "git" | "releases";
 }
 
 export interface VerifyRequestBody {
@@ -40,6 +41,21 @@ export interface VerifyRequestBody {
     sharedDirs?: string[] | undefined;
     sharedPaths?: string[] | undefined;
   };
+}
+
+/**
+ * Prefer an explicit layout. If the field is missing (older proxy or a stripped
+ * body), a cwd with no releases/current paths is a git checkout — not Capistrano.
+ * Defaulting that case to releases is what made Sahaay fail `releases/` + `current`
+ * while the wizard said git.
+ */
+export function resolvePm2VerifyLayout(target: VerifyRequestBody["target"]): "git" | "releases" {
+  if (target.layout === "git") return "git";
+  if (target.layout === "releases") return "releases";
+  const hasCwd = typeof target.cwd === "string" && target.cwd.length > 0;
+  const hasReleasesLayout = Boolean(target.releasesDir) || Boolean(target.currentSymlink);
+  if (hasCwd && !hasReleasesLayout) return "git";
+  return "releases";
 }
 
 interface RawPm2Env {
@@ -249,7 +265,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
 
     // Layout-specific filesystem checks. Git checkout must not require Capistrano
     // releases/ + current symlink; those paths only apply to layout: "releases".
-    const layout = body.target.layout === "git" ? "git" : "releases";
+    const layout = resolvePm2VerifyLayout(body.target);
 
     const testPath = async (p: string, flag: "-d" | "-e" | "-L" | "-w"): Promise<void> => {
       if (flag === "-L") {
@@ -502,6 +518,6 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
       }
     }
 
-    return reply.code(200).send({ verified, checks });
+    return reply.code(200).send({ verified, checks, layout });
   });
 }
