@@ -257,6 +257,12 @@ export function SetupWizard({
 
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
+        const contentType = res.headers.get("content-type") ?? "";
+        if (!contentType.includes("application/json")) {
+          throw new Error(
+            `Failed to commit .carf.yml (HTTP ${res.status}). Pull, rebuild, and restart carf-dashboard so /api/repo/link is live.`
+          );
+        }
         throw new Error(data.error || `Failed to commit .carf.yml (HTTP ${res.status})`);
       }
 

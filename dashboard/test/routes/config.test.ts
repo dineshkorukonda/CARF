@@ -116,25 +116,26 @@ beforeEach(() => {
 });
 
 describe("POST /api/config/save", () => {
-  it("commits the new mode/adapter and redirects back with saved=1", async () => {
+  it("commits the new mode/adapter and returns JSON", async () => {
     getCurrentAccount.mockResolvedValue(ACCOUNT);
     getInstallationForAccount.mockResolvedValue(INSTALLATION);
 
     const response = await save(formRequest(VALID_FORM));
 
-    expect(location(response)).toBe("/dashboard/config/55555?repo=acme%2Fwidgets&saved=1");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, mode: "standalone" });
     expect(putCarfConfigFile).toHaveBeenCalledTimes(1);
     const [owner, repo, yaml] = putCarfConfigFile.mock.calls[0]!;
     expect([owner, repo]).toEqual(["acme", "widgets"]);
     expect(yaml).toContain("standalone");
   });
 
-  it("redirects an unauthenticated caller to /login and commits nothing", async () => {
+  it("returns 401 when unauthenticated and commits nothing", async () => {
     getCurrentAccount.mockResolvedValue(null);
 
     const response = await save(formRequest(VALID_FORM));
 
-    expect(location(response)).toBe("/login");
+    expect(response.status).toBe(401);
     expect(putCarfConfigFile).not.toHaveBeenCalled();
   });
 
@@ -146,7 +147,7 @@ describe("POST /api/config/save", () => {
 
     const response = await save(formRequest(VALID_FORM));
 
-    expect(location(response)).toBe("/dashboard?error=not_authorized");
+    expect(response.status).toBe(403);
     expect(putCarfConfigFile).not.toHaveBeenCalled();
   });
 
@@ -156,7 +157,7 @@ describe("POST /api/config/save", () => {
 
     const response = await save(formRequest({ ...VALID_FORM, repo: "" }));
 
-    expect(location(response)).toBe("/dashboard?error=not_authorized");
+    expect(response.status).toBe(403);
     expect(putCarfConfigFile).not.toHaveBeenCalled();
   });
 
@@ -177,7 +178,8 @@ describe("POST /api/config/save", () => {
 
     const response = await save(formRequest(VALID_FORM));
 
-    expect(location(response)).toBe("/dashboard/config/55555?repo=acme%2Fwidgets&error=save_failed");
+    expect(response.status).toBe(502);
+    expect((await response.json()).error).toMatch(/Failed to commit/);
   });
 
   it("reports permissions error when GitHub rejects due to missing app permissions", async () => {
@@ -188,7 +190,8 @@ describe("POST /api/config/save", () => {
 
     const response = await save(formRequest(VALID_FORM));
 
-    expect(location(response)).toBe("/dashboard/config/55555?repo=acme%2Fwidgets&error=permissions");
+    expect(response.status).toBe(403);
+    expect((await response.json()).reason).toBe("permissions");
   });
 
   // In augment mode the adapter block is dropped rather than written with empty values.

@@ -10,33 +10,50 @@ import { applyModeAdapterPatch } from "../../../../lib/carfConfigWriter";
 import type { AdapterKind } from "../../../../lib/carfConfigSchema";
 
 /**
- * Issue #62's save action: mode + adapter form -> a real commit to the repo's `.carf.yml`,
- * via the installation's own GitHub App credentials (never a user PAT -- see
- * dashboard/CLAUDE.md). Plain HTML form POST (not a Server Action) for the same reason the
- * rest of this package's mutations are route handlers -- see /api/auth/logout, /api/
- * github-app/install/*.
+ * Commits mode/adapter to `.carf.yml`. Always returns JSON.
+ * Must not redirect to /dashboard/config/:id — that page no longer exists, and fetch()
+ * following a 307/303 onto it produced a 404 HTML body in the setup wizard.
  */
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
   if (!account) {
-    return NextResponse.redirect(new URL("/login", env.baseUrl()), 303);
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const form = await request.formData();
-  const installationId = String(form.get("installationId") ?? "");
-  const owner = String(form.get("owner") ?? "");
-  const repo = String(form.get("repo") ?? "");
-  const mode = String(form.get("mode") ?? "");
-  const adapterKind = String(form.get("adapterKind") ?? "");
-  const adapterTarget = String(form.get("adapterTarget") ?? "");
+  let installationId = "";
+  let owner = "";
+  let repo = "";
+  let mode = "";
+  let adapterKind = "";
+  let adapterTarget = "";
+
+  const contentType = request.headers.get("content-type") || "";
+  try {
+    if (contentType.includes("application/json")) {
+      const body = (await request.json()) as Record<string, unknown>;
+      installationId = String(body.installationId ?? "");
+      owner = String(body.owner ?? "");
+      repo = String(body.repo ?? "");
+      mode = String(body.mode ?? "");
+      adapterKind = String(body.adapterKind ?? "");
+      adapterTarget = String(body.adapterTarget ?? "");
+    } else {
+      const form = await request.formData();
+      installationId = String(form.get("installationId") ?? "");
+      owner = String(form.get("owner") ?? "");
+      repo = String(form.get("repo") ?? "");
+      mode = String(form.get("mode") ?? "");
+      adapterKind = String(form.get("adapterKind") ?? "");
+      adapterTarget = String(form.get("adapterTarget") ?? "");
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation || !owner || !repo) {
-    return NextResponse.redirect(new URL("/dashboard?error=not_authorized", env.baseUrl()), 303);
+    return NextResponse.json({ error: "Installation not found or unauthorized" }, { status: 403 });
   }
-
-  const backTo = new URL(`/dashboard/config/${installationId}`, env.baseUrl());
-  backTo.searchParams.set("repo", `${owner}/${repo}`);
 
   try {
     const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
@@ -57,17 +74,13 @@ export async function POST(request: NextRequest) {
       token,
       existingFile?.sha
     );
+
+    return NextResponse.json({ success: true, mode, owner, repo });
   } catch (error: unknown) {
     console.error("[config/save] Failed to save .carf.yml:", error);
-    const failUrl = new URL(backTo);
     if (error instanceof GitHubContentsError) {
-      failUrl.searchParams.set("error", error.reason);
-    } else {
-      failUrl.searchParams.set("error", "save_failed");
+      return NextResponse.json({ error: error.message, reason: error.reason }, { status: error.status || 502 });
     }
-    return NextResponse.redirect(failUrl, 303);
+    return NextResponse.json({ error: "Failed to commit .carf.yml to GitHub" }, { status: 502 });
   }
-
-  backTo.searchParams.set("saved", "1");
-  return NextResponse.redirect(backTo, 303);
 }
