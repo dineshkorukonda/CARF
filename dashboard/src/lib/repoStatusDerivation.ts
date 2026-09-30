@@ -113,45 +113,49 @@ export function getStatusBadgeVariant(status: DerivedRepoStatus): {
 }
 
 /**
- * Agent operational status derived from last heartbeat and revocation state.
+ * Agent operational status derived from last heartbeat, host verification, and revocation state.
  */
-export type AgentStatus = "online" | "offline" | "never-installed" | "revoked";
+export type AgentStatus = "online" | "offline" | "never-installed" | "revoked" | "colocated";
 
 export interface AgentStatusInput {
   agentLastHeartbeat?: Date | string | null;
   agentRevoked?: boolean | null;
+  isVerified?: boolean;
   now?: Date | number;
 }
 
 /**
  * Derives agent status:
  * - "revoked": if agentRevoked is true
- * - "never-installed": if agentLastHeartbeat is null or undefined
  * - "online": if agent sent a heartbeat within the last 5 minutes
  * - "offline": if last heartbeat was more than 5 minutes ago
+ * - "colocated": if verified on host without a remote agent heartbeat
+ * - "never-installed": if agent was never installed and host unverified
  */
 export function deriveAgentStatus(input: AgentStatusInput): AgentStatus {
   if (input.agentRevoked) {
     return "revoked";
   }
-  if (!input.agentLastHeartbeat) {
-    return "never-installed";
+  if (input.agentLastHeartbeat) {
+    const lastMs = new Date(input.agentLastHeartbeat).getTime();
+    if (!isNaN(lastMs)) {
+      const currentMs = typeof input.now === "number" ? input.now : input.now ? new Date(input.now).getTime() : Date.now();
+      const diffMs = currentMs - lastMs;
+
+      // 5 minutes threshold
+      if (diffMs <= 5 * 60 * 1000) {
+        return "online";
+      }
+
+      return "offline";
+    }
   }
 
-  const lastMs = new Date(input.agentLastHeartbeat).getTime();
-  if (isNaN(lastMs)) {
-    return "never-installed";
+  if (input.isVerified) {
+    return "colocated";
   }
 
-  const currentMs = typeof input.now === "number" ? input.now : input.now ? new Date(input.now).getTime() : Date.now();
-  const diffMs = currentMs - lastMs;
-
-  // 5 minutes threshold
-  if (diffMs <= 5 * 60 * 1000) {
-    return "online";
-  }
-
-  return "offline";
+  return "never-installed";
 }
 
 export function getAgentBadgeVariant(status: AgentStatus): {
@@ -163,6 +167,12 @@ export function getAgentBadgeVariant(status: AgentStatus): {
     case "online":
       return {
         label: "Agent Online",
+        colorClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+        dotClass: "bg-emerald-500",
+      };
+    case "colocated":
+      return {
+        label: "Host Connected",
         colorClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
         dotClass: "bg-emerald-500",
       };

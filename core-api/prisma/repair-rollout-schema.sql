@@ -85,6 +85,45 @@ CREATE TABLE IF NOT EXISTS "RolloutAuditLog" (
     CONSTRAINT "RolloutAuditLog_pkey" PRIMARY KEY ("id")
 );
 
+-- Threshold base threshold and window
+ALTER TABLE "Threshold" ADD COLUMN IF NOT EXISTS "baseThreshold" DOUBLE PRECISION;
+ALTER TABLE "Threshold" ADD COLUMN IF NOT EXISTS "baseWindow" INTEGER;
+
+-- AlterTable Installation
+ALTER TABLE "Installation" ALTER COLUMN "repositorySelection" DROP NOT NULL;
+
+-- CreateTable RiskProfile
+CREATE TABLE IF NOT EXISTS "RiskProfile" (
+    "id" TEXT NOT NULL,
+    "commitId" TEXT NOT NULL,
+    "flags" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "multiplier" DOUBLE PRECISION NOT NULL,
+    "calibratedCeiling" DOUBLE PRECISION NOT NULL,
+    CONSTRAINT "RiskProfile_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "RiskProfile_commitId_key" ON "RiskProfile"("commitId");
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'RiskProfile_commitId_fkey'
+    ) THEN
+        ALTER TABLE "RiskProfile" ADD CONSTRAINT "RiskProfile_commitId_fkey" FOREIGN KEY ("commitId") REFERENCES "Commit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+    END IF;
+END $$;
+
+-- CreateTable EvalRun
+CREATE TABLE IF NOT EXISTS "EvalRun" (
+    "id" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "iterations" INTEGER NOT NULL,
+    "summary" JSONB NOT NULL,
+    CONSTRAINT "EvalRun_pkey" PRIMARY KEY ("id")
+);
+
+CREATE INDEX IF NOT EXISTS "Commit_installationId_createdAt_idx" ON "Commit"("installationId", "createdAt");
+
 CREATE INDEX IF NOT EXISTS "RolloutOutcome_status_idx" ON "RolloutOutcome"("status");
 CREATE UNIQUE INDEX IF NOT EXISTS "RolloutOutcome_installationId_commitSha_key" ON "RolloutOutcome"("installationId", "commitSha");
 CREATE INDEX IF NOT EXISTS "RolloutSample_rolloutId_ts_idx" ON "RolloutSample"("rolloutId", "ts");

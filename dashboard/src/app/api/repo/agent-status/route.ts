@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
   const agentStatus = deriveAgentStatus({
     agentLastHeartbeat: connection.agentLastHeartbeat,
     agentRevoked: connection.agentRevoked,
+    isVerified: Boolean(connection.verifiedAt),
   });
 
   return NextResponse.json({
