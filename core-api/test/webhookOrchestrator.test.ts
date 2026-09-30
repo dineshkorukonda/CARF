@@ -427,6 +427,33 @@ describe("handleWebhookCommit", () => {
     );
   });
 
+  it("delegates to rolloutMonitor when provided and skips standaloneLoopRunner", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const fakeAdapter: RollbackAdapter = { checkHealth: vi.fn(), rollback: vi.fn() };
+    const rollbackAdapterFactory = vi.fn().mockReturnValue(fakeAdapter);
+    const fakeRolloutMonitor = {
+      enqueue: vi.fn().mockReturnValue(Promise.resolve()),
+    };
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "sahaay", startupGraceSeconds: 30 } },
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+      rolloutMonitor: fakeRolloutMonitor as any,
+    });
+
+    await handleWebhookCommit(target, deps);
+    await flushMicrotasks();
+
+    expect(fakeRolloutMonitor.enqueue).toHaveBeenCalledTimes(1);
+    expect(fakeRolloutMonitor.enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({ commitSha: "head456" }),
+      fakeAdapter,
+      "sahaay",
+      30
+    );
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+  });
+
   it("any other error from processCommit propagates uncaught", async () => {
     const prismaClient: PipelinePrismaClient = {
       commit: { upsert: vi.fn().mockRejectedValue(new Error("db unavailable")) },

@@ -60,15 +60,15 @@ export class RolloutMonitor {
     adapter: RollbackAdapter,
     targetName?: string,
     startupGraceSeconds: number = 60
-  ): void {
+  ): Promise<void> | undefined {
     if (this.isStopped) {
       this.logger.error({ id: outcome.id }, "monitor is stopped, cannot enqueue new job");
-      return;
+      return undefined;
     }
 
     if (this.runningJobs.has(outcome.id)) {
       this.logger.info({ id: outcome.id, commitSha: outcome.commitSha }, "monitoring job already running for outcome");
-      return;
+      return this.runningJobs.get(outcome.id);
     }
 
     const jobPromise = this.runMonitorLoop(outcome, adapter, targetName, startupGraceSeconds).finally(() => {
@@ -76,6 +76,7 @@ export class RolloutMonitor {
     });
 
     this.runningJobs.set(outcome.id, jobPromise);
+    return jobPromise;
   }
 
   /**

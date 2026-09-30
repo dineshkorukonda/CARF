@@ -298,13 +298,6 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     }
   }
 
-  // If a background monitor worker is attached and pendingOutcome exists, enqueue monitor job
-  if (deps.rolloutMonitor && pendingOutcome) {
-    deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName, startupGraceSeconds);
-  }
-
-  const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;
-
   // Renewed on an interval for as long as the loop runs, so a live loop's lock never goes
   // stale and gets reclaimed out from under it -- only a holder that stops renewing
   // (crashed, or the process died) leaves a lock that eventually becomes reclaimable.
@@ -316,6 +309,31 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       deps.logger.error({ error, key }, "failed to renew standalone loop lock heartbeat");
     });
   }, heartbeatIntervalMs);
+
+  // If a background monitor worker is attached and pendingOutcome exists, delegate monitoring to it
+  if (deps.rolloutMonitor && pendingOutcome) {
+    const monitorPromise = deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName, startupGraceSeconds);
+    if (monitorPromise) {
+      void monitorPromise
+        .catch((error: unknown) => {
+          deps.logger.error({ error, key }, "rollout monitor failed");
+        })
+        .finally(() => {
+          clearInterval(heartbeat);
+          releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+            deps.logger.error({ error, key }, "failed to release standalone loop lock");
+          });
+        });
+    } else {
+      clearInterval(heartbeat);
+      releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+        deps.logger.error({ error, key }, "failed to release standalone loop lock");
+      });
+    }
+    return;
+  }
+
+  const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;
 
   void loopRunner(target.headSha, adapter, result, targetName)
     .then(async (loopResult) => {
