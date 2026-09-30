@@ -154,9 +154,12 @@ export function RepoDetailView({
   const [showAgentSettings, setShowAgentSettings] = useState<boolean>(false);
   const [agentActionMessage, setAgentActionMessage] = useState<string | null>(null);
 
+  const isHostColocated = !connection?.agentLastHeartbeat && Boolean(connection?.verifiedAt);
+
   const agentStatus = deriveAgentStatus({
     agentLastHeartbeat: connection?.agentLastHeartbeat,
     agentRevoked,
+    isVerified: Boolean(connection?.verifiedAt),
   });
   const agentBadge = getAgentBadgeVariant(agentStatus);
 
@@ -399,7 +402,7 @@ export function RepoDetailView({
     }).reverse();
   }, [commits]);
 
-  // --- Graph 3 Data: Change-Vector Breakdown per Commit ---
+  // --- Graph 3 Data: Change Vector Breakdown per Commit ---
   const graph3Data = useMemo(() => {
     return commits.slice(0, 15).map((c) => {
       const cv = c.changeVector;
@@ -535,7 +538,7 @@ export function RepoDetailView({
             className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
           >
             <Server className="size-3.5 text-primary" />
-            <span>Host Agent</span>
+            <span>{isHostColocated ? "Host Environment" : "Host Agent"}</span>
             <ChevronDown className={`size-3 transition-transform ${showAgentSettings ? "rotate-180" : ""}`} />
           </button>
 
@@ -556,19 +559,32 @@ export function RepoDetailView({
             <div>
               <div className="flex items-center gap-2">
                 <Server className="size-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Host PM2 Agent Configuration</h3>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {isHostColocated ? "Host PM2 Environment (Colocated)" : "Host PM2 Agent Configuration"}
+                </h3>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Colocated agent monitoring PM2 processes and streaming telemetry over HTTPS with zero database credentials.
+                {isHostColocated
+                  ? "CARF Core API is running directly on this server alongside PM2 with local process control."
+                  : "Colocated agent monitoring PM2 processes and streaming telemetry over HTTPS with zero database credentials."}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${agentBadge.colorClass}`}>
                 <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
-                {agentBadge.label} {connection?.agentVersion ? `(v${connection.agentVersion})` : ""}
+                {agentBadge.label} {connection?.agentVersion ? `(v${connection.agentVersion})` : isHostColocated ? "(Colocated)" : ""}
               </span>
             </div>
           </div>
+
+          {isHostColocated && (
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5">
+              <Check className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+              <div>
+                <span className="font-semibold">Native Server Host:</span> CARF Core API and your PM2 app are colocated on this server. Rollout health checks and automatic rollbacks execute natively. A separate background agent daemon is not required.
+              </div>
+            </div>
+          )}
 
           {agentActionMessage && (
             <div className="rounded-lg border border-primary/20 bg-primary/10 p-3 text-xs text-primary">
@@ -578,21 +594,31 @@ export function RepoDetailView({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase">Last Heartbeat</div>
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                {isHostColocated ? "Host Status" : "Last Heartbeat"}
+              </div>
               <div className="mt-1 font-semibold text-foreground font-mono">
-                {connection?.agentLastHeartbeat ? new Date(connection.agentLastHeartbeat).toLocaleString() : "Never reported"}
+                {connection?.agentLastHeartbeat
+                  ? new Date(connection.agentLastHeartbeat).toLocaleString()
+                  : connection?.verifiedAt
+                    ? `Verified (${new Date(connection.verifiedAt).toLocaleDateString()})`
+                    : "Never reported"}
               </div>
             </div>
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <div className="text-[11px] font-medium text-muted-foreground uppercase">Installed Version</div>
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">Execution Mode</div>
               <div className="mt-1 font-semibold text-foreground font-mono">
-                {connection?.agentVersion || "N/A"}
+                {connection?.agentVersion ? `Agent v${connection.agentVersion}` : isHostColocated ? "Direct PM2 (Server Host)" : "N/A"}
               </div>
             </div>
             <div className="rounded-lg border border-border bg-muted/20 p-3">
               <div className="text-[11px] font-medium text-muted-foreground uppercase">Token Prefix</div>
               <div className="mt-1 font-semibold text-foreground font-mono">
-                {connection?.installTokenPrefix ? `${connection.installTokenPrefix}...` : "None"}
+                {connection?.installTokenPrefix
+                  ? `${connection.installTokenPrefix}...`
+                  : isHostColocated
+                    ? "Local Server (Direct)"
+                    : "None"}
               </div>
             </div>
           </div>
@@ -600,7 +626,9 @@ export function RepoDetailView({
           {/* Installer Command */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-medium text-foreground">One-line Host Installer Command:</span>
+              <span className="font-medium text-foreground">
+                {isHostColocated ? "Optional Remote Agent Daemon Installer:" : "One-line Host Installer Command:"}
+              </span>
               <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-[11px]">
                 <ShieldCheck className="size-3.5" />
                 <span>Zero DB credentials • Scoped token</span>
