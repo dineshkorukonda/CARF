@@ -188,7 +188,7 @@ export class RolloutMonitor {
     targetName?: string,
     startupGraceSeconds: number = 60
   ): Promise<void> {
-    const deployStartTime = new Date(outcome.startedAt).getTime();
+    const deployStartTime = this.now().getTime();
     const graceMs = startupGraceSeconds * 1000;
     const windowMs = outcome.window * 1000;
     const maxPendingMs = graceMs + windowMs;
