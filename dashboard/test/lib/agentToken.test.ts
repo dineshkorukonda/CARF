@@ -38,15 +38,21 @@ describe("deriveAgentStatus", () => {
     expect(status).toBe("revoked");
   });
 
-  it("returns never-installed if agentLastHeartbeat is null or undefined", () => {
-    expect(deriveAgentStatus({ agentLastHeartbeat: null, now: baseTime })).toBe("never-installed");
-    expect(deriveAgentStatus({ agentLastHeartbeat: undefined, now: baseTime })).toBe("never-installed");
+  it("returns never-installed if agentLastHeartbeat is null or undefined and not verified", () => {
+    expect(deriveAgentStatus({ agentLastHeartbeat: null, isVerified: false, now: baseTime })).toBe("never-installed");
+    expect(deriveAgentStatus({ agentLastHeartbeat: undefined, isVerified: false, now: baseTime })).toBe("never-installed");
   });
 
-  it("returns online if heartbeat was within 5 minutes", () => {
+  it("returns colocated if agentLastHeartbeat is null/undefined but host connection is verified", () => {
+    expect(deriveAgentStatus({ agentLastHeartbeat: null, isVerified: true, now: baseTime })).toBe("colocated");
+    expect(deriveAgentStatus({ agentLastHeartbeat: undefined, isVerified: true, now: baseTime })).toBe("colocated");
+  });
+
+  it("returns online if heartbeat was within 5 minutes even if isVerified is true", () => {
     // 2 minutes ago
     const status = deriveAgentStatus({
       agentLastHeartbeat: new Date(baseTime - 2 * 60 * 1000),
+      isVerified: true,
       now: baseTime,
     });
     expect(status).toBe("online");
@@ -63,6 +69,7 @@ describe("deriveAgentStatus", () => {
 
   it("returns appropriate badge styling", () => {
     expect(getAgentBadgeVariant("online").label).toBe("Agent Online");
+    expect(getAgentBadgeVariant("colocated").label).toBe("Host Connected");
     expect(getAgentBadgeVariant("offline").label).toBe("Agent Offline");
     expect(getAgentBadgeVariant("revoked").label).toBe("Agent Revoked");
     expect(getAgentBadgeVariant("never-installed").label).toBe("Agent Not Installed");
