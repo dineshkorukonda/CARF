@@ -77,7 +77,50 @@ The page **computes** Condition A/B metrics from synthetic templates. It does
 classifier or `computeThreshold()`. MTTR is a sampled delay. Do not cite those
 numbers in the paper. See dashboard copy and `dashboard/src/lib/evalHarness.ts`.
 
-## Still paper-only / later phases
+## Config vs dependency thresholds (#151)
+
+**Decision: keep v1 values.** Config stays at 5%/300s; dependency stays at 3%/180s.
+
+A bad config change can be severe, but the `config` bucket also includes scrape
+intervals, log levels, and feature flags. Dependency upgrades (lockfiles,
+`go.mod`, majors) more often introduce binary incompatibility or supply-chain
+breakage that shows up immediately. The tighter dependency tripwire is
+intentional. Recalibrate from `RolloutOutcome` once #146 has enough rows — do
+not retune from the paper table.
+
+## `MAX_COMPLEXITY_CEILING = 50` (#152)
+
+**Decision: keep 50 as the v1 normalization ceiling.**
+
+Tier 2 scores are raw AST/line-churn sums. 50 is a documented starting
+saturation point: a typical single-file edit scores well below it; a
+multi-file structural rewrite saturates at 1.0. Scores above 50 clamp rather
+than explode the complexity penalty. Recalibrate only after a larger labeled
+commit sample; do not pick a new ceiling from one repo.
+
+## Standalone adapters claimed in the paper (#139–#142)
+
+**Decision: do not rebuild deprecated standalone adapters.** Paper copy must
+list **PM2 only** as the validated standalone runtime.
+
+| Paper claim | Implementation |
+|---|---|
+| Kubernetes standalone adapter | Deprecated / not implemented. Needs a live cluster to validate. |
+| Docker Compose standalone adapter | Deprecated / not implemented. |
+| Docker Swarm standalone adapter | Deprecated / not implemented. |
+| GitOps / Argo CD standalone adapter | **Not a standalone adapter.** Argo already executes rollback. Consume `GET /v1/augment/threshold` (#143) instead. |
+
+`ADAPTER_REGISTRY` in `core-api/src/config/carfConfigSchema.ts` only registers `pm2`.
+
+## Feedback loop / threshold calibration (#146)
+
+`RolloutOutcome` persistence is real. Nothing reads historical outcomes to
+adjust `DEFAULT_ENGINE_CONFIG`. That calibration step stays **documented
+future work** until the outcome count is large enough to be meaningful.
+Building a learned tuner on a handful of rows would overfit and silently
+shift production tripwires.
+
+## Still in flight (other PRs)
 
 | Issue | Status |
 |---|---|
