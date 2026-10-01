@@ -195,7 +195,7 @@ for each type with weight > 0 in change_vector:
     contribution_window[type] = base_window[type]    × (1 − decay × change_vector[type])
 
 final_threshold = min(contribution[type] for type in active_types)   # strictest wins
-final_window    = min(contribution_window[type] for type in active_types)
+final_window    = max(contribution_window[type] for type in active_types)  # longest soak wins (#150)
 
 if change_vector["code_complexity"] exists:
     final_threshold *= (1 − complexity_decay × change_vector["code_complexity"])
