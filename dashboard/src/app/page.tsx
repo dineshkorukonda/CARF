@@ -7,6 +7,9 @@ import {
   RotateCcw,
   CheckCircle2,
   Terminal,
+  ShieldCheck,
+  Server,
+  Globe,
 } from "lucide-react";
 import { InteractiveSimulator } from "./InteractiveSimulator";
 import { CompatChecker } from "./CompatChecker";
@@ -21,16 +24,16 @@ const STEPS = [
     desc: "Grant CARF access to classify commits on the repo(s) you pick — all of them, or a subset.",
   },
   {
-    title: "Configure mode & adapter",
-    desc: "Standalone mode (live with PM2) has CARF monitor health and execute rollbacks. Augment mode (planned) will supply dynamic threshold recommendations to external deployment controllers via GET /v1/augment/threshold.",
+    title: "Choose standalone or augment",
+    desc: "Standalone mode (live with PM2) has CARF monitor health and execute rollbacks. Augment mode is live as a read-only recommendation: GET /v1/augment/threshold returns the calibrated error-rate ceiling and observation window for an external controller.",
   },
   {
     title: "Set classification & threshold rules",
-    desc: "Tune which paths count as code / config / dependency / infra, and how sensitive + how long CARF watches each. Commits straight to your repo's .carf.yml.",
+    desc: "Tune which paths count as code / config / dependency / infra / data, and how sensitive + how long CARF watches each. Commits straight to your repo's .carf.yml.",
   },
   {
-    title: "Wire your pipeline (Augment mode — planned)",
-    desc: "In Augment mode, deployment scripts or CI pipelines will query GET /v1/augment/threshold for dynamic thresholds and observation windows. Standalone PM2 mode is live today and needs no pipeline wiring.",
+    title: "Install the host agent or query the API",
+    desc: "Standalone PM2 installs a host-colocated agent with a repo-scoped token. Augment consumers call GET /v1/augment/threshold from CI, Argo, or a deploy hook. First-party Kubernetes / Render adapters are still planned.",
   },
   {
     title: "Watch live status",
@@ -42,7 +45,63 @@ const PIPELINE_PHASES = [
   { icon: GitBranch, title: "Classify", caption: "Tier 1 path + Tier 2 AST" },
   { icon: Activity, title: "Monitor", caption: "Post-deploy metrics window" },
   { icon: Cpu, title: "Decide", caption: "Change-keyed threshold" },
-  { icon: RotateCcw, title: "Roll back", caption: "PM2 / cluster reload" },
+  { icon: RotateCcw, title: "Roll back", caption: "PM2 reload, or advise" },
+];
+
+const PILLARS = [
+  {
+    icon: GitBranch,
+    title: "Tier 1 path rules",
+    body: "Deterministic classification of infrastructure manifests, config, lockfiles, migrations, and application code. Custom .carf.yml rules run first.",
+    footnote: "infra · data · dependency · config · code",
+  },
+  {
+    icon: Cpu,
+    title: "Tier 2 Tree-sitter AST",
+    body: "Structural syntax diffs measure cyclomatic change and function-level impact so a one-line typo is not scored like a control-flow rewrite.",
+    footnote: "Complexity-aware calibration",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Change-keyed rollback",
+    body: "Each change type has its own error-rate ceiling and soak window. Across mixed commits, CARF takes the strictest threshold and the longest window.",
+    footnote: "min(threshold) · max(window)",
+  },
+];
+
+const MODES = [
+  {
+    badge: "Live",
+    badgeClass: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+    icon: Terminal,
+    title: "Standalone · PM2",
+    body: "CARF watches process health on the host and reloads the previous release when the soak threshold is breached. The agent holds only an HTTPS token — never database credentials.",
+    meta: "curl install.sh · carf-agent under PM2",
+  },
+  {
+    badge: "Live API",
+    badgeClass: "bg-sky-500/15 text-sky-400 border-sky-500/30",
+    icon: Globe,
+    title: "Augment · threshold API",
+    body: "External CI, Argo Rollouts, or deploy hooks query GET /v1/augment/threshold for the per-commit ceiling and observation window. CARF does not execute that rollback.",
+    meta: "GET /v1/augment/threshold",
+  },
+  {
+    badge: "Planned adapters",
+    badgeClass: "bg-muted text-muted-foreground border-border",
+    icon: Server,
+    title: "Kubernetes · Render · Compose",
+    body: "No standalone adapters yet for Kubernetes, Docker Compose, or Render. Those stacks should use the live augment endpoint until a first-party driver ships.",
+    meta: "Use augment mode today",
+  },
+];
+
+const DEFAULT_THRESHOLDS = [
+  { type: "Infrastructure", threshold: "1%", window: "60s" },
+  { type: "Data", threshold: "1%", window: "10 min" },
+  { type: "Dependency", threshold: "3%", window: "3 min" },
+  { type: "Config", threshold: "5%", window: "5 min" },
+  { type: "Code", threshold: "8%", window: "15 min" },
 ];
 
 export default async function HomePage() {
@@ -50,7 +109,6 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Top bar */}
       <header className="border-b border-border bg-card/60 backdrop-blur-xs sticky top-0 z-30">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-2">
@@ -81,20 +139,19 @@ export default async function HomePage() {
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-12">
-        {/* Hero */}
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
             <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Adaptive deployment safety
+            PM2 standalone and augment threshold API are live
           </div>
           <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
             Static error-rate thresholds are either too loose or too fragile.
           </h1>
           <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
-            CARF classifies every commit — code, config, dependency, or infrastructure —
-            and calibrates the rollback threshold to match. A config typo doesn&apos;t get
-            treated like a risky dependency bump. Install the GitHub App, pick a mode, and
-            CARF is watching your next deploy.
+            CARF classifies every commit — infrastructure, data, dependency, config, or
+            code — then calibrates the rollback ceiling and soak window to that change.
+            A config typo is not treated like a risky dependency bump. Install the GitHub
+            App, pick a mode, and CARF is watching the next deploy.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <Button render={<a href={account ? "/dashboard" : "/login"} />}>
@@ -120,7 +177,85 @@ export default async function HomePage() {
           ))}
         </div>
 
-        {/* Dedicated "Install on your server" Section */}
+        <div className="mt-14">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            How CARF decides
+          </h2>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {PILLARS.map((pillar) => (
+              <div key={pillar.title} className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs">
+                <div>
+                  <div className="flex size-8 items-center justify-center rounded-md border border-border bg-background">
+                    <pillar.icon className="size-4 text-foreground" />
+                  </div>
+                  <h3 className="mt-3 text-sm font-semibold text-foreground">{pillar.title}</h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{pillar.body}</p>
+                </div>
+                <div className="mt-4 border-t border-border pt-3 font-mono text-[11px] text-muted-foreground">
+                  {pillar.footnote}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-14">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Two modes, one classifier
+          </h2>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {MODES.map((mode) => (
+              <div key={mode.title} className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs">
+                <div>
+                  <div className="flex items-center justify-between gap-2">
+                    <mode.icon className="size-4 text-foreground" />
+                    <span className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border ${mode.badgeClass}`}>
+                      {mode.badge}
+                    </span>
+                  </div>
+                  <h3 className="mt-3 text-sm font-semibold text-foreground">{mode.title}</h3>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{mode.body}</p>
+                </div>
+                <div className="mt-4 border-t border-border pt-3 font-mono text-[11px] text-muted-foreground">
+                  {mode.meta}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-14">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Default v1 ceilings
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Production defaults from the engine config. Mixed commits use the strictest
+              threshold and the longest observation window.
+            </p>
+          </div>
+          <div className="overflow-hidden rounded-xl border border-border">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/40 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2.5 font-medium">Change type</th>
+                  <th className="px-4 py-2.5 font-medium">Error-rate threshold</th>
+                  <th className="px-4 py-2.5 font-medium">Soak window</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border bg-card">
+                {DEFAULT_THRESHOLDS.map((row) => (
+                  <tr key={row.type}>
+                    <td className="px-4 py-2.5 font-medium text-foreground">{row.type}</td>
+                    <td className="px-4 py-2.5 font-mono text-foreground">{row.threshold}</td>
+                    <td className="px-4 py-2.5 font-mono text-muted-foreground">{row.window}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <div id="install-server" className="mt-14 scroll-mt-6">
           <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -133,7 +268,7 @@ export default async function HomePage() {
                   Run CARF directly on your own server.
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground max-w-xl">
-                  Colocate CARF&apos;s lightweight PM2 agent with your application processes. No database credentials ever touch your host — the agent authenticates with a repository-scoped token and communicates exclusively over HTTPS.
+                  Colocate CARF&apos;s lightweight PM2 agent with your application processes. No database credentials ever touch your host — the agent authenticates with a repository-scoped token and communicates exclusively over HTTPS. Staged self-update checks syntax before swapping the running file.
                 </p>
               </div>
               <div className="shrink-0">
@@ -168,15 +303,13 @@ export default async function HomePage() {
               </div>
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
                 <div className="font-semibold text-foreground">Automatic Daemon Life</div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Managed under PM2 as <code className="font-mono">carf-agent</code> with automatic restart and heartbeat streaming.</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Managed under PM2 as <code className="font-mono">carf-agent</code> with automatic restart, heartbeat, and staged self-update.</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Live Simulator & Repo Checker Grid */}
         <div className="mt-14 space-y-12">
-          {/* Simulator */}
           <div>
             <div className="mb-4">
               <div className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
@@ -187,19 +320,17 @@ export default async function HomePage() {
                 Watch CARF classify commits and calculate canary thresholds
               </h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Slide simulated error rates and swap commit profiles to see real-time dynamic tolerances in action.
+                Slide simulated error rates and swap commit profiles against the same v1 ceilings the engine uses.
               </p>
             </div>
             <InteractiveSimulator />
           </div>
 
-          {/* Compatibility Checker */}
           <div className="border-t border-border pt-12">
             <CompatChecker />
           </div>
         </div>
 
-        {/* Steps */}
         <div className="mt-14 border-t border-border pt-12">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             How it works
@@ -222,7 +353,6 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Onboarding guarantee */}
         <div className="mt-12 rounded-sm border border-border bg-muted/20 p-5">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="mt-0.5 size-4 text-emerald-500 shrink-0" />
@@ -235,6 +365,13 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
+
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-6 text-[11px] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>CARF — Change-Aware Rollback Framework</span>
+          <span className="font-mono">Hosted at carf.indevs.in</span>
+        </div>
+      </footer>
     </main>
   );
 }

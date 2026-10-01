@@ -8,12 +8,10 @@ dashboard-specific conventions on top.
 
 ## Stack
 - Language: TypeScript, strict mode on
-- Framework: Next.js (App Router), same major version as `web/` -- see `web/AGENTS.md`:
-  this is not the Next.js your training data knows, check `node_modules/next/dist/docs/`
-  before writing App Router code.
-- UI: shadcn/ui (`@base-ui/react` primitives), matching `web/`'s `components.json` style
-  (`base-nova`, `neutral` base color). Base UI is polymorphic via a `render` prop, not
-  Radix's `asChild`.
+- Framework: Next.js (App Router) -- this is not the Next.js your training data
+  knows, check `node_modules/next/dist/docs/` before writing App Router code.
+- UI: shadcn/ui (`@base-ui/react` primitives), `base-nova`, `neutral` base color.
+  Base UI is polymorphic via a `render` prop, not Radix's `asChild`.
 - DB/ORM: PostgreSQL + Prisma, own `prisma/schema.prisma` (`Account`/`Installation`) --
   can share core-api's Postgres instance without table-name collisions, but this package
   never imports core-api's Prisma client or vice versa.
@@ -21,7 +19,8 @@ dashboard-specific conventions on top.
 
 ## Package layout
 `dashboard/` is a standalone package -- own `package.json`/lockfile, no root npm/pnpm
-workspace, same pattern `core-api/` and `web/` already use.
+workspace, same pattern `core-api/` already uses. The hosted site at
+https://carf.indevs.in is this package (marketing `/` plus authenticated `/dashboard`).
 
 ```
 dashboard/

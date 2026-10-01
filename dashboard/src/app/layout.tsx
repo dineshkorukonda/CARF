@@ -7,7 +7,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CARF — Change-Aware Rollback Framework",
-  description: "Connect a GitHub account, install the CARF App, and manage rollback configuration.",
+  description: "Change-aware rollback: classify every commit, calibrate the error-rate threshold, and roll back with PM2 or query GET /v1/augment/threshold.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
