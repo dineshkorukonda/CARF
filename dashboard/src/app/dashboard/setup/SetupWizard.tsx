@@ -518,9 +518,7 @@ export function SetupWizard({
             >
               <Server className="size-3.5" />
               <span>Server Host Agent</span>
-              <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
-                1-Line
-              </span>
+
             </button>
             <button
               type="button"
@@ -545,10 +543,6 @@ export function SetupWizard({
         <div className="mt-6 space-y-6">
           <div className="rounded-xl border border-border bg-card p-6 shadow-xs space-y-6">
             <div>
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary mb-2">
-                <Zap className="size-3" />
-                <span>Zero GitHub App Dependency</span>
-              </div>
               <h2 className="text-base font-semibold text-foreground">
                 Install CARF Host Agent in the Background
               </h2>
@@ -598,18 +592,29 @@ export function SetupWizard({
                 </div>
               </div>
 
-              <div className="relative">
-                <pre className="rounded-lg border border-border bg-slate-950 p-4 pr-24 font-mono text-xs text-slate-100 overflow-x-auto select-all leading-relaxed">
+              <div className="overflow-hidden rounded-lg border border-border bg-slate-950 shadow-xs">
+                <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1.5">
+                      <span className="size-2 rounded-full bg-slate-700" />
+                      <span className="size-2 rounded-full bg-slate-700" />
+                      <span className="size-2 rounded-full bg-slate-700" />
+                    </div>
+                    <span className="text-[11px] font-mono text-slate-400 pl-1.5">bash (Linux / VPS)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={copyHostCommand}
+                    className="inline-flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
+                  >
+                    {copiedHostCmd ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                    <span>{copiedHostCmd ? "Copied!" : "Copy Command"}</span>
+                  </button>
+                </div>
+                <div className="p-4 font-mono text-xs text-slate-100 select-all leading-relaxed whitespace-pre-wrap break-all">
+                  <span className="text-slate-500 select-none mr-2">$</span>
                   {hostInstallCommand}
-                </pre>
-                <button
-                  type="button"
-                  onClick={copyHostCommand}
-                  className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 shadow-xs hover:bg-slate-800 transition-colors"
-                >
-                  {copiedHostCmd ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
-                  <span>{copiedHostCmd ? "Copied!" : "Copy Command"}</span>
-                </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground pt-1">
@@ -626,17 +631,17 @@ export function SetupWizard({
                 <div className="flex items-center gap-2.5">
                   <span className="text-xs font-semibold text-foreground">Daemon Connection:</span>
                   {hostAgentStatus === "online" ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                       Agent Online &amp; Connected {hostAgentVersion ? `(v${hostAgentVersion})` : ""}
                     </span>
                   ) : hostAgentStatus === "revoked" ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-600 dark:text-red-400">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-600 dark:text-red-400">
                       <span className="size-2 rounded-full bg-red-500" />
                       Token Revoked
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
                       <Loader2 className="size-3 animate-spin text-amber-500" />
                       Waiting for server agent to connect...
                     </span>
@@ -1132,18 +1137,29 @@ export function SetupWizard({
                     </div>
                   </div>
 
-                  <div className="relative">
-                    <pre className="rounded-lg border border-border bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-x-auto select-all">
+                  <div className="overflow-hidden rounded-lg border border-border bg-slate-950 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-slate-800 bg-slate-900/60 px-4 py-2">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1.5">
+                          <span className="size-2 rounded-full bg-slate-700" />
+                          <span className="size-2 rounded-full bg-slate-700" />
+                          <span className="size-2 rounded-full bg-slate-700" />
+                        </div>
+                        <span className="text-[11px] font-mono text-slate-400 pl-1.5">bash (Linux / VPS)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={copyInstallCommand}
+                        className="inline-flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
+                      >
+                        {copiedInstallCmd ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                        <span>{copiedInstallCmd ? "Copied!" : "Copy Command"}</span>
+                      </button>
+                    </div>
+                    <div className="p-4 font-mono text-xs text-slate-100 select-all leading-relaxed whitespace-pre-wrap break-all">
+                      <span className="text-slate-500 select-none mr-2">$</span>
                       {installCommand}
-                    </pre>
-                    <button
-                      type="button"
-                      onClick={copyInstallCommand}
-                      className="absolute top-2.5 right-2.5 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-200 shadow-xs hover:bg-slate-800 transition-colors"
-                    >
-                      {copiedInstallCmd ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
-                      <span>{copiedInstallCmd ? "Copied!" : "Copy Command"}</span>
-                    </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground pt-1">
@@ -1162,17 +1178,17 @@ export function SetupWizard({
                     <div className="flex items-center gap-2.5">
                       <span className="text-xs font-semibold text-foreground">Agent Status:</span>
                       {agentStatus === "online" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                           <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                           Agent Connected ✓ {agentVersion ? `(v${agentVersion})` : ""}
                         </span>
                       ) : agentStatus === "revoked" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-600 dark:text-red-400">
                           <span className="size-2 rounded-full bg-red-500" />
                           Agent Revoked
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
                           <Loader2 className="size-3 animate-spin text-amber-500" />
                           Waiting for agent to connect...
                         </span>
