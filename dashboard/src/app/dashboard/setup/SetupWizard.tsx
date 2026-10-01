@@ -229,7 +229,7 @@ export function SetupWizard({
     };
   }, [onboardingMode, selectedInstallationId, installations, hostOwnerName, hostServiceName]);
 
-  const hostInstallCommand = `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${hostInstallToken || "<install_token>"}`;
+  const hostInstallCommand = hostInstallToken ? `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${hostInstallToken}` : `curl -fsSL ${centralOrigin}/install.sh | bash`;
 
   const copyHostCommand = () => {
     navigator.clipboard.writeText(hostInstallCommand);
@@ -356,8 +356,8 @@ export function SetupWizard({
     };
   }, [currentStep, selectedRepo, selectedInstallationId, installToken, ensureInstallToken]);
 
-  const displayToken = installToken || (selectedConnection?.installTokenPrefix ? `${selectedConnection.installTokenPrefix}...` : "<install_token>");
-  const installCommand = `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${displayToken}`;
+  const displayToken = installToken || (selectedConnection?.installTokenPrefix ? `${selectedConnection.installTokenPrefix}...` : "");
+  const installCommand = displayToken ? `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${displayToken}` : `curl -fsSL ${centralOrigin}/install.sh | bash`;
 
   const copyInstallCommand = () => {
     navigator.clipboard.writeText(installCommand);
@@ -501,7 +501,7 @@ export function SetupWizard({
               <h1 className="text-xl font-bold text-foreground">CARF Deployment &amp; Agent Setup</h1>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Install the background daemon on your host server (PM2 or systemd), or connect your GitHub repository with .carf.yml rules.
+              Install the background daemon on your host server (PM2), or connect your GitHub repository with .carf.yml rules.
             </p>
           </div>
 
@@ -553,7 +553,7 @@ export function SetupWizard({
                 Install CARF Host Agent in the Background
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Run this single command on your host or VPS. The installer automatically detects Node.js, configures PM2 or systemd to run the daemon in the background, validates local health, and reports heartbeats over HTTPS.
+                Run this single command on your host or VPS. The installer automatically detects Node.js, configures PM2 to run the daemon in the background, validates local health, and reports heartbeats over HTTPS.
               </p>
             </div>
 
@@ -712,9 +712,9 @@ export function SetupWizard({
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
                 <div className="flex items-center gap-1.5 font-semibold text-foreground">
                   <Server className="size-3.5 text-indigo-500" />
-                  <span>PM2 or systemd</span>
+                  <span>PM2 Background Daemon</span>
                 </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Uses PM2 process table if present, or automatically provisions a systemd service daemon.</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Runs as a background daemon managed by PM2 with auto-restart on crashes or reboot.</div>
               </div>
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
                 <div className="flex items-center gap-1.5 font-semibold text-foreground">
@@ -1147,7 +1147,7 @@ export function SetupWizard({
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground pt-1">
-                    <span>Daemon runs in background under PM2 or systemd. Update: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --update</code></span>
+                    <span>Daemon runs in background under PM2. Update: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --update</code></span>
                     {generatingToken && (
                       <span className="inline-flex items-center gap-1 text-primary">
                         <Loader2 className="size-3 animate-spin" /> Generating token...
