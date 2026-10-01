@@ -11,8 +11,9 @@ export interface ChangeVector {
 }
 
 // Configurable ceiling a raw Tier 2 complexity score is normalized against to produce
-// code_complexity in [0, 1]. 50 is a starting point pending calibration against the
-// Phase 3 evaluation harness (see docs/CARF_PROPOSED_IMPLEMENTATION.md §7).
+// code_complexity in [0, 1]. v1 decision (#152): 50 saturates large structural rewrites
+// at 1.0 without exploding the complexity penalty. Recalibrate only from a labeled
+// multi-repo sample — see docs/PAPER_ALIGNMENT.md.
 export const MAX_COMPLEXITY_CEILING = 50;
 
 /**
