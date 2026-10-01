@@ -7,7 +7,7 @@
  * Requirements:
  * - Pure Node.js (>=18) - ZERO native dependencies, ZERO database credentials.
  * - Authenticates to central CARF API via CARF_INSTALL_TOKEN.
- * - Supports PM2 and systemd service management.
+ * - Standardized exclusively on PM2 background process management.
  */
 
 import fs from "node:fs";
@@ -30,15 +30,18 @@ export function compareAgentVersion(a, b) {
   return 0;
 }
 
-// Load .env file if present in current directory or agent dir
-function loadEnv() {
-  const envPaths = [
+function getEnvPaths() {
+  const agentDir = path.dirname(new URL(import.meta.url).pathname);
+  return [
+    path.resolve(agentDir, ".env"),
     path.resolve(process.cwd(), ".env"),
-    path.resolve(path.dirname(new URL(import.meta.url).pathname), ".env"),
     path.resolve(process.env.HOME || process.env.USERPROFILE || "", ".carf/agent/.env"),
   ];
+}
 
-  for (const envPath of envPaths) {
+// Load .env file if present in agent dir or current directory
+export function loadEnv() {
+  for (const envPath of getEnvPaths()) {
     if (fs.existsSync(envPath)) {
       try {
         const content = fs.readFileSync(envPath, "utf-8");
@@ -52,7 +55,7 @@ function loadEnv() {
             if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
               val = val.slice(1, -1);
             }
-            if (!process.env[key]) {
+            if (val) {
               process.env[key] = val;
             }
           }
@@ -67,19 +70,57 @@ function loadEnv() {
 
 loadEnv();
 
-const CENTRAL_URL = (process.env.CARF_CENTRAL_API_URL || "https://carf.indevs.in").replace(/\/$/, "");
-const INSTALL_TOKEN = process.env.CARF_INSTALL_TOKEN;
+let CENTRAL_URL = (process.env.CARF_CENTRAL_API_URL || "https://carf.indevs.in").replace(/\/$/, "");
+let INSTALL_TOKEN = process.env.CARF_INSTALL_TOKEN || "";
 
-if (!INSTALL_TOKEN && !process.argv.includes("--help")) {
-  console.error("Error: CARF_INSTALL_TOKEN environment variable is required.");
-  console.error("Set CARF_INSTALL_TOKEN in your .env or environment.");
-  process.exit(1);
+/**
+ * Save install token to .env file
+ */
+export function saveTokenToEnv(token, centralUrl = null) {
+  const targetDir = path.resolve(process.env.HOME || process.env.USERPROFILE || "", ".carf/agent");
+  if (!fs.existsSync(targetDir)) {
+    try {
+      fs.mkdirSync(targetDir, { recursive: true });
+    } catch {
+      // ignore
+    }
+  }
+  const envPath = fs.existsSync(targetDir) ? path.join(targetDir, ".env") : path.resolve(process.cwd(), ".env");
+  const targetUrl = centralUrl || CENTRAL_URL;
+
+  let content = "";
+  if (fs.existsSync(envPath)) {
+    content = fs.readFileSync(envPath, "utf-8");
+    if (/CARF_INSTALL_TOKEN=/.test(content)) {
+      content = content.replace(/CARF_INSTALL_TOKEN=.*/, `CARF_INSTALL_TOKEN=${token}`);
+    } else {
+      content += `\nCARF_INSTALL_TOKEN=${token}\n`;
+    }
+    if (centralUrl && /CARF_CENTRAL_API_URL=/.test(content)) {
+      content = content.replace(/CARF_CENTRAL_API_URL=.*/, `CARF_CENTRAL_API_URL=${targetUrl}`);
+    } else if (centralUrl) {
+      content += `CARF_CENTRAL_API_URL=${targetUrl}\n`;
+    }
+  } else {
+    content = `CARF_INSTALL_TOKEN=${token}\nCARF_CENTRAL_API_URL=${targetUrl}\n`;
+  }
+
+  fs.writeFileSync(envPath, content, { mode: 0o600 });
+  process.env.CARF_INSTALL_TOKEN = token;
+  INSTALL_TOKEN = token;
+  if (centralUrl) {
+    process.env.CARF_CENTRAL_API_URL = targetUrl;
+    CENTRAL_URL = targetUrl;
+  }
 }
 
 /**
  * Central API HTTP Client
  */
 async function apiRequest(endpoint, method = "GET", body = null) {
+  if (!INSTALL_TOKEN) {
+    throw new Error("CARF_INSTALL_TOKEN is not configured.");
+  }
   const url = `${CENTRAL_URL}${endpoint}`;
   const headers = {
     Authorization: `Bearer ${INSTALL_TOKEN}`,
@@ -141,35 +182,50 @@ export async function applyStagedAgentUpdate(nextSource, options = {}) {
   rename(nextPath, currentPath);
 }
 
-async function maybeSelfUpdate() {
-  if (process.env.CARF_AGENT_AUTO_UPDATE === "0") {
-    return false;
-  }
-  const remote = await apiRequest("/api/agent/version");
-  if (!remote?.version || compareAgentVersion(remote.version, VERSION) <= 0) {
-    return false;
-  }
-
-  const artifactUrl = `${CENTRAL_URL}${remote.artifact || "/agent/agent.mjs"}`;
-  const res = await fetch(artifactUrl, { headers: { "User-Agent": `carf-agent/${VERSION}` } });
-  if (!res.ok) {
-    throw new Error(`failed to download agent artifact: ${res.status}`);
-  }
-  const source = await res.text();
-  await applyStagedAgentUpdate(source);
-  console.log(`[carf-agent] Updated ${VERSION} -> ${remote.version}; restarting`);
-  process.exit(0);
-}
-
 /**
- * Executes a shell command and returns trimmed stdout.
+ * Checks for a newer agent version from central API. If present, stages the
+ * download, validates syntax, and swaps the running file.
  */
+export async function maybeSelfUpdate() {
+  if (!INSTALL_TOKEN) return false;
+  try {
+    const meta = await apiRequest("/api/agent/version");
+    if (!meta?.version) return false;
+    if (compareAgentVersion(meta.version, VERSION) <= 0) {
+      return false;
+    }
+    console.log(`[carf-agent] New version available: v${meta.version} (current: v${VERSION}). Downloading update...`);
+    const codeRes = await fetch(`${CENTRAL_URL}/agent/agent.mjs`, {
+      headers: { "User-Agent": `carf-agent/${VERSION}` },
+    });
+    if (!codeRes.ok) {
+      throw new Error(`Download failed: HTTP ${codeRes.status}`);
+    }
+    const newSource = await codeRes.text();
+    await applyStagedAgentUpdate(newSource);
+    console.log(`[carf-agent] Successfully self-updated to v${meta.version}. Exiting so PM2 restarts with new code.`);
+    process.exit(0);
+  } catch (err) {
+    console.error(`[carf-agent] Staged self-update failed: ${err.message}`);
+    return false;
+  }
+}
+
 async function runCmd(cmd) {
-  return execAsync(cmd, { windowsHide: true });
+  try {
+    const { stdout, stderr } = await execAsync(cmd);
+    return { stdout, stderr };
+  } catch (err) {
+    return {
+      stdout: err.stdout || "",
+      stderr: err.stderr || err.message,
+      error: err,
+    };
+  }
 }
 
 /**
- * Detects whether PM2 or systemd is available on this host.
+ * Detects whether PM2 is available on this host.
  */
 export async function detectProcessManager() {
   try {
@@ -178,15 +234,6 @@ export async function detectProcessManager() {
     return { type: "pm2", available: true, list };
   } catch {
     // PM2 not found or not running
-  }
-
-  try {
-    const { stdout } = await runCmd("systemctl is-system-running 2>/dev/null || systemctl --version 2>/dev/null");
-    if (stdout && (stdout.includes("running") || stdout.includes("systemd") || stdout.includes("degraded"))) {
-      return { type: "systemd", available: true, list: [] };
-    }
-  } catch {
-    // systemd not available
   }
 
   return { type: "generic", available: false, list: [] };
@@ -199,7 +246,7 @@ export async function runLocalVerification(targetConfig = {}) {
   const checks = [];
   const pm = await detectProcessManager();
 
-  // Check 1: Process Manager Daemon Reachability
+  // Check 1: PM2 Daemon Reachability
   if (pm.type === "pm2" && pm.available) {
     checks.push({
       id: "pm2_daemon",
@@ -207,23 +254,16 @@ export async function runLocalVerification(targetConfig = {}) {
       passed: true,
       message: `PM2 daemon is reachable and responding (${pm.list.length} active process(es))`,
     });
-  } else if (pm.type === "systemd" && pm.available) {
-    checks.push({
-      id: "pm2_daemon",
-      title: "Service Manager Reachability",
-      passed: true,
-      message: "systemd service manager active on host",
-    });
   } else {
     checks.push({
       id: "pm2_daemon",
-      title: "Process Manager Reachability",
+      title: "PM2 Daemon Reachability",
       passed: false,
-      message: "Neither PM2 nor systemd daemon was reachable on host",
+      message: "PM2 daemon is not reachable or not running on host",
     });
   }
 
-  // Check 2: Target app in process table
+  // Check 2: Target app in PM2 process table
   const targetName = targetConfig.target || targetConfig.name || "";
   if (pm.type === "pm2") {
     if (!targetName) {
@@ -233,7 +273,7 @@ export async function runLocalVerification(targetConfig = {}) {
         passed: pm.list.length > 0,
         message: pm.list.length > 0
           ? `PM2 daemon is running ${pm.list.length} process(es)`
-          : "Host agent connected; no target processes configured yet",
+          : "PM2 daemon reachable; no target processes configured yet",
       });
     } else {
       const proc = pm.list.find((p) => p.name === targetName);
@@ -253,41 +293,12 @@ export async function runLocalVerification(targetConfig = {}) {
         });
       }
     }
-  } else if (pm.type === "systemd") {
-    if (!targetName || targetName === "carf-agent") {
-      checks.push({
-        id: "target_app",
-        title: "Target Process Table Entry",
-        passed: true,
-        message: "CARF agent active under systemd background service",
-      });
-    } else {
-      try {
-        const { stdout } = await runCmd(`systemctl is-active ${targetName} 2>/dev/null || true`);
-        const isActive = stdout.trim() === "active";
-        checks.push({
-          id: "target_app",
-          title: "Target Process Table Entry",
-          passed: isActive,
-          message: isActive
-            ? `Target systemd service '${targetName}' is active`
-            : `Target systemd service '${targetName}' status: ${stdout.trim() || "inactive"}`,
-        });
-      } catch (err) {
-        checks.push({
-          id: "target_app",
-          title: "Target Process Table Entry",
-          passed: false,
-          message: `Could not verify systemd service '${targetName}': ${err.message}`,
-        });
-      }
-    }
   } else {
     checks.push({
       id: "target_app",
       title: "Target Process Table Entry",
-      passed: true,
-      message: "Standalone host daemon initialized",
+      passed: false,
+      message: "Cannot inspect process table: PM2 daemon is offline",
     });
   }
 
@@ -431,19 +442,19 @@ export async function runLocalVerification(targetConfig = {}) {
         id: "releases_dir",
         title: "Releases Directory",
         passed: false,
-        message: `Releases directory '${releasesDir}' not found`,
+        message: `Releases directory '${releasesDir}' does not exist on host`,
       });
     }
 
     try {
-      const stat = await fs.promises.lstat(currentSymlink);
-      const isSymlink = stat.isSymbolicLink();
+      const lstat = await fs.promises.lstat(currentSymlink);
+      const isSymlink = lstat.isSymbolicLink();
       checks.push({
         id: "current_symlink",
         title: "Current Symlink",
         passed: isSymlink,
         message: isSymlink
-          ? `Current entry '${currentSymlink}' is a symbolic link`
+          ? `Current symlink '${currentSymlink}' is valid`
           : `'${currentSymlink}' exists but is not a symbolic link`,
       });
     } catch {
@@ -451,32 +462,24 @@ export async function runLocalVerification(targetConfig = {}) {
         id: "current_symlink",
         title: "Current Symlink",
         passed: false,
-        message: `Current symlink '${currentSymlink}' not found`,
+        message: `Current symlink '${currentSymlink}' does not exist`,
       });
     }
 
-    checks.push({
-      id: "shared_paths",
-      title: "Shared Paths",
-      passed: true,
-      message: "Shared paths verified",
-    });
-
     try {
-      const parentDir = path.dirname(currentSymlink);
-      await fs.promises.access(parentDir, fs.constants.W_OK);
+      await fs.promises.access(releasesDir, fs.constants.W_OK);
       checks.push({
         id: "rollback_permission",
         title: "Rollback Permission",
         passed: true,
-        message: `Parent directory '${parentDir}' is writable for symlink swap`,
+        message: `Releases directory '${releasesDir}' is writable for atomic symlink rollback`,
       });
     } catch (err) {
       checks.push({
         id: "rollback_permission",
         title: "Rollback Permission",
         passed: false,
-        message: `Symlink directory is not writable: ${err.message || String(err)}`,
+        message: `Releases directory '${releasesDir}' is not writable: ${err.message || String(err)}`,
       });
     }
   }
@@ -489,7 +492,7 @@ export async function runLocalVerification(targetConfig = {}) {
  */
 export function printCheckSummary(checks) {
   console.log("\n" + "=".repeat(62));
-  console.log("            CARF Host Adapter Verification");
+  console.log("            CARF Host PM2 Verification");
   console.log("=".repeat(62));
 
   let passedCount = 0;
@@ -513,6 +516,7 @@ export function printCheckSummary(checks) {
  * Send heartbeat to central API
  */
 async function sendHeartbeat(checks = null) {
+  if (!INSTALL_TOKEN) return null;
   try {
     const payload = { version: VERSION };
     if (checks) payload.checks = checks;
@@ -528,6 +532,7 @@ async function sendHeartbeat(checks = null) {
  * Fetch remote config from central API
  */
 async function fetchConfig() {
+  if (!INSTALL_TOKEN) return null;
   try {
     const res = await apiRequest("/api/agent/config", "GET");
     return res;
@@ -542,29 +547,50 @@ async function fetchConfig() {
  */
 async function startDaemon() {
   console.log(`[carf-agent] Starting CARF Host Agent v${VERSION}`);
-  console.log(`[carf-agent] Connecting to central API at: ${CENTRAL_URL}`);
+
+  if (!INSTALL_TOKEN) {
+    console.log(`[carf-agent] Notice: CARF_INSTALL_TOKEN is not configured.`);
+    console.log(`[carf-agent] Running in local standby mode under PM2.`);
+    console.log(`[carf-agent] To connect this server to your CARF dashboard:`);
+    console.log(`[carf-agent]   node ${agentFilePath()} --token=<your_token>`);
+    console.log(`[carf-agent]   Or set CARF_INSTALL_TOKEN in ~/.carf/agent/.env`);
+  } else {
+    console.log(`[carf-agent] Connecting to central API at: ${CENTRAL_URL}`);
+  }
 
   let remoteData = await fetchConfig();
   const targetConfig = remoteData?.config?.adapter || remoteData?.config || {};
 
-  // Run initial verification and report in first heartbeat
+  // Run initial verification
   const checks = await runLocalVerification(targetConfig);
   printCheckSummary(checks);
 
-  const heartbeatRes = await sendHeartbeat(checks);
-  if (heartbeatRes?.ok) {
-    console.log(`[carf-agent] Connected to central API for ${heartbeatRes.owner}/${heartbeatRes.repo} ✓`);
+  if (INSTALL_TOKEN) {
+    const heartbeatRes = await sendHeartbeat(checks);
+    if (heartbeatRes?.ok) {
+      console.log(`[carf-agent] Connected to central API for ${heartbeatRes.owner}/${heartbeatRes.repo} ✓`);
+    }
+
+    try {
+      await maybeSelfUpdate();
+    } catch (err) {
+      console.error(`[carf-agent] Self-update skipped: ${err.message}`);
+    }
   }
 
-  try {
-    await maybeSelfUpdate();
-  } catch (err) {
-    console.error(`[carf-agent] Self-update skipped: ${err.message}`);
-  }
-
-  // Periodic heartbeat every 60 seconds
+  // Periodic loop: heartbeats if connected, or re-checking .env if in standby
   const interval = setInterval(async () => {
     try {
+      if (!INSTALL_TOKEN) {
+        loadEnv();
+        if (process.env.CARF_INSTALL_TOKEN) {
+          INSTALL_TOKEN = process.env.CARF_INSTALL_TOKEN;
+          console.log("[carf-agent] Detected CARF_INSTALL_TOKEN! Connecting to central API...");
+        } else {
+          return;
+        }
+      }
+
       const refreshedData = await fetchConfig();
       const currentTargetConfig = refreshedData?.config?.adapter || refreshedData?.config || targetConfig;
       const currentChecks = await runLocalVerification(currentTargetConfig);
@@ -594,14 +620,56 @@ async function startDaemon() {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 const args = process.argv.slice(2);
 
-if (isMain && args.includes("--verify")) {
+// Check for --token or -t
+const tokenArgMatch = args.find((a) => a.startsWith("--token="))?.slice(8) ||
+  (args.indexOf("-t") !== -1 ? args[args.indexOf("-t") + 1] : null);
+
+if (isMain && (args.includes("--help") || args.includes("-h"))) {
+  console.log(`
+CARF Host Agent v${VERSION}
+Managed PM2 daemon for host deployment rollback monitoring.
+
+Usage:
+  node agent.mjs [options]
+
+Options:
+  --token=<token>, -t <token>   Set or update CARF install token and connect
+  --verify                      Run preflight verification checks against PM2
+  --uninstall                   Notify central API and revoke agent connection
+  --help, -h                    Show this help message
+`);
+  process.exit(0);
+} else if (isMain && tokenArgMatch) {
+  saveTokenToEnv(tokenArgMatch);
+  console.log(`[carf-agent] ✓ Install token saved to environment.`);
   (async () => {
     try {
-      const remoteData = await fetchConfig();
-      const targetConfig = remoteData?.config?.adapter || remoteData?.config || {};
+      const pm = await detectProcessManager();
+      if (pm.type === "pm2" && pm.available) {
+        console.log(`[carf-agent] Restarting PM2 process 'carf-agent' to apply token...`);
+        await runCmd("pm2 restart carf-agent --update-env");
+        console.log(`[carf-agent] ✓ PM2 process updated and running.`);
+      } else {
+        console.log(`[carf-agent] Starting agent daemon with new token...`);
+        await startDaemon();
+      }
+    } catch (err) {
+      console.error(`[carf-agent] Error applying token: ${err.message}`);
+    }
+  })();
+} else if (isMain && args.includes("--verify")) {
+  (async () => {
+    try {
+      let targetConfig = {};
+      if (INSTALL_TOKEN) {
+        const remoteData = await fetchConfig();
+        targetConfig = remoteData?.config?.adapter || remoteData?.config || {};
+      }
       const checks = await runLocalVerification(targetConfig);
       printCheckSummary(checks);
-      await sendHeartbeat(checks);
+      if (INSTALL_TOKEN) {
+        await sendHeartbeat(checks);
+      }
       process.exit(checks.every((c) => c.passed) ? 0 : 0);
     } catch (err) {
       console.error(`Verification error: ${err.message}`);
@@ -611,9 +679,11 @@ if (isMain && args.includes("--verify")) {
 } else if (isMain && args.includes("--uninstall")) {
   (async () => {
     try {
-      console.log("[carf-agent] Calling central API uninstall endpoint...");
-      await apiRequest("/api/agent/uninstall", "POST");
-      console.log("[carf-agent] Uninstall recorded with central API.");
+      if (INSTALL_TOKEN) {
+        console.log("[carf-agent] Calling central API uninstall endpoint...");
+        await apiRequest("/api/agent/uninstall", "POST");
+        console.log("[carf-agent] Uninstall recorded with central API.");
+      }
       process.exit(0);
     } catch (err) {
       console.error(`[carf-agent] Uninstall notification failed: ${err.message}`);

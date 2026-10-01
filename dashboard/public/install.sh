@@ -3,6 +3,7 @@
 # CARF Host Agent Installer
 # Lightweight, secure background agent for host-colocated deployment monitoring.
 # Zero database credentials. Communicates via scoped HTTPS install token.
+# Standardized exclusively on PM2 process management.
 
 set -euo pipefail
 
@@ -22,7 +23,6 @@ error() { echo -e "${RED}[carf-installer] \xE2\x9C\x97${NC} $*" >&2; }
 CENTRAL_URL="${CARF_CENTRAL_API_URL:-https://carf.indevs.in}"
 INSTALL_TOKEN="${CARF_INSTALL_TOKEN:-}"
 AGENT_DIR="${CARF_AGENT_DIR:-${HOME:-/root}/.carf/agent}"
-PROCESS_MANAGER="auto"
 IS_UPDATE=0
 IS_UNINSTALL=0
 PM2_NAME="carf-agent"
@@ -32,19 +32,24 @@ print_usage() {
 CARF Host Agent Installer
 
 Usage:
+  curl -fsSL ${CENTRAL_URL}/install.sh | bash
   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- [OPTIONS]
 
 Options:
-  --token=<token>, -t <token>         CARF scoped install token (required for initial install)
+  --token=<token>, -t <token>         CARF scoped install token (optional; pairs immediately)
   --central-url=<url>, --api=<url>    Central CARF API URL (default: ${CENTRAL_URL})
-  --pm2                               Force PM2 process manager
-  --systemd                           Force systemd service manager
-  --update                            Update agent code to latest and restart background daemon
-  --uninstall                         Uninstall background service, remove agent files, notify API
+  --update                            Update agent code to latest and restart PM2 daemon
+  --uninstall                         Uninstall PM2 background service, remove agent files, notify API
   --help, -h                          Show this help message
 
 Examples:
+  # 1-line zero-token install:
+  curl -fsSL ${CENTRAL_URL}/install.sh | bash
+
+  # Install with dashboard token:
   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --token=carf_inst_0123...
+
+  # Update or uninstall:
   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --update
   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --uninstall
 HELP
@@ -58,23 +63,16 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -t)
-      INSTALL_TOKEN="$2"
-      shift 2
+      if [[ -n "${2:-}" && ! "$2" =~ ^- ]]; then
+        INSTALL_TOKEN="$2"
+        shift 2
+      else
+        error "-t requires a token argument"
+        exit 1
+      fi
       ;;
-    --central-url=*|--api=*|--url=*)
+    --central-url=*|--api=*)
       CENTRAL_URL="${1#*=}"
-      shift
-      ;;
-    -a)
-      CENTRAL_URL="$2"
-      shift 2
-      ;;
-    --pm2)
-      PROCESS_MANAGER="pm2"
-      shift
-      ;;
-    --systemd)
-      PROCESS_MANAGER="systemd"
       shift
       ;;
     --update)
@@ -115,31 +113,6 @@ if [[ "$IS_UNINSTALL" -eq 1 ]]; then
     fi
   fi
 
-  # Stop and remove systemd service if registered
-  if command -v systemctl >/dev/null 2>&1; then
-    if [[ -f "/etc/systemd/system/carf-agent.service" ]]; then
-      info "Removing system-wide systemd service..."
-      if [[ "$EUID" -eq 0 ]]; then
-        systemctl disable --now carf-agent.service >/dev/null 2>&1 || true
-        rm -f /etc/systemd/system/carf-agent.service
-        systemctl daemon-reload >/dev/null 2>&1 || true
-      else
-        sudo systemctl disable --now carf-agent.service >/dev/null 2>&1 || true
-        sudo rm -f /etc/systemd/system/carf-agent.service
-        sudo systemctl daemon-reload >/dev/null 2>&1 || true
-      fi
-      success "systemd service removed."
-    fi
-
-    if [[ -f "${HOME:-}/.config/systemd/user/carf-agent.service" ]]; then
-      info "Removing user systemd service..."
-      systemctl --user disable --now carf-agent.service >/dev/null 2>&1 || true
-      rm -f "${HOME:-}/.config/systemd/user/carf-agent.service"
-      systemctl --user daemon-reload >/dev/null 2>&1 || true
-      success "User systemd service removed."
-    fi
-  fi
-
   # Notify central API if agent script and .env exist
   if [[ -f "$AGENT_DIR/agent.mjs" && -f "$AGENT_DIR/.env" ]]; then
     info "Notifying CARF central API of agent revocation..."
@@ -162,7 +135,7 @@ fi
 if [[ "$IS_UPDATE" -eq 1 ]]; then
   info "Updating CARF Host Agent..."
   if [[ ! -d "$AGENT_DIR" || ! -f "$AGENT_DIR/.env" ]]; then
-    error "CARF Agent installation not found at $AGENT_DIR. Run a fresh install with --token=<token>."
+    error "CARF Agent installation not found at $AGENT_DIR. Run a fresh install."
     exit 1
   fi
 
@@ -184,17 +157,10 @@ if [[ "$IS_UPDATE" -eq 1 ]]; then
     info "Restarting PM2 process '$PM2_NAME'..."
     pm2 restart "$PM2_NAME" --update-env >/dev/null 2>&1
     success "PM2 daemon updated and restarted."
-  elif command -v systemctl >/dev/null 2>&1 && (systemctl is-active carf-agent.service >/dev/null 2>&1 || systemctl --user is-active carf-agent.service >/dev/null 2>&1); then
-    info "Restarting systemd service 'carf-agent'..."
-    if [[ "$EUID" -eq 0 ]]; then
-      systemctl restart carf-agent.service
-    else
-      systemctl --user restart carf-agent.service 2>/dev/null || sudo systemctl restart carf-agent.service
-    fi
-    success "systemd service updated and restarted."
   else
-    warn "No running PM2 or systemd service detected. Run verification:"
-    node "$AGENT_DIR/agent.mjs" --verify
+    warn "No running PM2 process detected. Starting via PM2:"
+    pm2 start "$AGENT_DIR/agent.mjs" --name "$PM2_NAME" --time >/dev/null 2>&1 || true
+    pm2 save >/dev/null 2>&1 || true
   fi
 
   success "CARF Host Agent updated to latest version."
@@ -202,15 +168,13 @@ if [[ "$IS_UPDATE" -eq 1 ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Preflight: Validate Token
+# Install Preflight: Status notice
 # -----------------------------------------------------------------------------
 if [[ -z "$INSTALL_TOKEN" ]]; then
-  error "CARF_INSTALL_TOKEN is required."
-  echo ""
-  echo "Usage: curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --token=<your_install_token>"
-  echo ""
-  echo "Generate your install token from your CARF dashboard at: ${CENTRAL_URL}/dashboard/setup"
-  exit 1
+  info "Installing CARF Host Agent in 1-line zero-token mode."
+  info "Agent will start in PM2 standby mode; pair with dashboard anytime."
+else
+  success "Using provided install token for host linking."
 fi
 
 info "Starting CARF Host Agent installation..."
@@ -249,53 +213,22 @@ fi
 success "Node.js v$NODE_VERSION detected."
 
 # -----------------------------------------------------------------------------
-# Detect or Configure Process Manager (PM2 / systemd)
+# Check & Setup PM2 Process Manager
 # -----------------------------------------------------------------------------
-info "Detecting process manager (PM2 or systemd)..."
-HAS_PM2=0
-HAS_SYSTEMD=0
-
-if command -v pm2 >/dev/null 2>&1; then
-  HAS_PM2=1
-fi
-
-if command -v systemctl >/dev/null 2>&1; then
-  HAS_SYSTEMD=1
-fi
-
-# Auto-selection logic
-if [[ "$PROCESS_MANAGER" == "auto" ]]; then
-  if [[ "$HAS_PM2" -eq 1 ]]; then
-    PROCESS_MANAGER="pm2"
-  elif [[ "$HAS_SYSTEMD" -eq 1 ]]; then
-    # If PM2 is not present, check if npm is available to install PM2, or fallback to systemd
-    if command -v npm >/dev/null 2>&1; then
-      info "Installing PM2 globally via npm..."
-      if npm install -g pm2 >/dev/null 2>&1; then
-        HAS_PM2=1
-        PROCESS_MANAGER="pm2"
-      else
-        PROCESS_MANAGER="systemd"
-      fi
-    else
-      PROCESS_MANAGER="systemd"
-    fi
-  else
-    if command -v npm >/dev/null 2>&1; then
-      info "Installing PM2 globally via npm..."
-      npm install -g pm2 >/dev/null 2>&1 || true
-      if command -v pm2 >/dev/null 2>&1; then
-        PROCESS_MANAGER="pm2"
-      fi
-    fi
+info "Checking PM2 process manager..."
+if ! command -v pm2 >/dev/null 2>&1; then
+  info "PM2 not found in PATH. Attempting to install PM2 globally via npm..."
+  if command -v npm >/dev/null 2>&1; then
+    npm install -g pm2 >/dev/null 2>&1 || sudo npm install -g pm2 >/dev/null 2>&1 || true
   fi
 fi
 
-if [[ "$PROCESS_MANAGER" != "pm2" && "$PROCESS_MANAGER" != "systemd" ]]; then
-  PROCESS_MANAGER="systemd"
+if ! command -v pm2 >/dev/null 2>&1; then
+  warn "PM2 could not be installed automatically."
+  warn "You can install PM2 with: npm install -g pm2"
+else
+  success "PM2 process manager detected."
 fi
-
-info "Selected process manager: ${BOLD}${PROCESS_MANAGER}${NC}"
 
 # -----------------------------------------------------------------------------
 # Directory Setup & Agent Download
@@ -320,11 +253,9 @@ chmod 600 "$AGENT_DIR/.env"
 success "Wrote isolated environment configuration (mode 0600)."
 
 # -----------------------------------------------------------------------------
-# Background Service Setup & Start
+# Background Service Setup & Start via PM2
 # -----------------------------------------------------------------------------
-NODE_BIN=$(command -v node)
-
-if [[ "$PROCESS_MANAGER" == "pm2" ]]; then
+if command -v pm2 >/dev/null 2>&1; then
   info "Configuring PM2 process '$PM2_NAME'..."
   # Clean up existing instance if any
   pm2 delete "$PM2_NAME" >/dev/null 2>&1 || true
@@ -333,66 +264,38 @@ if [[ "$PROCESS_MANAGER" == "pm2" ]]; then
   pm2 start "$AGENT_DIR/agent.mjs" --name "$PM2_NAME" --time >/dev/null 2>&1
   pm2 save >/dev/null 2>&1 || true
   success "Started '$PM2_NAME' under PM2 process manager."
-elif [[ "$PROCESS_MANAGER" == "systemd" ]]; then
-  info "Configuring systemd service 'carf-agent'..."
-
-  SERVICE_CONTENT="[Unit]
-Description=CARF Host Agent - Change-Aware Rollback Framework
-After=network.target
-
-[Service]
-Type=simple
-User=${USER:-root}
-WorkingDirectory=${AGENT_DIR}
-ExecStart=${NODE_BIN} ${AGENT_DIR}/agent.mjs
-Restart=always
-RestartSec=10
-EnvironmentFile=${AGENT_DIR}/.env
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target"
-
-  if [[ "$EUID" -eq 0 ]]; then
-    echo "$SERVICE_CONTENT" > /etc/systemd/system/carf-agent.service
-    systemctl daemon-reload
-    systemctl enable --now carf-agent.service
-    success "Enabled and started system-wide systemd service: carf-agent.service"
-  else
-    USER_SYSTEMD_DIR="${HOME:-}/.config/systemd/user"
-    mkdir -p "$USER_SYSTEMD_DIR"
-    echo "$SERVICE_CONTENT" > "$USER_SYSTEMD_DIR/carf-agent.service"
-    systemctl --user daemon-reload 2>/dev/null || true
-    systemctl --user enable --now carf-agent.service 2>/dev/null || true
-    success "Enabled and started user systemd service: carf-agent.service"
-  fi
+else
+  warn "PM2 is not active. Run agent in background manually:"
+  echo "  node $AGENT_DIR/agent.mjs &"
 fi
 
 # -----------------------------------------------------------------------------
 # Preflight Verification Probe
 # -----------------------------------------------------------------------------
-info "Running initial host verification probe..."
+info "Running initial PM2 verification probe..."
 node "$AGENT_DIR/agent.mjs" --verify || true
 
 echo ""
 echo -e "${GREEN}${BOLD}================================================================${NC}"
 echo -e "${GREEN}${BOLD}           CARF Host Agent Successfully Installed!              ${NC}"
 echo -e "${GREEN}${BOLD}================================================================${NC}"
-echo -e " • Process Manager:  ${BOLD}${PROCESS_MANAGER}${NC}"
+echo -e " • Process Manager:  ${BOLD}PM2${NC}"
 echo -e " • Agent Directory:  ${AGENT_DIR}"
 echo -e " • Central API:      ${CENTRAL_URL}"
-echo -e " • Background Status: Running (active heartbeat every 60s)"
+if [[ -n "$INSTALL_TOKEN" ]]; then
+  echo -e " • Connection:       ${GREEN}Connected with install token${NC}"
+else
+  echo -e " • Connection:       ${YELLOW}Standby (ready to link)${NC}"
+  echo -e ""
+  echo -e " To link this server to your CARF account:"
+  echo -e "   1. Open ${CENTRAL_URL}/dashboard/setup"
+  echo -e "   2. Run: node ${AGENT_DIR}/agent.mjs --token=<your_token>"
+fi
 echo ""
 echo -e " Useful commands:"
-if [[ "$PROCESS_MANAGER" == "pm2" ]]; then
-  echo -e "   pm2 status $PM2_NAME     Check agent status"
-  echo -e "   pm2 logs $PM2_NAME       Stream agent logs"
-  echo -e "   pm2 restart $PM2_NAME    Restart agent"
-else
-  echo -e "   systemctl status carf-agent   Check service status"
-  echo -e "   journalctl -u carf-agent -f   Stream service logs"
-fi
+echo -e "   pm2 status $PM2_NAME     Check agent daemon status"
+echo -e "   pm2 logs $PM2_NAME       Stream agent logs"
+echo -e "   pm2 restart $PM2_NAME    Restart agent"
 echo -e "   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --update       Update agent"
 echo -e "   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --uninstall    Uninstall agent"
 echo -e "${GREEN}${BOLD}================================================================${NC}"
