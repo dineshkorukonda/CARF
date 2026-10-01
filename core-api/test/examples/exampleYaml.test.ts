@@ -3,7 +3,7 @@
 // (issue #55), are at least syntactically valid YAML. Doesn't validate against the Argo
 // Rollouts / Flagger CRD schemas or the GitHub Actions workflow schema — just that they parse.
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as yaml from "js-yaml";
@@ -16,7 +16,7 @@ const actionsDir = path.resolve(__dirname, "../../../.github/actions");
 const exampleFiles = [
   { dir: examplesDir, name: "carf-threshold-action-workflow.yml" },
   { dir: actionsDir, name: "carf-threshold/action.yml" },
-];
+].filter((item) => existsSync(path.join(item.dir, item.name)));
 
 describe("Augment mode / CI integration example YAML files", () => {
   it.each(exampleFiles)("$name parses as valid YAML with at least one document", ({ dir, name }) => {

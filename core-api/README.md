@@ -1,7 +1,6 @@
 # core-api
 
-CARF's classification + decision engine. See `CLAUDE.md` for architecture/conventions
-and `../docs/CARF_PROPOSED_IMPLEMENTATION.md` for the full design spec.
+CARF's classification + decision engine. See `CLAUDE.md` for architecture/conventions.
 
 ## Setup
 

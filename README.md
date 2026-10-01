@@ -1,30 +1,26 @@
 # CARF — Change-Aware Rollback Framework
 
-CARF (Change-Aware Rollback Framework) is a decision layer and sidecar protocol for progressive delivery and standalone deployment pipelines that replaces static rollback thresholds with dynamic, risk-calibrated error tolerances computed from commit diffs via deterministic file-path classification and Tree-sitter AST structural complexity parsing.
+CARF dynamically computes risk-calibrated error-rate thresholds and soak durations from commit diffs, replacing one-size-fits-all static rollback thresholds.
 
-## Deployment & Adapter Modes
+## How It Works
 
-CARF supports two operational modes:
-- **Augment Mode**: External tools (CI/CD pipelines, deployment scripts) query `GET /v1/threshold?commit=$SHA` to obtain the calculated dynamic error-rate threshold and soak duration.
-- **Standalone Mode**: CARF monitors target health directly during the soak window and automatically executes rollback on threshold breach. **PM2** is the only validated standalone runtime adapter. Kubernetes, Docker Compose, Docker Swarm, and GitOps/Argo CD are **not** standalone adapters (GitOps consumes augment mode). See [Paper alignment](docs/PAPER_ALIGNMENT.md).
+1. **Commit Analysis**: Evaluates diffs using deterministic file-path classification and Tree-sitter AST structural complexity parsing.
+2. **Dynamic Thresholds**: Produces risk-adjusted error-rate thresholds and soak times for each deployment.
+3. **Deployment Modes**:
+   - **Augment Mode**: External deployment pipelines query `GET /v1/threshold?commit=<sha>` to gate rollouts.
+   - **Standalone Mode**: Monitors health directly during soak windows and executes automated rollbacks (supported runtime: PM2).
 
-## Paper vs code
+## Repository Structure
 
-Canonical threshold table, five-type change vector (including `data`), and
-custom Tier 1 rule status: **[Paper alignment](docs/PAPER_ALIGNMENT.md)**.
+- [`core-api`](core-api/) — Fastify backend service, threshold calculation engine, and webhook handler.
+- [`dashboard`](dashboard/) — Next.js web console for tracking commits and deployment pipelines.
+- [`agent`](agent/) — Colocated PM2 monitoring agent daemon.
 
-## Testing & Deployment Guides
+## Hosted Service
 
-Step-by-step guides for testing CARF are available in:
-- **[Testing & Deployment Playbook](docs/TESTING_GUIDE.md)**:
-  - **Local vs Hosted Project**: Testing locally on `localhost:3000` vs hosted production at [`https://carf.indevs.in`](https://carf.indevs.in).
-  - **Augment Mode**: Consuming dynamic error-rate thresholds from CI/CD actions or deployment hooks.
-  - **PM2 Process Manager**: Standalone Mode on Node.js servers with release directories (`/var/www/releases/<sha>` and symlink `/var/www/current`) or in-place git deployments, zero-downtime `pm2 reload`, and automated rollback verification.
+- **Dashboard**: [carf.indevs.in](https://carf.indevs.in)
+- **Core API**: [carf.indevs.in/v1](https://carf.indevs.in/v1)
+- **Setup Guide**: See [Dashboard Setup](dashboard/README.md) for GitHub App OAuth, Auth.js credentials, and database migrations.
 
-## Hosted Service & Dashboard
-
-- Hosted Dashboard: [`https://carf.indevs.in`](https://carf.indevs.in)
-- Core API: [`https://carf.indevs.in/v1`](https://carf.indevs.in/v1)
-- **[Dashboard & GitHub App Setup Guide](dashboard/README.md)**: GitHub App OAuth settings, Auth.js credentials, Neon DB migrations, and installation callbacks.
-
-All rights reserved for CARF Team 2027
+---
+© 2027 CARF Team
