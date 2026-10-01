@@ -8,6 +8,11 @@ CARF supports two operational modes:
 - **Augment Mode**: External tools (CI/CD pipelines, deployment scripts) query `GET /v1/threshold?commit=$SHA` to obtain the calculated dynamic error-rate threshold and soak duration.
 - **Standalone Mode**: CARF monitors target health directly during the soak window and automatically executes rollback on threshold breach. **PM2** is the supported standalone runtime adapter.
 
+## Paper vs code
+
+Canonical threshold table, five-type change vector (including `data`), and
+custom Tier 1 rule status: **[Paper alignment](docs/PAPER_ALIGNMENT.md)**.
+
 ## Testing & Deployment Guides
 
 Step-by-step guides for testing CARF are available in:
