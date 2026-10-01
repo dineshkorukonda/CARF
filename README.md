@@ -6,20 +6,7 @@ CARF (Change-Aware Rollback Framework) is a decision layer and sidecar protocol 
 
 CARF supports two operational modes:
 - **Augment Mode**: External tools (CI/CD pipelines, deployment scripts) query `GET /v1/threshold?commit=$SHA` to obtain the calculated dynamic error-rate threshold and soak duration.
-- **Standalone Mode**: CARF monitors target health directly during the soak window and automatically executes rollback on threshold breach. **PM2** is the only validated standalone runtime adapter. Kubernetes, Docker Compose, Docker Swarm, and GitOps/Argo CD are **not** standalone adapters (GitOps consumes augment mode). See [Paper alignment](docs/PAPER_ALIGNMENT.md).
-
-## Paper vs code
-
-Canonical threshold table, five-type change vector (including `data`), and
-custom Tier 1 rule status: **[Paper alignment](docs/PAPER_ALIGNMENT.md)**.
-
-## Testing & Deployment Guides
-
-Step-by-step guides for testing CARF are available in:
-- **[Testing & Deployment Playbook](docs/TESTING_GUIDE.md)**:
-  - **Local vs Hosted Project**: Testing locally on `localhost:3000` vs hosted production at [`https://carf.indevs.in`](https://carf.indevs.in).
-  - **Augment Mode**: Consuming dynamic error-rate thresholds from CI/CD actions or deployment hooks.
-  - **PM2 Process Manager**: Standalone Mode on Node.js servers with release directories (`/var/www/releases/<sha>` and symlink `/var/www/current`) or in-place git deployments, zero-downtime `pm2 reload`, and automated rollback verification.
+- **Standalone Mode**: CARF monitors target health directly during the soak window and automatically executes rollback on threshold breach. **PM2** is the only validated standalone runtime adapter. Kubernetes, Docker Compose, Docker Swarm, and GitOps/Argo CD are **not** standalone adapters (GitOps consumes augment mode).
 
 ## Hosted Service & Dashboard
 
