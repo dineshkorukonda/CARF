@@ -5,7 +5,6 @@ import {
   Activity,
   Cpu,
   RotateCcw,
-  CheckCircle2,
   Terminal,
   ShieldCheck,
   Server,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentAccount } from "../../../../lib/auth";
-import { getInstallationForAccount, listInstallationsForAccount } from "../../../../lib/accountService";
+import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { generateInstallToken } from "../../../../lib/agentToken";
 
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  let { installationId, owner, repo } = body;
+  const { installationId, owner, repo } = body;
 
   const defaultOwner = account.name || account.email?.split("@")[0] || "server";
   const resolvedOwner = (owner && owner.trim()) ? owner.trim() : defaultOwner;

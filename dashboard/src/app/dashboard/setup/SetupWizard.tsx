@@ -187,7 +187,10 @@ export function SetupWizard({
   // Auto-generate host token when entering host-agent mode
   useEffect(() => {
     if (onboardingMode === "host-agent" && !hostInstallToken) {
-      void generateHostToken(hostServiceName);
+      const timer = setTimeout(() => {
+        void generateHostToken(hostServiceName);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [onboardingMode, hostInstallToken, hostServiceName, generateHostToken]);
 
@@ -260,18 +263,24 @@ export function SetupWizard({
       const data = await res.json();
       const apps = (data.apps || []) as Pm2App[];
       setPm2Apps(apps);
-      const chosen = pickPm2App(apps, selectedTargetName);
-      if (chosen) setSelectedTargetName(chosen);
+      const chosen = pickPm2App(apps, {
+        repoName: selectedRepo?.name ?? "",
+        storedName: selectedTargetName,
+      });
+      if (chosen) setSelectedTargetName(chosen.name);
     } catch (err: unknown) {
       setPm2Error(err instanceof Error ? err.message : "Failed to load PM2 apps");
     } finally {
       setLoadingPm2(false);
     }
-  }, [selectedInstallationId, selectedTargetName]);
+  }, [selectedInstallationId, selectedRepo, selectedTargetName]);
 
   useEffect(() => {
     if (currentStep === 2 && pm2Apps.length === 0 && !loadingPm2) {
-      void fetchPm2Apps();
+      const timer = setTimeout(() => {
+        void fetchPm2Apps();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [currentStep, pm2Apps.length, loadingPm2, fetchPm2Apps]);
 
@@ -870,6 +879,13 @@ export function SetupWizard({
                     <span>Refresh</span>
                   </button>
                 </div>
+
+                {pm2Error && (
+                  <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-500">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    <span>{pm2Error}</span>
+                  </div>
+                )}
 
                 {loadingPm2 ? (
                   <div className="py-8 text-center text-xs text-muted-foreground">
