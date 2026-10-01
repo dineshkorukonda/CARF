@@ -18,16 +18,37 @@ export async function POST(request: NextRequest) {
   }
 
   const { installationId, owner, repo } = body;
-  if (!installationId || !owner || !repo) {
-    return NextResponse.json(
-      { error: "Missing required fields: installationId, owner, repo" },
-      { status: 400 }
-    );
+
+  const defaultOwner = account.name || account.email?.split("@")[0] || "server";
+  const resolvedOwner = (owner && owner.trim()) ? owner.trim() : defaultOwner;
+  const resolvedRepo = (repo && repo.trim()) ? repo.trim() : "production";
+
+  let installation = null;
+
+  if (installationId) {
+    installation = await getInstallationForAccount(prisma, account.id, installationId);
   }
 
-  const installation = await getInstallationForAccount(prisma, account.id, installationId);
   if (!installation) {
-    return NextResponse.json({ error: "Installation not found or unauthorized" }, { status: 403 });
+    const existing = await prisma.installation.findFirst({
+      where: { userId: account.id },
+    });
+    if (existing) {
+      installation = existing;
+    } else {
+      const hostInstId = `host_${account.id}`;
+      installation = await prisma.installation.upsert({
+        where: { installationId: hostInstId },
+        create: {
+          installationId: hostInstId,
+          userId: account.id,
+          targetLogin: resolvedOwner,
+          targetType: "Host",
+          repositorySelection: "all",
+        },
+        update: {},
+      });
+    }
   }
 
   const { token, hash, prefix } = generateInstallToken();
@@ -35,15 +56,15 @@ export async function POST(request: NextRequest) {
   const connection = await prisma.repoConnection.upsert({
     where: {
       installationId_owner_repo: {
-        installationId,
-        owner,
-        repo,
+        installationId: installation.installationId,
+        owner: resolvedOwner,
+        repo: resolvedRepo,
       },
     },
     create: {
-      installationId,
-      owner,
-      repo,
+      installationId: installation.installationId,
+      owner: resolvedOwner,
+      repo: resolvedRepo,
       installTokenHash: hash,
       installTokenPrefix: prefix,
       agentRevoked: false,
@@ -60,5 +81,6 @@ export async function POST(request: NextRequest) {
     prefix,
     owner: connection.owner,
     repo: connection.repo,
+    installationId: installation.installationId,
   });
 }

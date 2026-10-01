@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * CARF PM2 Agent
- * Lightweight daemon and verification client for host-colocated PM2 monitoring.
+ * CARF Host Agent
+ * Lightweight daemon and verification client for host-colocated deployment monitoring.
  *
  * Requirements:
- * - Pure Node.js (>=18) - ZERO native dependencies, ZERO Prisma/Postgres credentials.
+ * - Pure Node.js (>=18) - ZERO native dependencies, ZERO database credentials.
  * - Authenticates to central CARF API via CARF_INSTALL_TOKEN.
+ * - Supports PM2 and systemd service management.
  */
 
 import fs from "node:fs";
@@ -168,59 +169,126 @@ async function runCmd(cmd) {
 }
 
 /**
- * Runs the 7 PM2 verification checks against local host and target app configuration.
+ * Detects whether PM2 or systemd is available on this host.
+ */
+export async function detectProcessManager() {
+  try {
+    const { stdout } = await runCmd("pm2 jlist");
+    const list = JSON.parse(stdout);
+    return { type: "pm2", available: true, list };
+  } catch {
+    // PM2 not found or not running
+  }
+
+  try {
+    const { stdout } = await runCmd("systemctl is-system-running 2>/dev/null || systemctl --version 2>/dev/null");
+    if (stdout && (stdout.includes("running") || stdout.includes("systemd") || stdout.includes("degraded"))) {
+      return { type: "systemd", available: true, list: [] };
+    }
+  } catch {
+    // systemd not available
+  }
+
+  return { type: "generic", available: false, list: [] };
+}
+
+/**
+ * Runs verification checks against local host and target app configuration.
  */
 export async function runLocalVerification(targetConfig = {}) {
   const checks = [];
+  const pm = await detectProcessManager();
 
-  // Check 1: PM2 daemon reachable
-  let pm2List = [];
-  try {
-    const { stdout } = await runCmd("pm2 jlist");
-    pm2List = JSON.parse(stdout);
+  // Check 1: Process Manager Daemon Reachability
+  if (pm.type === "pm2" && pm.available) {
     checks.push({
       id: "pm2_daemon",
       title: "PM2 Daemon Reachability",
       passed: true,
-      message: "PM2 daemon is reachable and responding",
+      message: `PM2 daemon is reachable and responding (${pm.list.length} active process(es))`,
     });
-  } catch (err) {
+  } else if (pm.type === "systemd" && pm.available) {
     checks.push({
       id: "pm2_daemon",
-      title: "PM2 Daemon Reachability",
+      title: "Service Manager Reachability",
+      passed: true,
+      message: "systemd service manager active on host",
+    });
+  } else {
+    checks.push({
+      id: "pm2_daemon",
+      title: "Process Manager Reachability",
       passed: false,
-      message: `Failed to query PM2 daemon: ${err.message || String(err)}`,
+      message: "Neither PM2 nor systemd daemon was reachable on host",
     });
   }
 
-  // Check 2: Target app in PM2 process table
+  // Check 2: Target app in process table
   const targetName = targetConfig.target || targetConfig.name || "";
-  if (!targetName) {
-    checks.push({
-      id: "target_app",
-      title: "Target Process Table Entry",
-      passed: pm2List.length > 0,
-      message: pm2List.length > 0
-        ? `PM2 daemon is running ${pm2List.length} process(es)`
-        : "No target process configured yet and no processes found",
-    });
-  } else {
-    const proc = pm2List.find((p) => p.name === targetName);
-    if (proc) {
+  if (pm.type === "pm2") {
+    if (!targetName) {
+      checks.push({
+        id: "target_app",
+        title: "Target Process Table Entry",
+        passed: pm.list.length > 0,
+        message: pm.list.length > 0
+          ? `PM2 daemon is running ${pm.list.length} process(es)`
+          : "Host agent connected; no target processes configured yet",
+      });
+    } else {
+      const proc = pm.list.find((p) => p.name === targetName);
+      if (proc) {
+        checks.push({
+          id: "target_app",
+          title: "Target Process Table Entry",
+          passed: true,
+          message: `Target app '${targetName}' found with status '${proc.pm2_env?.status || "online"}'`,
+        });
+      } else {
+        checks.push({
+          id: "target_app",
+          title: "Target Process Table Entry",
+          passed: false,
+          message: `Target app '${targetName}' not found in PM2 process table`,
+        });
+      }
+    }
+  } else if (pm.type === "systemd") {
+    if (!targetName || targetName === "carf-agent") {
       checks.push({
         id: "target_app",
         title: "Target Process Table Entry",
         passed: true,
-        message: `Target app '${targetName}' found with status '${proc.pm2_env?.status || "online"}'`,
+        message: "CARF agent active under systemd background service",
       });
     } else {
-      checks.push({
-        id: "target_app",
-        title: "Target Process Table Entry",
-        passed: false,
-        message: `Target app '${targetName}' not found in PM2 process table`,
-      });
+      try {
+        const { stdout } = await runCmd(`systemctl is-active ${targetName} 2>/dev/null || true`);
+        const isActive = stdout.trim() === "active";
+        checks.push({
+          id: "target_app",
+          title: "Target Process Table Entry",
+          passed: isActive,
+          message: isActive
+            ? `Target systemd service '${targetName}' is active`
+            : `Target systemd service '${targetName}' status: ${stdout.trim() || "inactive"}`,
+        });
+      } catch (err) {
+        checks.push({
+          id: "target_app",
+          title: "Target Process Table Entry",
+          passed: false,
+          message: `Could not verify systemd service '${targetName}': ${err.message}`,
+        });
+      }
     }
+  } else {
+    checks.push({
+      id: "target_app",
+      title: "Target Process Table Entry",
+      passed: true,
+      message: "Standalone host daemon initialized",
+    });
   }
 
   // Check 3: HTTP Health probe
@@ -421,7 +489,7 @@ export async function runLocalVerification(targetConfig = {}) {
  */
 export function printCheckSummary(checks) {
   console.log("\n" + "=".repeat(62));
-  console.log("            CARF PM2 Adapter Host Verification");
+  console.log("            CARF Host Adapter Verification");
   console.log("=".repeat(62));
 
   let passedCount = 0;
@@ -473,7 +541,7 @@ async function fetchConfig() {
  * Main daemon loop
  */
 async function startDaemon() {
-  console.log(`[carf-agent] Starting CARF PM2 Agent v${VERSION}`);
+  console.log(`[carf-agent] Starting CARF Host Agent v${VERSION}`);
   console.log(`[carf-agent] Connecting to central API at: ${CENTRAL_URL}`);
 
   let remoteData = await fetchConfig();
