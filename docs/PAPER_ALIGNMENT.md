@@ -77,7 +77,7 @@ numbers in the paper. See dashboard copy and `dashboard/src/lib/evalHarness.ts`.
 
 | Issue | Status |
 |---|---|
-| #143 Augment `GET /v1/augment/threshold` | Phase 2 — not implemented |
+| #143 Augment `GET /v1/augment/threshold` | Implemented — read-only `{ threshold, window, changeVector }` |
 | #149 Slack/Email/Dashboard alerts on rollback | Phase 2 — not implemented |
 | #146 Feedback loop from `RolloutOutcome` | Phase 3 — persistence exists, calibration does not |
 | #139–#142 K8s / Compose / Swarm / GitOps as standalone adapters | Phase 3 — deprecated; PM2 is the validated standalone adapter |
