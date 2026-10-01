@@ -145,15 +145,15 @@ export default async function HomePage() {
 
             <div className="relative mt-4">
               <div className="absolute top-2.5 left-2.5 z-10">
-                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
-                  Not yet available
+                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
+                  Available
                 </span>
               </div>
               <pre className="rounded-lg border border-border bg-slate-950 p-3.5 pt-8 font-mono text-xs text-slate-100 overflow-x-auto select-all opacity-80">
                 curl -fsSL https://carf.indevs.in/install.sh | bash -s -- --token=&lt;install_token&gt;
               </pre>
               <p className="mt-2 text-[11px] text-muted-foreground/80">
-                Planned automated installer (tracked in issue #153). Setup wizard currently configures Standalone PM2 directly.
+                Requires Node.js and PM2 on the host. The script writes only an install token and the central API URL.
               </p>
             </div>
 

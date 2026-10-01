@@ -875,8 +875,8 @@ export function SetupWizard({
                 <div className="flex items-center gap-2">
                   <Server className="size-4 text-primary" />
                   <span className="text-xs font-semibold text-foreground">Run on your host server</span>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-semibold">
-                    Planned (Issue #153)
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                    Ready
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -887,8 +887,8 @@ export function SetupWizard({
 
               <div className="relative">
                 <div className="absolute top-2.5 left-2.5 z-10">
-                  <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
-                    Not yet available
+                  <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
+                    Available
                   </span>
                 </div>
                 <pre className="rounded-lg border border-border bg-slate-950 p-3.5 pt-8 font-mono text-xs text-slate-100 overflow-x-auto select-all opacity-80">
@@ -905,7 +905,7 @@ export function SetupWizard({
               </div>
 
               <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground pt-1">
-                <span>Automated host agent installer is planned (tracked in Issue #153). Setup wizard configures Standalone PM2 directly.</span>
+                <span>Run this on the host that already has Node.js and PM2. The installer writes only CARF_INSTALL_TOKEN and CARF_CENTRAL_API_URL — no database credentials leave the dashboard.</span>
                 {generatingToken && (
                   <span className="inline-flex items-center gap-1 text-primary">
                     <Loader2 className="size-3 animate-spin" /> Generating token...
