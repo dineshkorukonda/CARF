@@ -25,7 +25,7 @@ const AUGMENT_SIGNAL_IDS = ["argoRollouts", "flagger"];
  * Pure classification of a repo's file paths against the deployment targets CARF's
  * rollback adapters know how to drive (core-api/src/adapters/pm2: PM2 [active])
  * and the progressive-delivery tools Augment mode plugs into
- * (Argo Rollouts, Flagger [planned]). No I/O -- callers supply the path list (a GitHub tree fetch,
+ * (Argo Rollouts, Flagger via GET /v1/augment/threshold). No I/O -- callers supply the path list (a GitHub tree fetch,
  * a local `git ls-files`, wherever), so this is unit-testable with in-memory fixtures.
  */
 export function evaluateCompatibility(paths: string[]): CompatibilityReport {
@@ -50,7 +50,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Kubernetes manifests / Helm chart",
       matched: kubernetes,
       detail: kubernetes
-        ? "Found k8s/Helm manifests — Kubernetes standalone adapter is planned / not yet built (Augment mode planned for external canary gating)."
+        ? "Found k8s/Helm manifests — no standalone Kubernetes adapter yet. Use Augment mode (GET /v1/augment/threshold is live) so your existing controller keeps rollback."
         : "No k8s/, kubernetes/, manifests/, or Chart.yaml found.",
     },
     {
@@ -58,7 +58,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Docker Compose file",
       matched: dockerCompose,
       detail: dockerCompose
-        ? "Found a compose file — note: Docker Compose standalone adapter is not yet built (Augment mode planned for external pipelines)."
+        ? "Found a compose file — no standalone Docker Compose adapter yet. Use Augment mode (GET /v1/augment/threshold is live) for external pipelines."
         : "No docker-compose.yml/compose.yaml found.",
     },
     {
@@ -82,7 +82,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "GitOps (Argo CD / Flux) manifests",
       matched: gitops,
       detail: gitops
-        ? "Found GitOps-style manifests — GitOps/Argo is an external augment consumer (planned), not a standalone rollback adapter."
+        ? "Found GitOps-style manifests — GitOps/Argo is an external augment consumer, not a standalone rollback adapter. Query GET /v1/augment/threshold."
         : "No argocd/, flux/, or kustomization.yaml found.",
     },
     {
@@ -90,7 +90,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Argo Rollouts",
       matched: argoRollouts,
       detail: argoRollouts
-        ? "Looks like Argo Rollouts is already in use — Augment mode (planned: GET /v1/augment/threshold feeding an AnalysisTemplate) will be the natural fit."
+        ? "Looks like Argo Rollouts is already in use — Augment mode is live: point analysis at GET /v1/augment/threshold. First-party AnalysisTemplate wiring is still an example, not a managed install."
         : "No Rollout-style manifests found.",
     },
     {
@@ -98,7 +98,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "Flagger",
       matched: flagger,
       detail: flagger
-        ? "Looks like Flagger is already in use — Augment mode (planned: webhook calling GET /v1/augment/threshold) will be the natural fit."
+        ? "Looks like Flagger is already in use — Augment mode is live: webhook GET /v1/augment/threshold. First-party Flagger wiring is still an example, not a managed install."
         : "No Canary/Flagger manifests found.",
     },
     {
@@ -106,7 +106,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       label: "GitHub Actions CI",
       matched: githubActions,
       detail: githubActions
-        ? "GitHub Actions is already set up — augment-mode integration planned via GET /v1/augment/threshold."
+        ? "GitHub Actions is already set up — query GET /v1/augment/threshold from a workflow step."
         : "No .github/workflows found.",
     },
   ];
@@ -120,7 +120,7 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       recommendedMode: standaloneMatches.length > 0 ? "either" : "augment",
       summary: `${augmentMatches.map((s) => s.label).join(" and ")} already ${
         augmentMatches.length === 1 ? "runs" : "run"
-      } here — Augment mode (planned: GET /v1/augment/threshold) will let external controllers use CARF thresholds while keeping your existing rollout mechanics.`,
+      } here — Augment mode is live (GET /v1/augment/threshold) so external controllers can use CARF thresholds while keeping existing rollout mechanics.`,
     };
   }
 
@@ -139,6 +139,6 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
     signals,
     recommendedMode: "unclear",
     summary:
-      "No supported deployment target detected yet. CARF's classifier works on any repo, but live Standalone rollback requires a PM2 ecosystem file. Other standalone adapters (Kubernetes, Compose) and Augment mode (GET /v1/augment/threshold) are planned.",
+      "No supported standalone target detected yet. CARF's classifier works on any repo, but live Standalone rollback requires a PM2 ecosystem file. Other standalone adapters (Kubernetes, Compose) are planned. Augment mode (GET /v1/augment/threshold) is live for external controllers.",
   };
 }

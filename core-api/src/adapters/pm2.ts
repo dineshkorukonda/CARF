@@ -33,6 +33,8 @@ export interface PM2AdapterOptions {
   fetchFn?: ((url: string) => Promise<{ ok: boolean; status: number }>) | undefined;
   /** Sleep function injected for testing */
   sleep?: ((ms: number) => Promise<void>) | undefined;
+  /** Clock injected for verification grace-period tests. Defaults to Date.now. */
+  now?: (() => number) | undefined;
 }
 
 interface Pm2ProcessDescription {
@@ -73,6 +75,7 @@ export class PM2Adapter implements RollbackAdapter {
   private readonly probeCount: number;
   private readonly fetchFn: (url: string) => Promise<{ ok: boolean; status: number }>;
   private readonly sleep: (ms: number) => Promise<void>;
+  private readonly now: () => number;
   private readonly baselineRestarts = new Map<string | number, number>();
 
   constructor(
@@ -102,6 +105,7 @@ export class PM2Adapter implements RollbackAdapter {
     this.probeCount = options.probeCount ?? 1;
     this.fetchFn = options.fetchFn ?? ((url: string) => globalThis.fetch(url));
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.now = options.now ?? Date.now;
 
     assertSafeTarget(this.releasesRoot, "releasesRoot");
     assertSafeTarget(this.currentSymlink, "currentSymlink");
@@ -258,6 +262,10 @@ export class PM2Adapter implements RollbackAdapter {
       await this.executor.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
       await this.executor.exec(`pm2 reload ${targetArgs}`);
     }
+
+    // Intentional reload always increments PM2 restart_time. Drop soak-window
+    // baselines so post-rollback health does not treat that expected restart as a crash.
+    this.baselineRestarts.clear();
   }
 
   async rollbackWithVerification(
@@ -267,7 +275,7 @@ export class PM2Adapter implements RollbackAdapter {
     await this.rollback(target);
     const grace = graceSeconds ?? this.startupGraceSeconds ?? 60;
     const graceMs = grace * 1000;
-    const startTime = Date.now();
+    const deadline = this.now() + graceMs;
 
     let lastHealth: PM2HealthResult = {
       errorRate: 1,
@@ -276,19 +284,12 @@ export class PM2Adapter implements RollbackAdapter {
       httpErrorRate: 0,
     };
 
-    while (Date.now() - startTime <= graceMs) {
+    // Git checkout + rebuild + `pm2 reload` often leaves the process launching or
+    // offline for several seconds. The grace window exists to wait for that — do not
+    // fail on the first non-healthy poll, or verification spuriously fails (#147).
+    while (true) {
       lastHealth = await this.checkHealth(target);
 
-      // Process exits or restart count deltas fail verification immediately
-      if (lastHealth.processErrorRate > 0) {
-        return {
-          verified: false,
-          errorRate: lastHealth.errorRate,
-          rollbackVerified: false,
-        };
-      }
-
-      // First healthy poll during grace (process online & HTTP 2xx) -> verified
       if (lastHealth.healthy) {
         return {
           verified: true,
@@ -297,11 +298,13 @@ export class PM2Adapter implements RollbackAdapter {
         };
       }
 
-      // If only HTTP probe failed during grace period, wait for next poll
-      await this.sleep(Math.min(1000, graceMs));
+      const remaining = deadline - this.now();
+      if (remaining <= 0) {
+        break;
+      }
+      await this.sleep(Math.min(1000, remaining));
     }
 
-    // Grace period expired without reaching healthy status
     return {
       verified: false,
       errorRate: lastHealth.errorRate,

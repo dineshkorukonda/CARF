@@ -15,9 +15,7 @@ export const ClassificationChangeTypeSchema = z.enum([
 export type ClassificationChangeType = z.infer<typeof ClassificationChangeTypeSchema>;
 
 /**
- * Matches threshold/engine.ts's (narrower) ChangeType, which excludes
- * "data" — the threshold decay formula only has four contribution
- * categories.
+ * Matches threshold/engine.ts's ChangeType (infra, dependency, config, code, data).
  */
 export const ThresholdChangeTypeSchema = z.enum(["infra", "dependency", "config", "code", "data"]);
 export type ThresholdChangeType = z.infer<typeof ThresholdChangeTypeSchema>;

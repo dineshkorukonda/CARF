@@ -15,8 +15,8 @@ type CheckResult =
 
 const MODE_LABEL: Record<CompatibilityReport["recommendedMode"], string> = {
   standalone: "Standalone mode (Live: PM2)",
-  augment: "Augment mode (Planned)",
-  either: "Standalone (PM2 live) or Augment (Planned)",
+  augment: "Augment mode (Live API)",
+  either: "Standalone (PM2 live) or Augment (live API)",
   unclear: "Needs one more piece",
 };
 

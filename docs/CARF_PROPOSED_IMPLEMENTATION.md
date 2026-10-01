@@ -91,7 +91,7 @@ Same classifier, same threshold formula, same evaluation harness in both modes �
 ### 4.2 Data flow
 
 1. PR merges → a trigger adapter (e.g. GitHub Actions) sends the commit's diff to CARF.
-2. **Tier 1 Classifier** tags every changed file by path/manifest type (infra, dependency, config, code).
+2. **Tier 1 Classifier** tags every changed file by path/manifest type (infra, dependency, config, code, data).
 3. **Tier 2 Classifier** runs `tree-sitter`-based structural diffing on files tagged "code," producing a complexity score.
 4. Output is a **change vector** — a weighted map across types, not a single label — persisted to Postgres.
 5. **Threshold Engine** computes a dynamic error/latency threshold and observation window from the change vector.
@@ -171,6 +171,7 @@ Output:
       "dependency": tally["dependency"] / total_files,
       "config": tally["config"] / total_files,
       "code": tally["code"] / total_files,
+      "data": tally["data"] / total_files,
       "code_complexity": normalized_complexity_score   # 0–1
   })
 ```
@@ -180,18 +181,21 @@ This handles mixed changes (e.g. a PR touching both `k8s/deploy.yaml` and `src/h
 ### 6.2 Threshold Engine (the formula the original paper lacked)
 
 ```
-base_threshold[type] / base_window[type], configured per type, e.g.:
-   infra:      error_rate ≤ 1%,  window = 2 min
-   dependency: error_rate ≤ 3%,  window = 5 min
-   config:     error_rate ≤ 2%,  window = 3 min
-   code:       error_rate ≤ 5%,  window = 10 min
+base_threshold[type] / base_window[type] — production v1
+(`core-api/src/threshold/versionedEngineConfig.ts`), not the stale paper table:
+   infra:      error_rate ≤ 1%,  window = 60s
+   data:       error_rate ≤ 1%,  window = 600s
+   dependency: error_rate ≤ 3%,  window = 180s
+   config:     error_rate ≤ 5%,  window = 300s
+   code:       error_rate ≤ 8%,  window = 900s
+See docs/PAPER_ALIGNMENT.md.
 
 for each type with weight > 0 in change_vector:
     contribution[type]        = base_threshold[type] × (1 − decay × change_vector[type])
     contribution_window[type] = base_window[type]    × (1 − decay × change_vector[type])
 
 final_threshold = min(contribution[type] for type in active_types)   # strictest wins
-final_window    = min(contribution_window[type] for type in active_types)
+final_window    = max(contribution_window[type] for type in active_types)  # longest soak wins (#150)
 
 if change_vector["code_complexity"] exists:
     final_threshold *= (1 − complexity_decay × change_vector["code_complexity"])

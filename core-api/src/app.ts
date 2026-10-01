@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { registerThresholdRoute, type ThresholdRouteOptions } from "./routes/threshold.js";
+import { registerAugmentThresholdRoute, type AugmentThresholdRouteOptions } from "./routes/augmentThreshold.js";
 import { registerGithubWebhookRoute, type GithubWebhookRouteOptions } from "./routes/githubWebhook.js";
 import { registerGithubStatusRoute, type GithubStatusRouteOptions } from "./routes/githubStatus.js";
 import { registerInstallationApiKeyRoute, type InstallationApiKeyRouteOptions } from "./routes/installationApiKey.js";
@@ -13,6 +14,7 @@ import { registerRolloutRollbackRoute, type RolloutRollbackRouteOptions } from "
 
 export interface BuildAppOptions {
   threshold?: ThresholdRouteOptions;
+  augmentThreshold?: AugmentThresholdRouteOptions;
   report?: ReportRouteOptions;
   webhook?: GithubWebhookRouteOptions;
   githubStatus?: GithubStatusRouteOptions;
@@ -31,6 +33,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   app.get("/v1/health", async () => ({ status: "ok", service: "carf-core-api" }));
 
   void registerThresholdRoute(app, options.threshold);
+  void registerAugmentThresholdRoute(app, options.augmentThreshold);
   void registerReportRoute(app, options.report);
   void registerGithubStatusRoute(app, options.githubStatus);
   void registerInstallationApiKeyRoute(app, options.installationApiKey);

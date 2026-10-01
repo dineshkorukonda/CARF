@@ -635,7 +635,12 @@ export function RepoDetailView({
               </div>
             </div>
             <div className="relative">
-              <pre className="rounded-lg border border-border bg-slate-950 p-3 font-mono text-xs text-slate-100 overflow-x-auto select-all">
+              <div className="absolute top-2.5 left-2.5 z-10">
+                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
+                  Available
+                </span>
+              </div>
+              <pre className="rounded-lg border border-border bg-slate-950 p-3 pt-8 font-mono text-xs text-slate-100 overflow-x-auto select-all opacity-80">
                 {agentInstallCmd}
               </pre>
               <button

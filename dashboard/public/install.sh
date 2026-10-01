@@ -21,10 +21,11 @@ error() { echo -e "${RED}[carf-installer] \xE2\x9C\x97${NC} $*" >&2; }
 
 CENTRAL_URL="${CARF_CENTRAL_API_URL:-https://carf.indevs.in}"
 INSTALL_TOKEN="${CARF_INSTALL_TOKEN:-}"
-AGENT_DIR="${HOME:-/root}/.carf/agent"
+AGENT_DIR="${CARF_AGENT_DIR:-${HOME:-/root}/.carf/agent}"
 PROCESS_MANAGER="auto"
 IS_UPDATE=0
 IS_UNINSTALL=0
+PM2_NAME="carf-agent"
 
 print_usage() {
   cat <<HELP
@@ -34,13 +35,13 @@ Usage:
   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- [OPTIONS]
 
 Options:
-  --token=<token>, -t <token>     CARF scoped install token (required for initial install)
-  --api=<url>, -a <url>           Central CARF API URL (default: ${CENTRAL_URL})
-  --pm2                           Force PM2 process manager
-  --systemd                       Force systemd service manager
-  --update                        Update agent code to latest and restart background daemon
-  --uninstall                     Uninstall background service, remove agent files, notify API
-  --help, -h                      Show this help message
+  --token=<token>, -t <token>         CARF scoped install token (required for initial install)
+  --central-url=<url>, --api=<url>    Central CARF API URL (default: ${CENTRAL_URL})
+  --pm2                               Force PM2 process manager
+  --systemd                           Force systemd service manager
+  --update                            Update agent code to latest and restart background daemon
+  --uninstall                         Uninstall background service, remove agent files, notify API
+  --help, -h                          Show this help message
 
 Examples:
   curl -fsSL ${CENTRAL_URL}/install.sh | bash -s -- --token=carf_inst_0123...
@@ -60,7 +61,7 @@ while [[ $# -gt 0 ]]; do
       INSTALL_TOKEN="$2"
       shift 2
       ;;
-    --api=*|--url=*)
+    --central-url=*|--api=*|--url=*)
       CENTRAL_URL="${1#*=}"
       shift
       ;;
@@ -106,11 +107,11 @@ if [[ "$IS_UNINSTALL" -eq 1 ]]; then
 
   # Stop and remove PM2 service if registered
   if command -v pm2 >/dev/null 2>&1; then
-    if pm2 describe carf-agent >/dev/null 2>&1; then
-      info "Removing PM2 daemon process 'carf-agent'..."
-      pm2 delete carf-agent >/dev/null 2>&1 || true
+    if pm2 describe "$PM2_NAME" >/dev/null 2>&1; then
+      info "Removing PM2 daemon process '$PM2_NAME'..."
+      pm2 delete "$PM2_NAME" >/dev/null 2>&1 || true
       pm2 save >/dev/null 2>&1 || true
-      success "PM2 process 'carf-agent' removed."
+      success "PM2 process '$PM2_NAME' removed."
     fi
   fi
 
@@ -142,7 +143,7 @@ if [[ "$IS_UNINSTALL" -eq 1 ]]; then
   # Notify central API if agent script and .env exist
   if [[ -f "$AGENT_DIR/agent.mjs" && -f "$AGENT_DIR/.env" ]]; then
     info "Notifying CARF central API of agent revocation..."
-    node "$AGENT_DIR/agent.mjs" --uninstall >/dev/null 2>&1 || true
+    (cd "$AGENT_DIR" && node agent.mjs --uninstall >/dev/null 2>&1) || true
   fi
 
   # Remove agent files
@@ -179,9 +180,9 @@ if [[ "$IS_UPDATE" -eq 1 ]]; then
   chmod +x "$AGENT_DIR/agent.mjs"
 
   # Restart PM2 daemon if active
-  if command -v pm2 >/dev/null 2>&1 && pm2 describe carf-agent >/dev/null 2>&1; then
-    info "Restarting PM2 process 'carf-agent'..."
-    pm2 restart carf-agent --update-env >/dev/null 2>&1
+  if command -v pm2 >/dev/null 2>&1 && pm2 describe "$PM2_NAME" >/dev/null 2>&1; then
+    info "Restarting PM2 process '$PM2_NAME'..."
+    pm2 restart "$PM2_NAME" --update-env >/dev/null 2>&1
     success "PM2 daemon updated and restarted."
   elif command -v systemctl >/dev/null 2>&1 && (systemctl is-active carf-agent.service >/dev/null 2>&1 || systemctl --user is-active carf-agent.service >/dev/null 2>&1); then
     info "Restarting systemd service 'carf-agent'..."
@@ -306,8 +307,10 @@ info "Downloading agent daemon from ${CENTRAL_URL}/agent/agent.mjs..."
 curl -fsSL "${CENTRAL_URL}/agent/agent.mjs" -o "$AGENT_DIR/agent.mjs"
 chmod +x "$AGENT_DIR/agent.mjs"
 
-# Write isolated .env containing ONLY CARF_INSTALL_TOKEN and CARF_CENTRAL_API_URL
-# Zero external database strings or credentials are ever stored locally.
+# -----------------------------------------------------------------------------
+# Zero Database Credentials Environment
+# -----------------------------------------------------------------------------
+info "Writing environment configuration..."
 cat <<EOF > "$AGENT_DIR/.env"
 CARF_INSTALL_TOKEN=${INSTALL_TOKEN}
 CARF_CENTRAL_API_URL=${CENTRAL_URL}
@@ -322,14 +325,14 @@ success "Wrote isolated environment configuration (mode 0600)."
 NODE_BIN=$(command -v node)
 
 if [[ "$PROCESS_MANAGER" == "pm2" ]]; then
-  info "Configuring PM2 process 'carf-agent'..."
+  info "Configuring PM2 process '$PM2_NAME'..."
   # Clean up existing instance if any
-  pm2 delete carf-agent >/dev/null 2>&1 || true
+  pm2 delete "$PM2_NAME" >/dev/null 2>&1 || true
 
   # Start daemon under PM2
-  pm2 start "$AGENT_DIR/agent.mjs" --name carf-agent --time >/dev/null 2>&1
+  pm2 start "$AGENT_DIR/agent.mjs" --name "$PM2_NAME" --time >/dev/null 2>&1
   pm2 save >/dev/null 2>&1 || true
-  success "Started 'carf-agent' under PM2 process manager."
+  success "Started '$PM2_NAME' under PM2 process manager."
 elif [[ "$PROCESS_MANAGER" == "systemd" ]]; then
   info "Configuring systemd service 'carf-agent'..."
 
@@ -376,16 +379,16 @@ echo ""
 echo -e "${GREEN}${BOLD}================================================================${NC}"
 echo -e "${GREEN}${BOLD}           CARF Host Agent Successfully Installed!              ${NC}"
 echo -e "${GREEN}${BOLD}================================================================${NC}"
-echo -e " \xE2\x80\xA2 Process Manager:  ${BOLD}${PROCESS_MANAGER}${NC}"
-echo -e " \xE2\x80\xA2 Agent Directory:  ${AGENT_DIR}"
-echo -e " \xE2\x80\xA2 Central API:      ${CENTRAL_URL}"
-echo -e " \xE2\x80\xA2 Background Status: Running (active heartbeat every 60s)"
+echo -e " • Process Manager:  ${BOLD}${PROCESS_MANAGER}${NC}"
+echo -e " • Agent Directory:  ${AGENT_DIR}"
+echo -e " • Central API:      ${CENTRAL_URL}"
+echo -e " • Background Status: Running (active heartbeat every 60s)"
 echo ""
 echo -e " Useful commands:"
 if [[ "$PROCESS_MANAGER" == "pm2" ]]; then
-  echo -e "   pm2 status carf-agent     Check agent status"
-  echo -e "   pm2 logs carf-agent       Stream agent logs"
-  echo -e "   pm2 restart carf-agent    Restart agent"
+  echo -e "   pm2 status $PM2_NAME     Check agent status"
+  echo -e "   pm2 logs $PM2_NAME       Stream agent logs"
+  echo -e "   pm2 restart $PM2_NAME    Restart agent"
 else
   echo -e "   systemctl status carf-agent   Check service status"
   echo -e "   journalctl -u carf-agent -f   Stream service logs"

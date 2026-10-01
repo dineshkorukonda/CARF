@@ -1,10 +1,10 @@
 import type { ChangeVector } from "../classifier/vector.js";
 
 /**
- * The four change categories the threshold decay formula operates over. Deliberately
- * excludes `code_complexity` — that field is a separate multiplicative penalty applied
- * after the per-type contributions are combined, not one of the per-type contributions
- * itself (see computeThreshold below).
+ * The five change categories the threshold decay formula operates over, including
+ * `data` (migrations/schema). Deliberately excludes `code_complexity` — that field
+ * is a separate multiplicative penalty applied after the per-type contributions are
+ * combined, not one of the per-type contributions itself (see computeThreshold below).
  */
 export type ChangeType = "infra" | "dependency" | "config" | "code" | "data";
 
@@ -44,16 +44,18 @@ export interface ThresholdResult {
  * Computes the effective anomaly threshold and evaluation window for a commit's
  * ChangeVector, per the threshold decay formula:
  *
- *   for each type in [infra, dependency, config, code] where vector[type] > 0:
+ *   for each type in [infra, dependency, config, code, data] where vector[type] > 0:
  *     contribution[type]       = baseThreshold[type] * (1 - decay * vector[type])
  *     contributionWindow[type] = baseWindow[type]     * (1 - decay * vector[type])
  *   finalThreshold = min(contribution[type] for active types)
- *   finalWindow    = min(contributionWindow[type] for active types)
+ *   finalWindow    = max(contributionWindow[type] for active types)  // #150
  *   if vector.code_complexity > 0:
  *     finalThreshold *= (1 - complexityDecay * vector.code_complexity)
  *
- * The strictest (minimum) contribution wins across active types, so a commit touching
- * multiple categories is held to whichever category is most sensitive.
+ * The strictest (minimum) threshold wins across active types, so a commit touching
+ * multiple categories is held to whichever category is most sensitive. The observation
+ * window uses the maximum so a short-window type (infra, 60s) cannot truncate soak for
+ * a long-window type shipped in the same commit (data, 600s). See issue #150.
  *
  * Safe default for an all-zero vector: with no active types there is nothing to take a
  * min() over, so rather than fabricate a numeric threshold we return
@@ -77,7 +79,7 @@ export function computeThreshold(vector: ChangeVector, config: ThresholdConfig =
   );
 
   let finalThreshold = Math.min(...thresholdContributions);
-  const finalWindow = Math.min(...windowContributions);
+  const finalWindow = Math.max(...windowContributions);
 
   if (vector.code_complexity > 0) {
     finalThreshold *= 1 - config.complexityDecay * vector.code_complexity;

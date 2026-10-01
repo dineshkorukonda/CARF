@@ -22,16 +22,16 @@ const STEPS = [
     desc: "Grant CARF access to classify commits on the repo(s) you pick — all of them, or a subset.",
   },
   {
-    title: "Configure mode & adapter",
-    desc: "Standalone mode (live with PM2 and systemd) has CARF monitor health and execute rollbacks. Augment mode (planned) will supply dynamic threshold recommendations to external deployment controllers via GET /v1/augment/threshold.",
+    title: "Choose standalone or augment",
+    desc: "Standalone mode (live with PM2 and systemd) has CARF monitor health and execute rollbacks. Augment mode is live as a read-only recommendation: GET /v1/augment/threshold returns the calibrated error-rate ceiling and observation window for an external controller.",
   },
   {
     title: "Set classification & threshold rules",
-    desc: "Tune which paths count as code / config / dependency / infra, and how sensitive + how long CARF watches each. Commits straight to your repo's .carf.yml.",
+    desc: "Tune which paths count as code / config / dependency / infra / data, and how sensitive + how long CARF watches each. Commits straight to your repo's .carf.yml.",
   },
   {
-    title: "Wire your pipeline (Augment mode — planned)",
-    desc: "In Augment mode, deployment scripts or CI pipelines will query GET /v1/augment/threshold for dynamic thresholds and observation windows. Standalone host mode is live today and needs no pipeline wiring.",
+    title: "Install the host agent or query the API",
+    desc: "Standalone host agent installs a background daemon with a scoped token. Augment consumers call GET /v1/augment/threshold from CI, Argo, or a deploy hook.",
   },
   {
     title: "Watch live status",
@@ -41,9 +41,37 @@ const STEPS = [
 
 const PIPELINE_PHASES = [
   { icon: GitBranch, title: "Classify", caption: "Tier 1 path + Tier 2 AST" },
-  { icon: Activity, title: "Monitor", caption: "Post-deploy metrics window" },
-  { icon: Cpu, title: "Decide", caption: "Change-keyed threshold" },
-  { icon: RotateCcw, title: "Roll back", caption: "PM2 / cluster reload" },
+  { icon: Activity, title: "Calibrate", caption: "Dynamic error ceiling" },
+  { icon: Cpu, title: "Observe", caption: "Host & canary soak" },
+  { icon: RotateCcw, title: "Rollback", caption: "Releases symlink or git" },
+];
+
+const COMPARISON_ROWS = [
+  {
+    feature: "Classification granularity",
+    traditional: "Binary (code vs non-code) or none",
+    carf: "5 change categories across path patterns and tree-sitter AST",
+  },
+  {
+    feature: "Error threshold",
+    traditional: "Static percentage (e.g. 5% across all releases)",
+    carf: "Dynamically calibrated per commit type (1% infra to 8% code)",
+  },
+  {
+    feature: "Observation soak window",
+    traditional: "Fixed timer (e.g. 15 minutes)",
+    carf: "Diff-calibrated soak duration (1m docs to 20m infra)",
+  },
+  {
+    feature: "Deployment targets",
+    traditional: "Tied to single vendor ecosystem",
+    carf: "Standalone PM2 / systemd host daemon & live augment API for Argo / CI",
+  },
+  {
+    feature: "Decision transparency",
+    traditional: "Opaque binary triggers",
+    carf: "Inspectable audit log, diff explanations, and .carf.yml rules",
+  },
 ];
 
 export default async function HomePage() {
@@ -59,7 +87,7 @@ export default async function HomePage() {
               CARF
             </span>
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              Change-Aware Rollback Framework
+              / Change-Aware Rollback Framework
             </span>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -77,7 +105,7 @@ export default async function HomePage() {
                 <Button size="sm" variant="ghost" render={<a href="/login" />}>
                   Sign in
                 </Button>
-                <Button size="sm" render={<a href="/signup" />}>
+                <Button size="sm" render={<a href="/login" />}>
                   Get started
                 </Button>
               </>
@@ -90,8 +118,8 @@ export default async function HomePage() {
       <section className="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24 sm:pb-16">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground mb-6">
-            <CheckCircle2 className="size-3.5 text-primary" />
-            <span>Tier 1 Path Rules + Tier 2 Tree-sitter AST</span>
+            <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Standalone PM2 host agent and augment threshold API are live</span>
           </div>
 
           <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
@@ -108,7 +136,7 @@ export default async function HomePage() {
                 Install Host Agent &rarr;
               </Button>
             ) : (
-              <Button size="lg" render={<a href="/signup" />}>
+              <Button size="lg" render={<a href="/login" />}>
                 Get started free &rarr;
               </Button>
             )}
@@ -118,25 +146,50 @@ export default async function HomePage() {
           </div>
         </div>
 
-        {/* Pipeline strip */}
-        <div className="mt-16 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {PIPELINE_PHASES.map((phase) => (
-            <div
-              key={phase.title}
-              className="flex items-center gap-3 rounded-lg border border-border bg-card p-3.5 shadow-2xs"
-            >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
-                <phase.icon className="size-4 text-foreground" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-foreground">{phase.title}</div>
-                <div className="truncate text-[11px] text-muted-foreground">{phase.caption}</div>
-              </div>
-            </div>
-          ))}
+        {/* 4 Pipeline phases */}
+        <div className="mt-14 border-t border-border pt-12">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {PIPELINE_PHASES.map((p) => {
+              const Icon = p.icon;
+              return (
+                <div key={p.title} className="rounded-sm border border-border bg-card p-4">
+                  <Icon className="size-5 text-foreground" />
+                  <div className="mt-3 text-sm font-medium text-foreground">{p.title}</div>
+                  <div className="text-xs text-muted-foreground">{p.caption}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Dedicated "Install on your server" Section */}
+        {/* Comparison table */}
+        <div className="mt-14 border-t border-border pt-12">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Why dynamic thresholds
+          </h2>
+          <div className="mt-4 overflow-x-auto rounded-sm border border-border bg-card">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-border bg-muted/30 font-medium text-muted-foreground">
+                <tr>
+                  <th className="p-3">Capability</th>
+                  <th className="p-3">Static Canary Thresholds</th>
+                  <th className="p-3">CARF Dynamic Framework</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {COMPARISON_ROWS.map((r) => (
+                  <tr key={r.feature} className="hover:bg-muted/10">
+                    <td className="p-3 font-medium text-foreground">{r.feature}</td>
+                    <td className="p-3 text-muted-foreground">{r.traditional}</td>
+                    <td className="p-3 text-foreground">{r.carf}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 1-Line Server Install Section */}
         <div id="install-server" className="mt-14 scroll-mt-6">
           <div className="rounded-xl border border-border bg-card p-6 shadow-xs">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -149,7 +202,7 @@ export default async function HomePage() {
                   Run CARF directly on your own server.
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground max-w-xl">
-                  Colocate CARF&apos;s lightweight agent with your application processes. No database credentials ever touch your host — the agent authenticates with a scoped install token and communicates exclusively over HTTPS.
+                  Colocate CARF&apos;s lightweight agent with your application processes. No database credentials ever touch your host — the agent authenticates with a scoped install token and communicates exclusively over HTTPS. Staged self-update checks syntax before swapping the running file.
                 </p>
               </div>
               <div className="shrink-0">
@@ -184,7 +237,7 @@ export default async function HomePage() {
                   <Server className="size-3.5 text-indigo-500" />
                   <span>PM2 &amp; systemd Daemon</span>
                 </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Automatically manages <code className="font-mono text-[10px]">carf-agent</code> process or systemd unit to survive server reboots.</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Automatically manages <code className="font-mono text-[10px]">carf-agent</code> process or systemd unit with automatic restart and staged self-update.</div>
               </div>
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
                 <div className="flex items-center gap-1.5 font-semibold text-foreground">
@@ -224,16 +277,13 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="border-t border-border bg-card/40 py-8 text-center text-xs text-muted-foreground">
         <div className="mx-auto max-w-5xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="font-mono">CARF \u2014 Change-Aware Rollback Framework</div>
+          <div className="font-mono">CARF — Change-Aware Rollback Framework</div>
           <div className="flex items-center gap-4">
-            <a href="https://carf.indevs.in/guide" className="hover:text-foreground">
-              Guide
-            </a>
             <a href="/login" className="hover:text-foreground">
               Sign in
             </a>
-            <a href="/signup" className="hover:text-foreground">
-              Create account
+            <a href="/login" className="hover:text-foreground">
+              Get started
             </a>
           </div>
         </div>

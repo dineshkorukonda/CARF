@@ -16,7 +16,19 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
-const VERSION = "0.1.0";
+export const VERSION = "0.1.0";
+
+/** @returns negative if a < b, 0 if equal, positive if a > b */
+export function compareAgentVersion(a, b) {
+  const pa = String(a).split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = String(b).split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
 
 // Load .env file if present in current directory or agent dir
 function loadEnv() {
@@ -87,6 +99,66 @@ async function apiRequest(endpoint, method = "GET", body = null) {
   }
 
   return res.json().catch(() => ({}));
+}
+
+function agentFilePath() {
+  return new URL(import.meta.url).pathname;
+}
+
+/**
+ * Stage a new agent.mjs, syntax-check it, then swap. On failed check, keep the
+ * running file. Exits 0 after a successful swap so PM2 restarts the new file.
+ * Never writes over the live file until `node --check` succeeds (#157).
+ */
+export async function applyStagedAgentUpdate(nextSource, options = {}) {
+  const currentPath = options.currentPath ?? agentFilePath();
+  const nextPath = `${currentPath}.next`;
+  const bakPath = `${currentPath}.bak`;
+  const writeFile = options.writeFile ?? ((p, data) => fs.writeFileSync(p, data, "utf-8"));
+  const rename = options.rename ?? ((from, to) => fs.renameSync(from, to));
+  const unlink = options.unlink ?? ((p) => {
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      /* ignore */
+    }
+  });
+  const check = options.check ?? (async (file) => {
+    await execAsync(`node --check "${file}"`);
+  });
+
+  writeFile(nextPath, nextSource);
+  try {
+    await check(nextPath);
+  } catch (err) {
+    unlink(nextPath);
+    throw new Error(`self-update rejected: staged agent failed syntax check (${err.message})`);
+  }
+
+  if (fs.existsSync(currentPath)) {
+    writeFile(bakPath, fs.readFileSync(currentPath, "utf-8"));
+  }
+  rename(nextPath, currentPath);
+}
+
+async function maybeSelfUpdate() {
+  if (process.env.CARF_AGENT_AUTO_UPDATE === "0") {
+    return false;
+  }
+  const remote = await apiRequest("/api/agent/version");
+  if (!remote?.version || compareAgentVersion(remote.version, VERSION) <= 0) {
+    return false;
+  }
+
+  const artifactUrl = `${CENTRAL_URL}${remote.artifact || "/agent/agent.mjs"}`;
+  const res = await fetch(artifactUrl, { headers: { "User-Agent": `carf-agent/${VERSION}` } });
+  if (!res.ok) {
+    throw new Error(`failed to download agent artifact: ${res.status}`);
+  }
+  const source = await res.text();
+  await applyStagedAgentUpdate(source);
+  console.log(`[carf-agent] Updated ${VERSION} -> ${remote.version}; restarting`);
+  process.exit(0);
 }
 
 /**
@@ -484,6 +556,12 @@ async function startDaemon() {
     console.log(`[carf-agent] Connected to central API for ${heartbeatRes.owner}/${heartbeatRes.repo} ✓`);
   }
 
+  try {
+    await maybeSelfUpdate();
+  } catch (err) {
+    console.error(`[carf-agent] Self-update skipped: ${err.message}`);
+  }
+
   // Periodic heartbeat every 60 seconds
   const interval = setInterval(async () => {
     try {
@@ -491,6 +569,11 @@ async function startDaemon() {
       const currentTargetConfig = refreshedData?.config?.adapter || refreshedData?.config || targetConfig;
       const currentChecks = await runLocalVerification(currentTargetConfig);
       await sendHeartbeat(currentChecks);
+      try {
+        await maybeSelfUpdate();
+      } catch (updateErr) {
+        console.error(`[carf-agent] Self-update skipped: ${updateErr.message}`);
+      }
     } catch (err) {
       console.error(`[carf-agent] Error during periodic heartbeat: ${err.message}`);
     }
@@ -507,10 +590,11 @@ async function startDaemon() {
   process.on("SIGTERM", handleExit);
 }
 
-// CLI argument execution
+// CLI argument execution — skip when imported by tests
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 const args = process.argv.slice(2);
 
-if (args.includes("--verify")) {
+if (isMain && args.includes("--verify")) {
   (async () => {
     try {
       const remoteData = await fetchConfig();
@@ -524,7 +608,7 @@ if (args.includes("--verify")) {
       process.exit(1);
     }
   })();
-} else if (args.includes("--uninstall")) {
+} else if (isMain && args.includes("--uninstall")) {
   (async () => {
     try {
       console.log("[carf-agent] Calling central API uninstall endpoint...");
@@ -536,7 +620,7 @@ if (args.includes("--verify")) {
       process.exit(0);
     }
   })();
-} else {
+} else if (isMain) {
   startDaemon().catch((err) => {
     console.error(`Fatal agent error: ${err.message}`);
     process.exit(1);
