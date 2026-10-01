@@ -316,8 +316,8 @@ export function RepoDetailView({
   };
 
   const centralOrigin = typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
-  const activeToken = generatedToken || (connection?.installTokenPrefix ? `${connection.installTokenPrefix}...` : "<install_token>");
-  const agentInstallCmd = `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${activeToken}`;
+  const activeToken = generatedToken || (connection?.installTokenPrefix ? `${connection.installTokenPrefix}...` : "");
+  const agentInstallCmd = activeToken ? `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${activeToken}` : `curl -fsSL ${centralOrigin}/install.sh | bash`;
 
   const copyAgentCmd = () => {
     navigator.clipboard.writeText(agentInstallCmd);
