@@ -238,4 +238,98 @@ describe("PM2Adapter.rollbackWithVerification", () => {
     expect(result).toEqual({ verified: true, errorRate: 0, rollbackVerified: true });
     expect(exec).toHaveBeenCalledTimes(3);
   });
+
+  it("waits through post-checkout launch for git layout instead of failing the first poll", async () => {
+    let now = 0;
+    const exec = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // git checkout
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // build
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // pm2 reload
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([{ name: "web", pm2_env: { status: "launching", restart_time: 4 } }]),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([{ name: "web", pm2_env: { status: "online", restart_time: 4 } }]),
+        stderr: "",
+      });
+
+    const adapter = new PM2Adapter("abc123", {
+      exec,
+      target: "web",
+      layout: "git",
+      cwd: "/var/www/app",
+      buildCommand: "npm run build",
+      startupGraceSeconds: 5,
+      now: () => now,
+      sleep: async (ms) => {
+        now += ms;
+      },
+    });
+
+    const result = await adapter.rollbackWithVerification();
+
+    expect(result).toEqual({ verified: true, errorRate: 0, rollbackVerified: true });
+    expect(exec).toHaveBeenCalledWith("cd /var/www/app && git checkout abc123");
+    expect(exec).toHaveBeenCalledWith("cd /var/www/app && npm run build");
+    expect(exec).toHaveBeenCalledWith("cd /var/www/app && pm2 reload web");
+  });
+
+  it("does not treat the expected rollback reload as a verification failure after soak baselines exist", async () => {
+    const exec = vi
+      .fn()
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([{ name: "web", pm_id: 1, pm2_env: { status: "online", restart_time: 2 } }]),
+        stderr: "",
+      })
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // git checkout
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // pm2 reload
+      .mockResolvedValueOnce({
+        stdout: JSON.stringify([{ name: "web", pm_id: 1, pm2_env: { status: "online", restart_time: 3 } }]),
+        stderr: "",
+      });
+
+    const adapter = new PM2Adapter("abc123", {
+      exec,
+      target: "web",
+      layout: "git",
+      cwd: "/var/www/app",
+    });
+
+    await expect(adapter.checkHealth()).resolves.toMatchObject({ healthy: true });
+    const result = await adapter.rollbackWithVerification();
+
+    expect(result).toEqual({ verified: true, errorRate: 0, rollbackVerified: true });
+  });
+
+  it("returns rollbackVerified false only after the grace window expires unhealthy", async () => {
+    let now = 0;
+    const exec = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // git checkout
+      .mockResolvedValueOnce({ stdout: "", stderr: "" }) // pm2 reload
+      .mockResolvedValue({
+        stdout: JSON.stringify([{ name: "web", pm2_env: { status: "errored", restart_time: 8 } }]),
+        stderr: "",
+      });
+
+    const adapter = new PM2Adapter("abc123", {
+      exec,
+      target: "web",
+      layout: "git",
+      cwd: "/var/www/app",
+      startupGraceSeconds: 2,
+      now: () => now,
+      sleep: async (ms) => {
+        now += ms;
+      },
+    });
+
+    const result = await adapter.rollbackWithVerification();
+
+    expect(result.rollbackVerified).toBe(false);
+    expect(result.verified).toBe(false);
+    expect(exec.mock.calls.length).toBeGreaterThan(3);
+  });
 });
