@@ -4,6 +4,7 @@ import { prisma as defaultPrisma } from "../db/client.js";
 import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
 import { PM2Adapter } from "../adapters/pm2.js";
 import { loadCarfConfig } from "../config/carfConfig.js";
+import { dispatchRollbackAlert } from "../alerts/dispatch.js";
 
 export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClient {
   rolloutOutcome: {
@@ -272,6 +273,18 @@ export async function registerRolloutRollbackRoute(
               ts: now,
             },
           });
+        }
+
+        try {
+          await dispatchRollbackAlert(process.env.CARF_ALERT_WEBHOOK_URL, {
+            owner,
+            repo,
+            commitSha: rollout.commitSha,
+            reason,
+            rollbackVerified,
+          });
+        } catch (alertError) {
+          request.log.error({ err: alertError, id: rollout.id }, "rollback alert dispatch failed");
         }
 
         return reply.code(200).send({
