@@ -38,6 +38,10 @@ in-repo copy) to this table from
 
 Decay: `0.5`. Complexity decay: `0.3`.
 
+Aggregation across active types (#150): `finalThreshold = min(...)` (conservative)
+and `finalWindow = max(...)` so a short-window type cannot truncate soak for a
+longer-timescale type in the same commit.
+
 Paper §IV.E (infra 1%/2min, config 2%/3min, dependency 3%/5min, code 5%/10min)
 is stale and omits `data`.
 
