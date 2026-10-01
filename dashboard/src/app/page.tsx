@@ -7,9 +7,10 @@ import {
   RotateCcw,
   CheckCircle2,
   Terminal,
+  ShieldCheck,
+  Server,
+  Zap,
 } from "lucide-react";
-import { InteractiveSimulator } from "./InteractiveSimulator";
-import { CompatChecker } from "./CompatChecker";
 
 const STEPS = [
   {
@@ -22,7 +23,7 @@ const STEPS = [
   },
   {
     title: "Configure mode & adapter",
-    desc: "Standalone mode (live with PM2) has CARF monitor health and execute rollbacks. Augment mode (planned) will supply dynamic threshold recommendations to external deployment controllers via GET /v1/augment/threshold.",
+    desc: "Standalone mode (live with PM2 and systemd) has CARF monitor health and execute rollbacks. Augment mode (planned) will supply dynamic threshold recommendations to external deployment controllers via GET /v1/augment/threshold.",
   },
   {
     title: "Set classification & threshold rules",
@@ -30,7 +31,7 @@ const STEPS = [
   },
   {
     title: "Wire your pipeline (Augment mode — planned)",
-    desc: "In Augment mode, deployment scripts or CI pipelines will query GET /v1/augment/threshold for dynamic thresholds and observation windows. Standalone PM2 mode is live today and needs no pipeline wiring.",
+    desc: "In Augment mode, deployment scripts or CI pipelines will query GET /v1/augment/threshold for dynamic thresholds and observation windows. Standalone host mode is live today and needs no pipeline wiring.",
   },
   {
     title: "Watch live status",
@@ -58,20 +59,25 @@ export default async function HomePage() {
               CARF
             </span>
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              / Change-Aware Rollback Framework
+              Change-Aware Rollback Framework
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {account ? (
-              <Button size="sm" render={<a href="/dashboard" />}>
-                Open dashboard →
-              </Button>
+              <>
+                <Button size="sm" variant="ghost" render={<a href="/dashboard" />}>
+                  Dashboard
+                </Button>
+                <Button size="sm" render={<a href="/dashboard/setup" />}>
+                  Setup Agent
+                </Button>
+              </>
             ) : (
               <>
                 <Button size="sm" variant="ghost" render={<a href="/login" />}>
                   Sign in
                 </Button>
-                <Button size="sm" render={<a href="/login" />}>
+                <Button size="sm" render={<a href="/signup" />}>
                   Get started
                 </Button>
               </>
@@ -80,42 +86,52 @@ export default async function HomePage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-12">
-        {/* Hero */}
+      {/* Hero */}
+      <section className="mx-auto max-w-5xl px-6 pt-16 pb-12 sm:pt-24 sm:pb-16">
         <div className="max-w-2xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-            <span className="inline-block size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Adaptive deployment safety
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground mb-6">
+            <CheckCircle2 className="size-3.5 text-primary" />
+            <span>Tier 1 Path Rules + Tier 2 Tree-sitter AST</span>
           </div>
-          <h1 className="mt-4 font-serif text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-            Static error-rate thresholds are either too loose or too fragile.
+
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            Stop rolling back innocent deployments.
           </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
-            CARF classifies every commit — code, config, dependency, or infrastructure —
-            and calibrates the rollback threshold to match. A config typo doesn&apos;t get
-            treated like a risky dependency bump. Install the GitHub App, pick a mode, and
-            CARF is watching your next deploy.
+
+          <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
+            Static error thresholds cause false-positive rollbacks. A docs change should not have the same error tolerance as an architectural refactor. CARF inspects your diffs to dynamically calibrate observation windows and error budgets before every release.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Button render={<a href={account ? "/dashboard" : "/login"} />}>
-              {account ? "Go to dashboard →" : "Install GitHub App →"}
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            {account ? (
+              <Button size="lg" render={<a href="/dashboard/setup" />}>
+                Install Host Agent &rarr;
+              </Button>
+            ) : (
+              <Button size="lg" render={<a href="/signup" />}>
+                Get started free &rarr;
+              </Button>
+            )}
+            <Button size="lg" variant="outline" render={<a href="#install-server" />}>
+              1-Line Server Install
             </Button>
-            <a
-              href="#install-server"
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
-            >
-              <Terminal className="size-3.5 text-primary" />
-              <span>Install on your server</span>
-            </a>
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-4">
+        {/* Pipeline strip */}
+        <div className="mt-16 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {PIPELINE_PHASES.map((phase) => (
-            <div key={phase.title} className="bg-background px-4 py-4">
-              <phase.icon className="size-4 text-muted-foreground" />
-              <div className="mt-2 text-sm font-medium">{phase.title}</div>
-              <div className="mt-0.5 text-[11px] text-muted-foreground">{phase.caption}</div>
+            <div
+              key={phase.title}
+              className="flex items-center gap-3 rounded-lg border border-border bg-card p-3.5 shadow-2xs"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted">
+                <phase.icon className="size-4 text-foreground" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-foreground">{phase.title}</div>
+                <div className="truncate text-[11px] text-muted-foreground">{phase.caption}</div>
+              </div>
             </div>
           ))}
         </div>
@@ -127,75 +143,57 @@ export default async function HomePage() {
               <div>
                 <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold text-primary">
                   <Terminal className="size-3" />
-                  <span>Host-Colocated PM2 Adapter (Standalone)</span>
+                  <span>Host-Colocated Agent (PM2 &amp; systemd)</span>
                 </div>
                 <h2 className="mt-2 text-lg font-semibold tracking-tight text-foreground">
                   Run CARF directly on your own server.
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground max-w-xl">
-                  Colocate CARF&apos;s lightweight PM2 agent with your application processes. No database credentials ever touch your host — the agent authenticates with a repository-scoped token and communicates exclusively over HTTPS.
+                  Colocate CARF&apos;s lightweight agent with your application processes. No database credentials ever touch your host — the agent authenticates with a scoped install token and communicates exclusively over HTTPS.
                 </p>
               </div>
               <div className="shrink-0">
                 <Button size="sm" variant="outline" render={<a href={account ? "/dashboard/setup" : "/login"} />}>
-                  Get install token →
+                  Get install token &rarr;
                 </Button>
               </div>
             </div>
 
             <div className="relative mt-4">
-              <div className="absolute top-2.5 left-2.5 z-10">
-                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
-                  Not yet available
-                </span>
-              </div>
-              <pre className="rounded-lg border border-border bg-slate-950 p-3.5 pt-8 font-mono text-xs text-slate-100 overflow-x-auto select-all opacity-80">
+              <pre className="rounded-lg border border-border bg-slate-950 p-3.5 font-mono text-xs text-slate-100 overflow-x-auto select-all">
                 curl -fsSL https://carf.indevs.in/install.sh | bash -s -- --token=&lt;install_token&gt;
               </pre>
-              <p className="mt-2 text-[11px] text-muted-foreground/80">
-                Planned automated installer (tracked in issue #153). Setup wizard currently configures Standalone PM2 directly.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                <span>Runs automatically in the background via PM2 or systemd service manager.</span>
+                <a href={account ? "/dashboard/setup" : "/login"} className="font-medium text-foreground underline underline-offset-2">
+                  Generate token in dashboard &rarr;
+                </a>
+              </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="font-semibold text-foreground">Zero DB Credentials</div>
+                <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <ShieldCheck className="size-3.5 text-emerald-500" />
+                  <span>Zero DB Credentials</span>
+                </div>
                 <div className="mt-1 text-[11px] text-muted-foreground">Only holds an HTTPS bearer token. Database URLs and secrets never touch the agent.</div>
               </div>
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="font-semibold text-foreground">7 Preflight Host Checks</div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Validates PM2 daemon, process table, HTTP probe, permissions, and rollback strategy.</div>
+                <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <Server className="size-3.5 text-indigo-500" />
+                  <span>PM2 &amp; systemd Daemon</span>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Automatically manages <code className="font-mono text-[10px]">carf-agent</code> process or systemd unit to survive server reboots.</div>
               </div>
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
-                <div className="font-semibold text-foreground">Automatic Daemon Life</div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Managed under PM2 as <code className="font-mono">carf-agent</code> with automatic restart and heartbeat streaming.</div>
+                <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                  <Zap className="size-3.5 text-blue-500" />
+                  <span>Preflight Health Checks</span>
+                </div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Validates daemon reachability, process entries, HTTP probe, and layout rollback permissions.</div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Live Simulator & Repo Checker Grid */}
-        <div className="mt-14 space-y-12">
-          {/* Simulator */}
-          <div>
-            <div className="mb-4">
-              <div className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                <Cpu className="size-3.5 text-primary" />
-                <span>Interactive Pipeline Simulator</span>
-              </div>
-              <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">
-                Watch CARF classify commits and calculate canary thresholds
-              </h2>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Slide simulated error rates and swap commit profiles to see real-time dynamic tolerances in action.
-              </p>
-            </div>
-            <InteractiveSimulator />
-          </div>
-
-          {/* Compatibility Checker */}
-          <div className="border-t border-border pt-12">
-            <CompatChecker />
           </div>
         </div>
 
@@ -221,20 +219,25 @@ export default async function HomePage() {
             ))}
           </div>
         </div>
+      </section>
 
-        {/* Onboarding guarantee */}
-        <div className="mt-12 rounded-sm border border-border bg-muted/20 p-5">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="mt-0.5 size-4 text-emerald-500 shrink-0" />
-            <div className="text-xs leading-relaxed text-muted-foreground">
-              <strong className="font-medium text-foreground">No production disruption:</strong>{" "}
-              CARF operates in passive observation mode by default. It records AST-calibrated
-              thresholds and telemetry without touching your traffic until you explicitly verify
-              and enable automated rollback in your repository configuration.
-            </div>
+      {/* Footer */}
+      <footer className="border-t border-border bg-card/40 py-8 text-center text-xs text-muted-foreground">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="font-mono">CARF \u2014 Change-Aware Rollback Framework</div>
+          <div className="flex items-center gap-4">
+            <a href="https://carf.indevs.in/guide" className="hover:text-foreground">
+              Guide
+            </a>
+            <a href="/login" className="hover:text-foreground">
+              Sign in
+            </a>
+            <a href="/signup" className="hover:text-foreground">
+              Create account
+            </a>
           </div>
         </div>
-      </div>
+      </footer>
     </main>
   );
 }

@@ -20,20 +20,35 @@ export default async function SetupPage(props: {
   const initialRepoFullName = typeof searchParams.repo === "string" ? searchParams.repo : "";
   const forceEdit = searchParams.edit === "1";
 
-  const installations = await listInstallationsForAccount(prisma, account.id);
+  let installations = await listInstallationsForAccount(prisma, account.id);
   if (installations.length === 0) {
-    redirect("/dashboard/settings");
+    // Automatically ensure a Host installation for this user so they can install the server agent immediately
+    const hostInstId = `host_${account.id}`;
+    const hostInst = await prisma.installation.upsert({
+      where: { installationId: hostInstId },
+      create: {
+        installationId: hostInstId,
+        userId: account.id,
+        targetLogin: account.name || account.email?.split("@")[0] || "server",
+        targetType: "Host",
+        repositorySelection: "all",
+      },
+      update: {},
+    });
+    installations = [hostInst];
   }
 
-  // Fetch repos for first installation by default
+  // Fetch repos for first installation if it's a GitHub App installation
   const primary = installations[0]!;
   let repos: InstallationRepo[] = [];
-  try {
-    const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
-    const { token } = await createInstallationToken(primary.installationId, appJwt);
-    repos = await listInstallationRepos(token);
-  } catch (err) {
-    console.error("[dashboard/setup] failed to load repos:", err);
+  if (!primary.installationId.startsWith("host_")) {
+    try {
+      const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
+      const { token } = await createInstallationToken(primary.installationId, appJwt);
+      repos = await listInstallationRepos(token);
+    } catch (err) {
+      console.error("[dashboard/setup] failed to load repos:", err);
+    }
   }
 
   // Fetch RepoConnection rows for this account's installations
@@ -45,7 +60,7 @@ export default async function SetupPage(props: {
     },
   });
 
-  // Already linked: don't send the user through onboarding again.
+  // Already linked: don't send the user through onboarding again if they specifically requested an already configured repo
   if (initialRepoFullName && !forceEdit) {
     const existing = findRepoConnection(connections, initialRepoFullName);
     const parts = splitRepoFullName(initialRepoFullName);
@@ -60,6 +75,7 @@ export default async function SetupPage(props: {
       initialRepos={repos}
       connections={connections}
       initialRepoFullName={initialRepoFullName}
+      accountName={account.name || account.email?.split("@")[0] || "server"}
     />
   );
 }

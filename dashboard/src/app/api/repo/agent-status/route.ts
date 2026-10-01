@@ -11,19 +11,33 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = request.nextUrl;
-  const installationId = searchParams.get("installationId");
+  let installationId = searchParams.get("installationId");
   const owner = searchParams.get("owner");
   const repo = searchParams.get("repo");
 
-  if (!installationId || !owner || !repo) {
+  if (!owner || !repo) {
     return NextResponse.json(
-      { error: "Missing required parameters: installationId, owner, repo" },
+      { error: "Missing required parameters: owner, repo" },
       { status: 400 }
     );
   }
 
-  const installation = await getInstallationForAccount(prisma, account.id, installationId);
+  let installation = null;
+  if (installationId) {
+    installation = await getInstallationForAccount(prisma, account.id, installationId);
+  }
+
   if (!installation) {
+    // Fallback: look for host installation or any installation belonging to this user
+    installation = await prisma.installation.findFirst({
+      where: { userId: account.id },
+    });
+    if (installation) {
+      installationId = installation.installationId;
+    }
+  }
+
+  if (!installation || !installationId) {
     return NextResponse.json({ error: "Installation not found or unauthorized" }, { status: 403 });
   }
 

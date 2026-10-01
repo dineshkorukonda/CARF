@@ -43,14 +43,12 @@ describe("CARF Minimal Showcase SPA", () => {
     expect(screen.getByText(/Real-Time Canary Tuning/i)).toBeInTheDocument();
   });
 
-  it("renders the interactive calibration playground and scenario presets", () => {
+  it("renders the one-command host agent installer section", () => {
     render(<App />);
-    expect(screen.getByText(/Interactive Calibration Playground/i)).toBeInTheDocument();
-    expect(screen.getByText(/Simulate Tree-Sitter AST & Dynamic Canary Thresholds/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Test Suite Addition/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Core Algorithmic Refactor/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Database Schema Migration/i })).toBeInTheDocument();
-    expect(screen.getByText(/A\/B Rollback Decision Comparison/i)).toBeInTheDocument();
+    expect(screen.getByText(/One-Command Host Installation/i)).toBeInTheDocument();
+    expect(screen.getByText(/Deploy the CARF Agent to Your Server/i)).toBeInTheDocument();
+    expect(screen.getByText(/curl -fsSL https:\/\/carf\.indevs\.in\/install\.sh/i)).toBeInTheDocument();
+    expect(screen.getByText(/PM2 & systemd Supported/i)).toBeInTheDocument();
   });
 
   it("links to the usage guide", () => {
@@ -59,4 +57,3 @@ describe("CARF Minimal Showcase SPA", () => {
     expect(guideLinks.some((link) => link.getAttribute("href") === "#guide")).toBe(true);
   });
 });
-

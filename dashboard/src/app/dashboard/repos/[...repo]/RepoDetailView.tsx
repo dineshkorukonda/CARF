@@ -635,12 +635,7 @@ export function RepoDetailView({
               </div>
             </div>
             <div className="relative">
-              <div className="absolute top-2.5 left-2.5 z-10">
-                <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
-                  Not yet available
-                </span>
-              </div>
-              <pre className="rounded-lg border border-border bg-slate-950 p-3 pt-8 font-mono text-xs text-slate-100 overflow-x-auto select-all opacity-80">
+              <pre className="rounded-lg border border-border bg-slate-950 p-3 font-mono text-xs text-slate-100 overflow-x-auto select-all">
                 {agentInstallCmd}
               </pre>
               <button
@@ -656,8 +651,9 @@ export function RepoDetailView({
 
           {/* Agent Action Buttons */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border">
-            <div className="text-[11px] text-muted-foreground">
-              Planned uninstaller: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --uninstall</code> (tracked in #153)
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+              <span>Update: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --update</code></span>
+              <span>Uninstall: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --uninstall</code></span>
             </div>
             <div className="flex items-center gap-2">
               <button
