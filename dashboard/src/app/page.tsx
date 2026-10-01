@@ -85,10 +85,7 @@ export default async function HomePage() {
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center gap-2.5 font-bold tracking-tight text-foreground">
-              <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-mono text-sm font-bold shadow-xs">
-                C
-              </span>
+            <Link href="/" className="flex items-center gap-2 font-bold tracking-tight text-foreground">
               <span className="font-mono text-base font-bold">CARF</span>
               <span className="hidden md:inline text-xs text-muted-foreground font-normal">
                 / Change-Aware Rollback Framework
@@ -316,9 +313,6 @@ export default async function HomePage() {
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <span className="flex size-5 items-center justify-center rounded bg-primary text-[11px] font-mono font-bold text-primary-foreground">
-                  C
-                </span>
                 <span className="font-mono text-sm font-bold text-foreground">CARF</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
