@@ -73,6 +73,7 @@ describe("server smoke test", () => {
   // the job of test/routes/.
   it.each([
     ["GET", "/v1/threshold"],
+    ["GET", "/v1/augment/threshold"],
     ["GET", "/v1/github/status"],
     ["GET", "/v1/commits"],
     ["GET", "/v1/installations/12345/api-key"],
