@@ -24,6 +24,7 @@ import { PM2Adapter } from "./adapters/pm2.js";
 import { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import type { RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 import { startSampleRetentionJob, type SampleRetentionJob } from "./retention/sampleRetention.js";
+import { dispatchRollbackAlert } from "./alerts/dispatch.js";
 
 // Issue #60: real end-to-end webhook test commit.
 // Issue #60: second probe -- retest push webhook delivery after the earlier 404.
@@ -73,6 +74,7 @@ const app = buildApp({
 rolloutMonitor = new RolloutMonitor({
   prismaClient: prisma as unknown as RolloutOutcomePrismaClient,
   logger: app.log,
+  onRollbackAlert: (event) => dispatchRollbackAlert(process.env.CARF_ALERT_WEBHOOK_URL, event),
   adapterFactory: (outcome) => {
     const firstTarget = carfConfig?.adapter?.targets?.[0];
     const targetName =

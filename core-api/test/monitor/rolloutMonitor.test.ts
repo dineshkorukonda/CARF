@@ -165,6 +165,51 @@ describe("RolloutMonitor State Machine", () => {
     expect(rollbackWithVerification).toHaveBeenCalledTimes(1);
   });
 
+  it("dispatches a rollback alert after a threshold breach without failing the rollback", async () => {
+    let currentTime = 1000;
+    const fakePrisma = createFakePrisma();
+    const outcome: RolloutOutcomeRecord = {
+      id: "outcome-alert",
+      owner: "acme",
+      repo: "widgets",
+      commitSha: "sha-alert",
+      status: "PENDING",
+      threshold: 0.05,
+      window: 30,
+      startedAt: new Date(currentTime),
+      rolledBack: false,
+      createdAt: new Date(currentTime),
+      updatedAt: new Date(currentTime),
+    };
+    fakePrisma.outcomes.set(outcome.id, outcome);
+
+    const onRollbackAlert = vi.fn().mockRejectedValue(new Error("webhook down"));
+    const adapter: RollbackAdapter = {
+      checkHealth: vi.fn().mockResolvedValue({ errorRate: 0.2, healthy: false }),
+      rollback: vi.fn(),
+      rollbackWithVerification: vi.fn().mockResolvedValue({ rollbackVerified: true }),
+    };
+
+    const monitor = new RolloutMonitor({
+      prismaClient: fakePrisma,
+      logger: fakeLogger,
+      pollIntervalMs: 2000,
+      sleep: async (ms) => {
+        currentTime += ms;
+      },
+      now: () => new Date(currentTime),
+      onRollbackAlert,
+    });
+
+    monitor.enqueue(outcome, adapter);
+    await monitor.waitForJobs();
+
+    expect(fakePrisma.outcomes.get("outcome-alert")!.status).toBe("ROLLED_BACK");
+    expect(onRollbackAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ owner: "acme", repo: "widgets", commitSha: "sha-alert" })
+    );
+  });
+
   it("transitions PENDING -> FAILED when adapter throws during health check", async () => {
     const currentTime = 1000;
     const fakePrisma = createFakePrisma();
