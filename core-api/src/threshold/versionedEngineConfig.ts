@@ -28,7 +28,7 @@ export interface VersionedEngineConfig extends ThresholdConfig {
  * Retains exact default tuning from original CARF engine:
  * - infra: threshold 0.01, window 60s
  * - dependency: threshold 0.03, window 180s
- * - config: threshold 0.05, window 300s
+ * - config: threshold 0.05, window 300s (looser than dependency — see #151)
  * - code: threshold 0.08, window 900s
  * - data: threshold 0.01, window 600s
  * - decay: 0.5
