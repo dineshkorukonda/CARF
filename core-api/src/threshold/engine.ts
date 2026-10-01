@@ -1,10 +1,10 @@
 import type { ChangeVector } from "../classifier/vector.js";
 
 /**
- * The four change categories the threshold decay formula operates over. Deliberately
- * excludes `code_complexity` — that field is a separate multiplicative penalty applied
- * after the per-type contributions are combined, not one of the per-type contributions
- * itself (see computeThreshold below).
+ * The five change categories the threshold decay formula operates over, including
+ * `data` (migrations/schema). Deliberately excludes `code_complexity` — that field
+ * is a separate multiplicative penalty applied after the per-type contributions are
+ * combined, not one of the per-type contributions itself (see computeThreshold below).
  */
 export type ChangeType = "infra" | "dependency" | "config" | "code" | "data";
 
@@ -44,7 +44,7 @@ export interface ThresholdResult {
  * Computes the effective anomaly threshold and evaluation window for a commit's
  * ChangeVector, per the threshold decay formula:
  *
- *   for each type in [infra, dependency, config, code] where vector[type] > 0:
+ *   for each type in [infra, dependency, config, code, data] where vector[type] > 0:
  *     contribution[type]       = baseThreshold[type] * (1 - decay * vector[type])
  *     contributionWindow[type] = baseWindow[type]     * (1 - decay * vector[type])
  *   finalThreshold = min(contribution[type] for active types)
