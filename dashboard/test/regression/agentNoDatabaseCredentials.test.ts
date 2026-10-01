@@ -31,4 +31,13 @@ describe("Agent Zero Database Credentials Enforcement", () => {
     expect(envBlock).not.toContain("DATABASE");
     expect(envBlock).not.toContain("PASSWORD");
   });
+
+  it("supports --token install and --uninstall without embedding database credentials", () => {
+    const content = fs.readFileSync(installShPath, "utf-8");
+    expect(content).toContain("--token=");
+    expect(content).toContain("--uninstall");
+    expect(content).toContain("pm2 start");
+    expect(content).toContain("/agent/agent.mjs");
+    expect(content).not.toMatch(/DATABASE_URL/i);
+  });
 });
