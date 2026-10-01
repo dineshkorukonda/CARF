@@ -117,21 +117,30 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
   },
 };
 
-const RUNTIMES: Record<TargetRuntime, { label: string; icon: typeof Server; command: string }> = {
+const RUNTIMES: Record<
+  TargetRuntime,
+  { label: string; badge: string; icon: typeof Server; command: string; note?: string }
+> = {
   pm2: {
-    label: "PM2 (Active)",
+    label: "PM2",
+    badge: "Standalone (Live)",
     icon: Terminal,
     command: "pm2 reload api-server --update-env",
+    note: "CARF Standalone adapter executes zero-downtime cluster reload directly.",
   },
   kubernetes: {
-    label: "Kubernetes (Preview)",
+    label: "Kubernetes",
+    badge: "Planned",
     icon: Server,
-    command: "kubectl rollout undo deployment/api-server -n production",
+    command: "# Planned: CARF standalone Kubernetes adapter not yet built",
+    note: "Standalone adapter planned; Augment mode planned for external canary gating.",
   },
   gitops: {
-    label: "GitOps / Argo (Preview)",
+    label: "GitOps / Argo",
+    badge: "Augment (Planned)",
     icon: GitPullRequest,
-    command: "git revert HEAD --no-edit && git push origin main",
+    command: "# Planned: External Argo controller aborts canary via GET /v1/augment/threshold",
+    note: "Augment mode consumer (Argo executes its own rollback).",
   },
 };
 
@@ -148,54 +157,61 @@ export function InteractiveSimulator() {
   const [selectedScenario, setSelectedScenario] = useState<ScenarioKey>("infra");
   const [selectedRuntime, setSelectedRuntime] = useState<TargetRuntime>("pm2");
 
-  // Video / Walkthrough Player State
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  // Video walkthrough state
   const [stepIndex, setStepIndex] = useState<number>(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [simulatedProgress, setSimulatedProgress] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [progress, setProgress] = useState<number>(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Manual Sandbox error rate
-  const [manualErrorRate, setManualErrorRate] = useState<number>(0.48);
+  // Sandbox state
+  const [manualErrorRate, setManualErrorRate] = useState<number>(0.45);
 
   const scenario = SCENARIOS[selectedScenario];
   const runtime = RUNTIMES[selectedRuntime];
 
-  // Auto-play timer for video walkthrough mode
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
+  // Video autoplay stepper loop
   useEffect(() => {
     if (activeTab !== "video" || !isPlaying) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
 
-    const intervalMs = Math.round(2400 / playbackSpeed);
+    const intervalTime = 60; // ms ticks
+    const stepDuration = 2200; // ms per step
+    const increment = (intervalTime / stepDuration) * 100;
 
     timerRef.current = setInterval(() => {
-      setStepIndex((prev) => {
-        const next = (prev + 1) % STEPS.length;
-        setSimulatedProgress(Math.round(((next + 1) / STEPS.length) * 100));
-        return next;
+      setProgress((prev) => {
+        if (prev >= 100) {
+          setStepIndex((s) => (s + 1) % STEPS.length);
+          return 0;
+        }
+        return prev + increment;
       });
-    }, intervalMs);
+    }, intervalTime);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [activeTab, isPlaying, playbackSpeed]);
+  }, [activeTab, isPlaying]);
 
-  // Sync initial error rate when scenario changes
-  function handleSelectScenario(key: ScenarioKey) {
-    setSelectedScenario(key);
-    setManualErrorRate(SCENARIOS[key].simulatedError);
+  const handleStepClick = (index: number) => {
+    setStepIndex(index);
+    setProgress(0);
+  };
+
+  const handleReset = () => {
     setStepIndex(0);
-    setSimulatedProgress(20);
-  }
+    setProgress(0);
+    setIsPlaying(true);
+  };
 
-  // Determine current active metrics based on tab
-  const currentErrorRate = activeTab === "video"
-    ? (stepIndex >= 3 ? scenario.simulatedError : 0.05)
-    : manualErrorRate;
+  const currentErrorRate =
+    activeTab === "video"
+      ? stepIndex >= 3
+        ? scenario.simulatedError
+        : 0.05
+      : manualErrorRate;
 
   const isBreached = currentErrorRate > scenario.threshold;
 
@@ -219,7 +235,7 @@ export function InteractiveSimulator() {
       if (stepIndex >= 4) {
         if (scenario.breaches) {
           logs.push(`[${time}] [BREACH] Rate ${currentErrorRate.toFixed(2)}% > ceiling ${scenario.threshold.toFixed(2)}%!`);
-          logs.push(`[${time}] [action] Rollback dispatched in 340ms: ${runtime.command}`);
+          logs.push(`[${time}] [action] Rollback dispatched: ${runtime.command}`);
         } else {
           logs.push(`[${time}] [PASS] Rate ${currentErrorRate.toFixed(2)}% within budget ${scenario.threshold.toFixed(2)}%`);
           logs.push(`[${time}] [canary] Advancing rollout to 100% healthy.`);
@@ -234,7 +250,7 @@ export function InteractiveSimulator() {
         `[${time}] Current Error Reading: ${manualErrorRate.toFixed(2)}%`,
       ];
       if (isBreached) {
-        base.push(`[${time}] ⚠️ BREACH DETECTED: Dispatched: "${runtime.command}"`);
+        base.push(`[${time}] ⚠️ BREACH DETECTED: Action: "${runtime.command}"`);
       } else {
         base.push(`[${time}] ✓ HEALTHY: Within error-rate threshold.`);
       }
@@ -259,13 +275,10 @@ export function InteractiveSimulator() {
         <div className="flex items-center gap-1.5 self-end sm:self-auto bg-background/80 p-0.5 rounded-lg border border-border">
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("video");
-              setIsPlaying(true);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+            onClick={() => setActiveTab("video")}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
               activeTab === "video"
-                ? "bg-foreground text-background shadow-xs"
+                ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -274,209 +287,172 @@ export function InteractiveSimulator() {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setActiveTab("sandbox");
-              setIsPlaying(false);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-all ${
+            onClick={() => setActiveTab("sandbox")}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors ${
               activeTab === "sandbox"
-                ? "bg-foreground text-background shadow-xs"
+                ? "bg-accent text-accent-foreground shadow-2xs font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <Sliders className="size-3.5" />
-            <span>Manual Sandbox</span>
+            <span>Live Sandbox</span>
           </button>
         </div>
       </div>
 
-      {/* Scenario Selection Bar */}
-      <div className="border-b border-border bg-background px-5 py-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground font-medium">Select Deployment Scenario:</span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            {(Object.keys(SCENARIOS) as ScenarioKey[]).map((key) => {
-              const item = SCENARIOS[key];
-              const isSelected = selectedScenario === key;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleSelectScenario(key)}
-                  className={`flex flex-col text-left px-2.5 py-1.5 rounded-md border text-xs transition-all ${
-                    isSelected
-                      ? "border-foreground bg-accent text-accent-foreground font-semibold shadow-2xs"
-                      : "border-border bg-card/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  }`}
-                >
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                    {item.category}
-                  </span>
-                  <span className="truncate">{item.title}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Video Mode: Step Timeline & Playback Controller */}
-      {activeTab === "video" && (
-        <div className="border-b border-border bg-muted/20 px-5 py-3">
-          {/* Step Badges */}
-          <div className="grid grid-cols-5 gap-1 sm:gap-2 mb-3">
-            {STEPS.map((s, idx) => {
-              const isCurrent = stepIndex === idx;
-              const isPast = stepIndex > idx;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => {
-                    setStepIndex(idx);
-                    setSimulatedProgress(Math.round(((idx + 1) / STEPS.length) * 100));
-                    setIsPlaying(false);
-                  }}
-                  className={`flex flex-col items-center sm:items-start p-1.5 sm:px-2.5 sm:py-2 rounded-md border text-left transition-all ${
-                    isCurrent
-                      ? "border-foreground bg-background shadow-xs font-semibold"
-                      : isPast
-                        ? "border-emerald-500/40 bg-emerald-500/5 text-muted-foreground"
-                        : "border-border/60 bg-transparent text-muted-foreground/60 hover:text-muted-foreground"
-                  }`}
-                >
-                  <div className="flex items-center gap-1 font-mono text-[10px]">
-                    <span className={`size-1.5 rounded-full ${isCurrent ? "bg-foreground" : isPast ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-                    <span className="hidden sm:inline">0{s.id}</span>
-                  </div>
-                  <span className="text-[11px] truncate w-full text-center sm:text-left mt-0.5">
-                    {s.label}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Player controls */}
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="h-8 gap-1.5 text-xs font-medium"
-              >
-                {isPlaying ? <Pause className="size-3.5 text-amber-500" /> : <Play className="size-3.5 text-emerald-500 fill-emerald-500" />}
-                <span>{isPlaying ? "Pause" : "Play Demo"}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setStepIndex(0);
-                  setSimulatedProgress(20);
-                }}
-                className="h-8 size-8 p-0"
-                title="Restart Walkthrough"
-              >
-                <RotateCcw className="size-3.5" />
-              </Button>
-              <button
-                type="button"
-                onClick={() => setPlaybackSpeed(playbackSpeed === 1 ? 1.5 : playbackSpeed === 1.5 ? 2 : 1)}
-                className="px-2 py-1 rounded border border-border text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors"
-                title="Toggle playback speed"
-              >
-                <span className="flex items-center gap-0.5">
-                  <FastForward className="size-3" />
-                  {playbackSpeed}x
-                </span>
-              </button>
-            </div>
-
-            {/* Scrubber indicator */}
-            <div className="flex items-center gap-3 w-40 sm:w-60">
-              <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-foreground h-full transition-all duration-300"
-                  style={{ width: `${simulatedProgress || Math.round(((stepIndex + 1) / STEPS.length) * 100)}%` }}
-                />
-              </div>
-              <span className="font-mono text-[10px] text-muted-foreground shrink-0">
-                0{stepIndex + 1} / 05
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Interactive Stage */}
-      <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Pipeline Architecture Card */}
+      {/* Main Simulator Layout Grid */}
+      <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column: Interactive Scenario Controls */}
         <div className="lg:col-span-7 space-y-4">
-          {/* Active Step Showcase */}
-          <div className="rounded-lg border border-border bg-background p-4 space-y-3.5 shadow-2xs">
-            <div className="flex items-center justify-between border-b border-border/80 pb-2.5">
-              <div className="flex items-center gap-2">
-                <GitCommit className="size-4 text-muted-foreground" />
-                <span className="font-mono text-xs font-semibold">
-                  Commit <span className="text-foreground">{scenario.commitSha}</span>: {scenario.title}
-                </span>
-              </div>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${scenario.categoryBadgeColor}`}>
-                {scenario.category}
-              </span>
+          {/* Scenario Selector Chips */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Select Diff Profile:</span>
+              <span className="text-[11px] font-mono text-muted-foreground/80">Simulating AST & T1 Path Rules</span>
             </div>
-
-            {/* Commit Message & File */}
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">{scenario.commitMsg}</p>
-              <div className="flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
-                <span className="px-1.5 py-0.5 rounded bg-muted">File:</span>
-                <span className="text-foreground font-semibold">{scenario.file}</span>
-              </div>
-            </div>
-
-            {/* Parsed Diff Block */}
-            <div className="rounded-md border border-border bg-muted/40 p-3 font-mono text-xs overflow-x-auto leading-relaxed">
-              <pre className="text-muted-foreground">
-                {scenario.diffSnippet.split("\n").map((line, i) => (
-                  <div
-                    key={i}
-                    className={
-                      line.startsWith("+")
-                        ? "text-emerald-500 font-medium bg-emerald-500/10 px-1 rounded-xs"
-                        : line.startsWith("-")
-                          ? "text-red-500 font-medium bg-red-500/10 px-1 rounded-xs"
-                          : ""
-                    }
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(Object.keys(SCENARIOS) as ScenarioKey[]).map((sKey) => {
+                const item = SCENARIOS[sKey];
+                const isSelected = selectedScenario === sKey;
+                return (
+                  <button
+                    key={sKey}
+                    type="button"
+                    onClick={() => {
+                      setSelectedScenario(sKey);
+                      if (activeTab === "sandbox") {
+                        setManualErrorRate(item.simulatedError);
+                      }
+                      setStepIndex(0);
+                      setProgress(0);
+                    }}
+                    className={`flex flex-col text-left p-2.5 rounded-lg border transition-all ${
+                      isSelected
+                        ? "border-foreground bg-accent text-accent-foreground shadow-2xs"
+                        : "border-border bg-background/50 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                    }`}
                   >
-                    {line}
-                  </div>
-                ))}
+                    <span className="text-xs font-semibold truncate text-foreground">{item.title}</span>
+                    <span className="text-[10px] font-mono mt-0.5 opacity-80">{item.category}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Diff Preview Card */}
+          <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <GitCommit className="size-3.5 text-muted-foreground" />
+                  <span className="font-mono text-xs font-bold text-foreground">commit {scenario.commitSha}</span>
+                  <Badge variant="outline" className={`text-[10px] uppercase font-mono px-1.5 py-0 ${scenario.categoryBadgeColor}`}>
+                    {scenario.category}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground font-sans line-clamp-1">{scenario.commitMsg}</p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[10px] font-mono uppercase text-muted-foreground">Budget Ceiling</div>
+                <div className="text-sm font-bold font-mono text-foreground">{scenario.threshold.toFixed(2)}%</div>
+              </div>
+            </div>
+
+            {/* Code Diff Block */}
+            <div className="rounded bg-muted/60 p-2.5 font-mono text-xs overflow-x-auto border border-border/40">
+              <div className="text-[11px] text-muted-foreground mb-1 select-none font-semibold">
+                Target: {scenario.file}
+              </div>
+              <pre className="text-[11px] leading-relaxed text-foreground select-all">
+                {scenario.diffSnippet}
               </pre>
             </div>
 
-            {/* Classification explanation */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <div className="rounded border border-border/70 bg-muted/30 p-2 text-[11px]">
-                <div className="text-muted-foreground font-medium">Tier 1 Path Filter:</div>
-                <div className="font-mono text-foreground mt-0.5">{scenario.tier1}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 border-t border-border/40">
+              <div>
+                <span className="text-muted-foreground font-mono text-[10px] uppercase block">Tier 1 Path Rule:</span>
+                <span className="text-xs text-foreground font-mono font-medium">{scenario.tier1}</span>
               </div>
-              <div className="rounded border border-border/70 bg-muted/30 p-2 text-[11px]">
-                <div className="text-muted-foreground font-medium">Tier 2 AST Structural:</div>
-                <div className="font-mono text-foreground mt-0.5">{scenario.tier2}</div>
+              <div>
+                <span className="text-muted-foreground font-mono text-[10px] uppercase block">Tier 2 AST Classification:</span>
+                <span className="text-xs text-foreground font-mono font-medium">{scenario.tier2}</span>
               </div>
             </div>
           </div>
 
-          {/* Sandbox controls if in sandbox mode */}
-          {activeTab === "sandbox" && (
+          {/* Stepper (Video Walkthrough Mode) */}
+          {activeTab === "video" ? (
+            <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    className="size-7 p-0 shrink-0"
+                  >
+                    {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleReset}
+                    className="size-7 p-0 shrink-0 text-muted-foreground"
+                    title="Restart Simulation"
+                  >
+                    <RotateCcw className="size-3" />
+                  </Button>
+                  <span className="text-xs font-semibold text-foreground">
+                    Step {stepIndex + 1} of {STEPS.length}: {STEPS[stepIndex].label}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono text-muted-foreground">Auto-Walkthrough</span>
+              </div>
+
+              {/* Step indicator bar */}
+              <div className="grid grid-cols-5 gap-1.5">
+                {STEPS.map((s, idx) => {
+                  const isCurrent = idx === stepIndex;
+                  const isPassed = idx < stepIndex;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => handleStepClick(idx)}
+                      className="group relative flex flex-col text-left focus:outline-hidden"
+                    >
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-75 ${
+                            isPassed
+                              ? "bg-foreground"
+                              : isCurrent
+                              ? "bg-foreground"
+                              : "bg-transparent"
+                          }`}
+                          style={{
+                            width: isPassed ? "100%" : isCurrent ? `${progress}%` : "0%",
+                          }}
+                        />
+                      </div>
+                      <span className={`text-[10px] mt-1 font-mono truncate ${
+                        isCurrent ? "font-bold text-foreground" : "text-muted-foreground"
+                      }`}>
+                        {s.short}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* Live Sandbox Slider Control */
             <div className="rounded-lg border border-border bg-background p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold flex items-center gap-1.5">
-                  <Activity className="size-3.5 text-blue-500" />
-                  Simulated Canary 5xx Error Rate Slider:
+                  <Activity className="size-3.5 text-foreground" />
+                  Simulate Live Telemetry Spike:
                 </span>
                 <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${
                   isBreached ? "bg-red-500/15 text-red-400" : "bg-emerald-500/15 text-emerald-400"
@@ -510,9 +486,9 @@ export function InteractiveSimulator() {
                 <Cpu className="size-3.5 text-foreground" />
                 Target Rollback Driver:
               </span>
-              <span className="text-[11px] text-muted-foreground">CARF executes zero-downtime reversal</span>
+              <span className="text-[11px] text-muted-foreground">PM2 is live; other targets/augment mode planned</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {(Object.keys(RUNTIMES) as TargetRuntime[]).map((rKey) => {
                 const item = RUNTIMES[rKey];
                 const Icon = item.icon;
@@ -522,14 +498,19 @@ export function InteractiveSimulator() {
                     key={rKey}
                     type="button"
                     onClick={() => setSelectedRuntime(rKey)}
-                    className={`flex items-center gap-2 p-2 rounded-md border text-xs transition-all ${
+                    className={`flex items-center justify-between p-2 rounded-md border text-xs transition-all ${
                       isSelected
                         ? "border-foreground bg-accent text-accent-foreground font-semibold"
                         : "border-border bg-muted/20 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     }`}
                   >
-                    <Icon className="size-3.5 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <div className="flex items-center gap-2 truncate">
+                      <Icon className="size-3.5 shrink-0" />
+                      <span className="truncate">{item.label}</span>
+                    </div>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border shrink-0 ml-1">
+                      {item.badge}
+                    </span>
                   </button>
                 );
               })}
@@ -585,15 +566,20 @@ export function InteractiveSimulator() {
           <div className="rounded-lg border border-border bg-background p-4 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-mono text-muted-foreground uppercase text-[10px]">
-                Automated Runtime Command:
+                {selectedRuntime === "pm2" ? "Automated Runtime Command:" : "Runtime Integration Status:"}
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">
-                Driver: {runtime.label}
+                Driver: {runtime.label} ({runtime.badge})
               </span>
             </div>
             <div className="rounded bg-muted p-2.5 font-mono text-xs text-foreground overflow-x-auto select-all">
               {isBreached ? runtime.command : "# monitoring… within tolerance, no rollback needed"}
             </div>
+            {runtime.note && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {runtime.note}
+              </p>
+            )}
           </div>
 
           {/* Live Pipeline Terminal Audit Log */}
