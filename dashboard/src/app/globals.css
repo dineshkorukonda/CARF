@@ -7,10 +7,10 @@
  * shadcn's components (Card, Button, Badge, Select, ...) style themselves entirely through
  * semantic tokens like bg-card/text-muted-foreground/ring-foreground -- Tailwind v4 can only
  * generate those utilities if a matching `--color-*` variable exists under `@theme`. This
- * project never defined them (in either dashboard/ or web/), so every one of those utility
+ * project never defined them, so every one of those utility
  * classes was a silent no-op since the components were first added -- see git history on
  * this file for the fuller story. Fixed by defining both a light (:root) and dark (.dark)
- * palette below; ThemeToggle.tsx flips the `dark` class on <html> and persists the choice.
+ * palette below; THEME_INIT_SCRIPT in ThemeToggle.tsx sets the `dark` class on <html>.
  *
  * Palette: "Structured Grid" -- cool neutrals, one indigo accent, Space Grotesk throughout
  * with IBM Plex Mono reserved for numeric values only. The sidebar is a fixed dark navy rail
