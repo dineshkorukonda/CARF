@@ -59,13 +59,13 @@ describe("computeThreshold", () => {
     // dependency: 180 * 0.75 = 135
     // config: 300 * 0.5 = 150
     // code: 900 * 0.95 = 855
-    // min window -> infra (54)
-    expect(result.finalWindow).toBeCloseTo(54, 10);
+    // max window -> code (855) so a short-window type cannot truncate soak (#150)
+    expect(result.finalWindow).toBeCloseTo(855, 10);
 
     expect(result.activeTypes.sort()).toEqual(["code", "config", "dependency", "infra"].sort());
   });
 
-  it("picks the min threshold and min window independently even when different types are strictest for each", () => {
+  it("picks the min threshold and max window independently even when different types are strictest for each", () => {
     // Craft a case where the type with the min threshold contribution differs from the
     // type with the min window contribution.
     const config: ThresholdConfig = {
@@ -80,7 +80,7 @@ describe("computeThreshold", () => {
     const result = computeThreshold(v, config);
 
     expect(result.finalThreshold).toBeCloseTo(0.005, 10); // dependency wins threshold
-    expect(result.finalWindow).toBeCloseTo(30, 10); // infra wins window
+    expect(result.finalWindow).toBeCloseTo(2500, 10); // dependency wins max window
   });
 
   it("multiplies finalThreshold down by the complexity penalty factor when code_complexity > 0", () => {
@@ -128,6 +128,13 @@ describe("computeThreshold", () => {
     const expectedWindow = DEFAULT_CONFIG.baseWindow.code * (1 - DEFAULT_CONFIG.decay * 1.0);
     expect(result.finalThreshold).toBeCloseTo(expectedThreshold, 10);
     expect(result.finalWindow).toBeCloseTo(expectedWindow, 10);
+  });
+
+  it("uses max window so data soak is not truncated by infra in the same commit", () => {
+    const result = computeThreshold(vector({ infra: 1, data: 1 }), TEST_CONFIG);
+    // infra window: 60 * 0.5 = 30; data window: 600 * 0.5 = 300
+    expect(result.finalThreshold).toBeCloseTo(0.005, 10);
+    expect(result.finalWindow).toBeCloseTo(300, 10);
   });
 
   it("DEFAULT_CONFIG matches the documented window ordering: infra < dependency < config < code", () => {
