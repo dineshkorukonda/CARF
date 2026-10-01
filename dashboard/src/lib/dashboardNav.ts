@@ -1,6 +1,6 @@
 export const DASHBOARD_NAV_ITEMS = [
   { href: "/dashboard", exact: true, label: "Repositories" },
-  { href: "/dashboard/verify", exact: false, label: "Verification Harness" },
+  { href: "/dashboard/verify", exact: false, label: "Threshold Demo" },
   { href: "/dashboard/settings", exact: false, label: "Settings" },
 ] as const;
 

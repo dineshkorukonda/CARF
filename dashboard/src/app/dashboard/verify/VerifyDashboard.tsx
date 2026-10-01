@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Play, CheckCircle2, RefreshCw, BarChart2, Activity } from "lucide-react";
+import { Play, CheckCircle2, RefreshCw, BarChart2, Activity, AlertTriangle } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { Badge } from "../../../components/ui/badge";
 import type { SimulationResult, EvaluationHistoryItem } from "../../../lib/evalHarness";
@@ -49,13 +49,13 @@ export function VerifyDashboard({
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <Activity className="size-3.5 text-primary" />
-            <span>Statistical Verification Suite</span>
+            <span>Illustrative Simulation</span>
           </div>
           <h1 className="text-xl font-bold tracking-tight text-foreground mt-1">
-            Offline Evaluation Harness
+            Interactive Threshold Demo
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Benchmarks CARF change-aware dynamic thresholds (Condition B) directly against static canary defaults (Condition A) for <span className="font-mono text-foreground">{repoName}</span>.
+            Demonstrates how change-aware dynamic thresholds compare conceptually to static canary defaults using synthetic commit templates for <span className="font-mono text-foreground">{repoName}</span>.
           </p>
         </div>
 
@@ -67,18 +67,33 @@ export function VerifyDashboard({
           {running ? (
             <>
               <RefreshCw className="size-3.5 animate-spin" />
-              <span>Simulating...</span>
+              <span>Running Demo...</span>
             </>
           ) : (
             <>
               <Play className="size-3.5 fill-current" />
-              <span>Run Simulation</span>
+              <span>Run Demo</span>
             </>
           )}
         </Button>
       </div>
 
-      {error && (
+      {/* Illustrative Simulation Notice */}
+      <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-200">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 leading-relaxed">
+            <p className="font-semibold text-amber-800 dark:text-amber-300">
+              Illustrative Demo Notice (Synthetic Data)
+            </p>
+            <p className="text-muted-foreground text-[11px]">
+              This simulation uses fixed synthetic commit templates and does not call the real classifier, threshold engine, or rollback execution path. Results shown below are illustrative only and should not be interpreted as an empirical benchmark or measured evaluation of CARF&apos;s actual performance.
+            </p>
+          </div>
+        </div>
+      </div>
+
+            {error && (
         <div className="rounded-sm border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
           {error}
         </div>
@@ -89,7 +104,7 @@ export function VerifyDashboard({
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Simulation Results (50 Synthetic Deployments)
+              Synthetic Demo Results (50 Simulated Runs)
             </span>
             <span className="text-xs font-mono text-muted-foreground">
               Executed at {new Date(simResult.createdAt).toLocaleTimeString()}
@@ -101,15 +116,15 @@ export function VerifyDashboard({
             <div className="rounded-sm border border-border bg-card p-5 space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">Condition A: Static Canary</h2>
-                  <p className="text-[11px] text-muted-foreground">Argo / Flagger default: 1% fixed threshold, 300s window</p>
+                  <h2 className="text-sm font-semibold text-foreground">Condition A: Static Canary (Synthetic)</h2>
+                  <p className="text-[11px] text-muted-foreground">Simulated baseline: 1% fixed threshold against template noise</p>
                 </div>
-                <Badge variant="secondary" className="font-mono text-[10px]">Static</Badge>
+                <Badge variant="secondary" className="font-mono text-[10px]">Synthetic Static</Badge>
               </div>
 
               <div className="grid grid-cols-2 gap-4 font-mono">
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">False Positive Rate</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic False Positive Rate</div>
                   <div className="text-2xl font-bold text-destructive">
                     {(simResult.conditionA.falsePositiveRate * 100).toFixed(1)}%
                   </div>
@@ -117,7 +132,7 @@ export function VerifyDashboard({
                 </div>
 
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">Avg MTTR</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic Avg MTTR</div>
                   <div className="text-2xl font-bold text-foreground">
                     {(simResult.conditionA.truePositiveMttrMs / 1000).toFixed(1)}s
                   </div>
@@ -125,14 +140,14 @@ export function VerifyDashboard({
                 </div>
 
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">Precision</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic Precision</div>
                   <div className="text-lg font-semibold text-foreground">
                     {(simResult.conditionA.precision * 100).toFixed(1)}%
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">Recall</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic Recall</div>
                   <div className="text-lg font-semibold text-foreground">
                     {(simResult.conditionA.recall * 100).toFixed(1)}%
                   </div>
@@ -145,44 +160,44 @@ export function VerifyDashboard({
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div>
                   <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-                    <span>Condition B: CARF Dynamic</span>
+                    <span>Condition B: CARF Dynamic (Synthetic)</span>
                     <CheckCircle2 className="size-4 text-emerald-500" />
                   </h2>
-                  <p className="text-[11px] text-muted-foreground">Change-aware: AST semantic risk & error-rate threshold</p>
+                  <p className="text-[11px] text-muted-foreground">Simulated dynamic threshold based on commit template type</p>
                 </div>
-                <Badge variant="default" className="font-mono text-[10px]">CARF</Badge>
+                <Badge variant="default" className="font-mono text-[10px]">Synthetic Dynamic</Badge>
               </div>
 
               <div className="grid grid-cols-2 gap-4 font-mono">
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">False Positive Rate</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic False Positive Rate</div>
                   <div className="text-2xl font-bold text-emerald-500">
                     {(simResult.conditionB.falsePositiveRate * 100).toFixed(1)}%
                   </div>
                   <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                    {((simResult.conditionA.falsePositiveRate - simResult.conditionB.falsePositiveRate) * 100).toFixed(1)}% FPR reduction
+                    {((simResult.conditionA.falsePositiveRate - simResult.conditionB.falsePositiveRate) * 100).toFixed(1)}% synthetic FPR reduction
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">Avg MTTR</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic Avg MTTR</div>
                   <div className="text-2xl font-bold text-foreground">
                     {(simResult.conditionB.truePositiveMttrMs / 1000).toFixed(1)}s
                   </div>
                   <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                    {((simResult.conditionA.truePositiveMttrMs - simResult.conditionB.truePositiveMttrMs) / 1000).toFixed(1)}s faster rollback
+                    {((simResult.conditionA.truePositiveMttrMs - simResult.conditionB.truePositiveMttrMs) / 1000).toFixed(1)}s synthetic MTTR delta
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">Precision</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic Precision</div>
                   <div className="text-lg font-semibold text-foreground">
                     {(simResult.conditionB.precision * 100).toFixed(1)}%
                   </div>
                 </div>
 
                 <div>
-                  <div className="text-[11px] text-muted-foreground uppercase">Recall</div>
+                  <div className="text-[11px] text-muted-foreground uppercase">Synthetic Recall</div>
                   <div className="text-lg font-semibold text-foreground">
                     {(simResult.conditionB.recall * 100).toFixed(1)}%
                   </div>
@@ -194,9 +209,9 @@ export function VerifyDashboard({
       ) : (
         <div className="rounded-sm border border-dashed border-border p-8 text-center bg-card space-y-3">
           <BarChart2 className="size-8 mx-auto text-muted-foreground opacity-60" />
-          <h3 className="text-sm font-semibold text-foreground">No Simulation Run in Current Session</h3>
+          <h3 className="text-sm font-semibold text-foreground">No Demo Run in Current Session</h3>
           <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
-            Click &quot;Run Simulation&quot; to execute synthetic deployments through both static canary and CARF dynamic pipelines and compare false positive rates and MTTR in real-time.
+            Click &quot;Run Demo&quot; to step through synthetic deployment templates comparing static vs. dynamic threshold behaviors.
           </p>
         </div>
       )}
@@ -205,13 +220,13 @@ export function VerifyDashboard({
       <div className="rounded-sm border border-border bg-card p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            EvaluationLog History (Postgres)
+            Demo Run History (Postgres)
           </h3>
-          <span className="text-xs font-mono text-muted-foreground">{history.length} logged runs</span>
+          <span className="text-xs font-mono text-muted-foreground">{history.length} logged demo runs</span>
         </div>
 
         {history.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic py-3">No persisted evaluation logs found.</p>
+          <p className="text-xs text-muted-foreground italic py-3">No persisted demo runs found.</p>
         ) : (
           <div className="divide-y divide-border border-t border-border mt-2">
             {history.map((item) => (

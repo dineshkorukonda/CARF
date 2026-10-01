@@ -14,9 +14,9 @@ type CheckResult =
   | ({ state: "report"; owner: string; repo: string; truncated: boolean } & CompatibilityReport);
 
 const MODE_LABEL: Record<CompatibilityReport["recommendedMode"], string> = {
-  standalone: "Standalone mode",
-  augment: "Augment mode",
-  either: "Either mode works",
+  standalone: "Standalone mode (Live: PM2)",
+  augment: "Augment mode (Planned)",
+  either: "Standalone (PM2 live) or Augment (Planned)",
   unclear: "Needs one more piece",
 };
 
@@ -118,17 +118,21 @@ export function CompatChecker() {
 
           <div className="mt-2 divide-y divide-border rounded-sm border border-border">
             {result.signals.map((signal) => (
-              <div key={signal.id} className="flex items-start gap-2.5 px-3.5 py-2.5">
+              <div key={signal.id} className="flex items-start gap-2.5 px-3.5 py-2.5 text-xs">
                 {signal.matched ? (
-                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
+                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <Check className="size-3" />
+                  </span>
                 ) : (
-                  <X className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/40" />
+                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground/60">
+                    <X className="size-3" />
+                  </span>
                 )}
-                <div className="min-w-0">
-                  <p className={`text-xs font-medium ${signal.matched ? "text-foreground" : "text-muted-foreground"}`}>
+                <div className="flex-1">
+                  <span className={signal.matched ? "font-medium text-foreground" : "text-muted-foreground"}>
                     {signal.label}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">{signal.detail}</p>
+                  </span>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">{signal.detail}</p>
                 </div>
               </div>
             ))}

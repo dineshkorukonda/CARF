@@ -93,7 +93,7 @@ describe("repo onboarding hrefs", () => {
   it("keeps the global sidebar to repositories, verify, and settings", () => {
     expect(DASHBOARD_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Repositories",
-      "Verification Harness",
+      "Threshold Demo",
       "Settings",
     ]);
   });
