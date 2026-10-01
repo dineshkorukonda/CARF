@@ -27,12 +27,12 @@ export interface RolloutMonitorOptions {
   adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
   /** Optional rollback alert hook (Slack/email webhook). Failures must not block rollback. */
   onRollbackAlert?: ((event: {
-    owner?: string | null;
-    repo?: string | null;
+    owner?: string | null | undefined;
+    repo?: string | null | undefined;
     commitSha: string;
     reason: string;
-    finalErrorRate?: number | null;
-    rollbackVerified?: boolean | null;
+    finalErrorRate?: number | null | undefined;
+    rollbackVerified?: boolean | null | undefined;
   }) => Promise<void>) | undefined;
 }
 

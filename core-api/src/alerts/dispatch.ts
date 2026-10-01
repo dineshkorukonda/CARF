@@ -1,10 +1,10 @@
 export interface RollbackAlert {
-  owner?: string | null;
-  repo?: string | null;
+  owner?: string | null | undefined;
+  repo?: string | null | undefined;
   commitSha: string;
   reason: string;
-  finalErrorRate?: number | null;
-  rollbackVerified?: boolean | null;
+  finalErrorRate?: number | null | undefined;
+  rollbackVerified?: boolean | null | undefined;
 }
 
 export type AlertFetchFn = (url: string, init: { method: string; headers: Record<string, string>; body: string }) => Promise<unknown>;
