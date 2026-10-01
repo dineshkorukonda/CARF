@@ -498,7 +498,7 @@ export default function App() {
             <div>
               <div className="inline-flex items-center gap-1.5 text-[11px] font-mono text-[#666] uppercase tracking-wider mb-1">
                 <Sparkles className="w-3.5 h-3.5 text-[#111]" />
-                1-Click Platform Presets
+                Platform Integrations
               </div>
               <h2 className="font-['Lora',Georgia,serif] text-[20px] font-semibold text-[#0a0a0a]">
                 Zero-Friction Protection for Modern Clouds
@@ -510,7 +510,7 @@ export default function App() {
           </div>
 
           <p className="text-[13px] text-[#555] mb-4">
-            Step-by-step setup for a normal GitHub project, then PM2, Render, Kubernetes, and Prometheus.{" "}
+            Step-by-step setup for a normal GitHub project, then PM2 (standalone, live) and planned augment integrations (Argo Rollouts, Render, Prometheus).{" "}
             <a href="#guide" className="font-medium text-[#111] underline underline-offset-2">
               Open the full guide
             </a>
@@ -526,7 +526,7 @@ export default function App() {
                     <span>PM2 (VPS / Node)</span>
                   </div>
                   <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Active
+                    Live
                   </span>
                 </div>
                 <p className="text-[12px] text-[#666] leading-[1.6]">
@@ -546,9 +546,14 @@ export default function App() {
             {/* Render Card */}
             <div className="border border-[#e5e5e5] bg-white rounded-[6px] p-4 flex flex-col justify-between shadow-2xs hover:border-[#bbb] transition-all">
               <div>
-                <div className="flex items-center gap-2 mb-2 font-semibold text-[#111] text-[14px]">
-                  <Server className="w-4 h-4 text-indigo-600" />
-                  <span>Render.com</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 font-semibold text-[#111] text-[14px]">
+                    <Server className="w-4 h-4 text-indigo-600" />
+                    <span>Render.com</span>
+                  </div>
+                  <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Planned
+                  </span>
                 </div>
                 <p className="text-[12px] text-[#666] leading-[1.6]">
                   Deploy Hook triggers and health endpoint polling for calculated soak duration before release sign-off.
@@ -573,7 +578,7 @@ export default function App() {
                     <span>Kubernetes / Argo</span>
                   </div>
                   <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                    Preview
+                    Planned
                   </span>
                 </div>
                 <p className="text-[12px] text-[#666] leading-[1.6]">
@@ -582,7 +587,7 @@ export default function App() {
               </div>
               <div className="mt-3 pt-2.5 border-t border-[#f0f0f0] flex items-center justify-between gap-2">
                 <span className="font-mono text-[10px] text-blue-700 bg-blue-50/70 p-2 rounded">
-                  curl -s https://carf.indevs.in/v1/threshold?commit=$SHA
+                  GET /v1/augment/threshold (Planned)
                 </span>
                 <a href="#kubernetes" className="text-[11px] font-medium text-[#111] shrink-0">
                   Guide →

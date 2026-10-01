@@ -45,7 +45,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
             <span className="font-semibold text-[#111]">CARF</span> — Change-Aware Rollback Framework
           </div>
           <a href="#guide" className="font-mono text-[11px] text-[#999] hover:text-[#111]">
-            How to use PM2, Render, Kubernetes, and more
+            How to use PM2 (live) and planned integrations
           </a>
         </div>
       </footer>

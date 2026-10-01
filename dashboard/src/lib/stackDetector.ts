@@ -29,7 +29,7 @@ export function detectStackFromRepo(
     return {
       stack: "pm2",
       label: "Node.js + PM2",
-      badge: "Standalone Mode",
+      badge: "Standalone Mode (Live)",
       reason: "Detected PM2 configuration or Node.js server architecture",
       confidence: "high",
       suggestedMode: "standalone",
@@ -49,11 +49,11 @@ thresholds:
     };
   }
 
-  // Default Generic Stack (Augment Mode)
+  // Default Generic Stack (Augment Mode - Planned)
   return {
     stack: "generic",
     label: "Web Application / API",
-    badge: "Augment Mode",
+    badge: "Augment Mode (Planned)",
     reason: "Standard git repository",
     confidence: "medium",
     suggestedMode: "augment",
@@ -65,7 +65,7 @@ thresholds:
   max_tolerance_pct: 3.0
   observation_window_seconds: 240
 `,
-    ciSnippetTitle: "Dynamic Risk Threshold Query",
-    ciSnippet: `curl -s "https://carf.indevs.in/v1/threshold?commit=\${COMMIT_SHA}"`,
+    ciSnippetTitle: "Dynamic Risk Threshold Query (Planned)",
+    ciSnippet: `curl -s "https://carf.indevs.in/v1/augment/threshold?owner=\${OWNER}&repo=\${REPO}&sha=\${COMMIT_SHA}"`,
   };
 }

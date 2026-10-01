@@ -34,11 +34,11 @@ export const GETTING_STARTED = {
     },
     {
       title: "Link a project",
-      body: "On Live Status, choose Link Project. Pick the repository, then either Augment (CARF advises CI/CD) or Standalone (CARF drives health checks and rollback). Standalone asks for the rollback adapter at this step.",
+      body: "On Live Status, choose Link Project. Pick the repository, then choose your operational mode. Standalone mode drives health checks and rollback execution directly. Augment mode (planned: advisory threshold endpoint for external CI/CD or orchestrators) will advise external runners once GET /v1/augment/threshold is live.",
     },
     {
       title: "Push a commit",
-      body: "CARF classifies the AST diff on every push. Live Status shows the dynamic error-rate threshold, soak window, and rollout outcome for that project. Optional Thresholds live on the project page; extra platforms live under Integrations.",
+      body: "CARF classifies the AST diff on every push. Live Status shows the dynamic error-rate threshold, soak window, and rollout outcome for that project. Standalone rollback is live today; additional platforms and augment integrations are planned.",
     },
   ],
 };
@@ -48,11 +48,11 @@ export const GUIDE_PLATFORMS: PlatformGuide[] = [
     id: "pm2",
     name: "PM2 (Node.js / VPS)",
     mode: "standalone",
-    badge: "Standalone adapter (Active)",
+    badge: "Standalone adapter (Live)",
     summary:
       "Zero-downtime cluster reload for Node apps on a VPS, EC2, or bare metal. CARF watches PM2 process health and reloads the previous release when the soak threshold is breached.",
     whenToUse:
-      "Use this when the app already runs under PM2 in cluster mode and you want CARF to execute rollback itself.",
+      "Use this when the app already runs under PM2 in cluster mode and you want CARF to execute rollback directly.",
     steps: [
       {
         title: "Link the repo in Standalone mode",
@@ -95,11 +95,11 @@ thresholds:
     id: "render",
     name: "Render & Railway",
     mode: "augment",
-    badge: "Augment / deploy hook",
+    badge: "Augment / deploy hook (Planned)",
     summary:
-      "PaaS web services use CARF as an advisory gate. Query the budget, trigger a deploy hook, then soak the public health endpoint for the calibrated window.",
+      "Planned augment integration: PaaS web services will use CARF as an advisory gate. CI/CD queries GET /v1/augment/threshold, triggers a deploy hook, then soaks the health endpoint for the calibrated window.",
     whenToUse:
-      "Use this when Render or Railway owns the runtime and you promote via deploy hooks rather than a CARF-owned adapter.",
+      "Planned for when Render or Railway owns the runtime and you promote via deploy hooks rather than a CARF-owned adapter (requires GET /v1/augment/threshold).",
     steps: [
       {
         title: "Link in Augment mode",
@@ -120,35 +120,36 @@ thresholds:
   base_tolerance_pct: 1.0
   max_tolerance_pct: 3.5
   observation_window_seconds: 240`,
-    deploySnippetTitle: "Deploy hook + soak",
-    deploySnippet: `curl -X POST "https://api.render.com/deploy/srv-xxxx?ref=$COMMIT_SHA"
+    deploySnippetTitle: "Deploy hook + soak (Planned)",
+    deploySnippet: `# Planned: will query GET /v1/augment/threshold once live
+curl -X POST "https://api.render.com/deploy/srv-xxxx?ref=$COMMIT_SHA"
 
 RES=$(curl -s -H "Authorization: Bearer $CARF_API_KEY" \\
-  "https://carf.indevs.in/v1/threshold?commit=$COMMIT_SHA")
-WINDOW=$(echo "$RES" | jq -r '.finalWindow // 240')
+  "https://carf.indevs.in/v1/augment/threshold?owner=$OWNER&repo=$REPO&sha=$COMMIT_SHA")
+WINDOW=$(echo "$RES" | jq -r '.window // 240')
 sleep "$WINDOW"`,
   },
   {
     id: "kubernetes",
     name: "Kubernetes & Argo Rollouts",
     mode: "augment",
-    badge: "Augment / analysis template (Preview)",
+    badge: "Augment / analysis template (Planned)",
     summary:
-      "CARF does not kubectl apply for you. Argo Rollouts (or Flagger) queries GET /v1/threshold and uses the returned budget as the canary analysis metric.",
+      "Planned augment consumer: CARF does not execute kubectl rollbacks. Instead, external progressive delivery controllers like Argo Rollouts (or Flagger) query GET /v1/augment/threshold and use the returned dynamic budget as the canary analysis metric.",
     whenToUse:
-      "Use this on clusters that already run progressive delivery. CARF supplies the per-commit ceiling; the mesh or rollout controller aborts the canary.",
+      "Planned for Kubernetes clusters that already run progressive delivery. CARF supplies the per-commit ceiling; the external mesh or rollout controller aborts the canary.",
     steps: [
       {
-        title: "Link in Augment mode",
-        body: "Keep Kubernetes as an external orchestrator. Point analysis at CARF instead of a static 1% error rate.",
+        title: "Augment mode (Planned)",
+        body: "Keep Kubernetes and Argo as external orchestrators. Point canary analysis at CARF dynamic thresholds instead of a static error rate.",
       },
       {
         title: "Add an AnalysisTemplate",
-        body: "The webhook URL is https://carf.indevs.in/v1/threshold?commit=<sha> with the installation API key.",
+        body: "The planned webhook URL is https://carf.indevs.in/v1/augment/threshold?owner=<owner>&repo=<repo>&sha=<sha> with your installation API key.",
       },
       {
         title: "Reference it from the Rollout",
-        body: "Each canary step queries CARF. A breach pauses or rolls back the ReplicaSet using Argo’s own undo path.",
+        body: "Each canary step queries CARF. A breach pauses or rolls back the ReplicaSet using Argo’s own native undo path.",
       },
     ],
     carfYml: `version: "1.0"
@@ -157,8 +158,9 @@ thresholds:
   base_tolerance_pct: 0.5
   max_tolerance_pct: 2.5
   observation_window_seconds: 600`,
-    deploySnippetTitle: "Argo Rollouts AnalysisTemplate",
-    deploySnippet: `apiVersion: argoproj.io/v1alpha1
+    deploySnippetTitle: "Argo Rollouts AnalysisTemplate (Planned)",
+    deploySnippet: `# Planned: Argo Rollouts queries CARF augment endpoint
+apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
   name: carf-canary-gate
@@ -167,17 +169,17 @@ spec:
   - name: carf-threshold
     interval: 30s
     web:
-      url: "https://carf.indevs.in/v1/threshold?commit={{args.commit-sha}}"
+      url: "https://carf.indevs.in/v1/augment/threshold?owner={{args.owner}}&repo={{args.repo}}&sha={{args.commit-sha}}"
       headers:
       - name: Authorization
         value: "Bearer <CARF_API_KEY>"
-      jsonPath: "{$.finalThreshold}"`,
+      jsonPath: "{$.threshold}"`,
   },
   {
     id: "prometheus",
     name: "Prometheus & observability",
     mode: "augment",
-    badge: "Metrics scrape",
+    badge: "Metrics scrape (Optional)",
     summary:
       "Optional scrape of CARF core-api /metrics so Grafana or Datadog can chart commits analyzed, soak outcomes, and rollbacks. This is not a deploy adapter.",
     whenToUse:
