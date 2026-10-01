@@ -31,7 +31,32 @@ export interface SimulationResult {
   mttrImprovementPercent: number;
   traces: SyntheticTraceItem[];
   createdAt: string;
+  /** Live computed metrics from synthetic traces — not a hardcoded scorecard. */
+  evaluationKind: "synthetic-computed";
+  /** Dashboard demo does not import core-api classifyCommit / processCommit. */
+  usesProductionClassifier: false;
+  /** Condition B base rates match core-api DEFAULT_ENGINE_CONFIG (v1). */
+  usesProductionThresholdTable: true;
+  /** MTTR values are sampled delays, not measured rollback recovery. */
+  mttrIsSynthetic: true;
+  seed: number;
 }
+
+/**
+ * Must stay in lockstep with core-api/src/threshold/versionedEngineConfig.ts
+ * DEFAULT_ENGINE_CONFIG.baseThreshold. The demo does not call computeThreshold();
+ * it applies these base rates so Condition B is at least the production table.
+ */
+export const DEMO_BASE_THRESHOLDS = {
+  infra: 0.01,
+  dependency: 0.03,
+  config: 0.05,
+  code: 0.08,
+  test: 0.08,
+  data: 0.01,
+} as const;
+
+export const DEFAULT_SIMULATION_SEED = 20261001;
 
 export interface EvaluationHistoryItem {
   id: string;
@@ -74,8 +99,10 @@ const TEMPLATES: Array<{
   { type: "code", title: "Null pointer regression in auth token parser", risk: "risky", baseError: 0.04, peakError: 0.25, astChurn: 28 },
 ];
 
-export async function runSimulation(count: number = 50): Promise<SimulationResult> {
-  const seed = Date.now() ^ 0xabcdef;
+export async function runSimulation(
+  count: number = 50,
+  seed: number = DEFAULT_SIMULATION_SEED
+): Promise<SimulationResult> {
   const rand = mulberry32(seed);
 
   const traces: SyntheticTraceItem[] = [];
@@ -96,20 +123,12 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
     // Peak simulated error rate
     const peakError = Math.max(0.001, tpl.peakError + noise);
 
-    // Compute CARF Dynamic Threshold for Condition B:
-    let dynamicThreshold = 0.05;
-    if (tpl.type === "infra") {
-      dynamicThreshold = 0.01;
-    } else if (tpl.type === "dependency") {
-      dynamicThreshold = 0.03;
-    } else if (tpl.type === "config") {
-      dynamicThreshold = 0.02;
-    } else if (tpl.type === "code") {
-      // AST complexity penalty
-      const complexityPenalty = Math.min(0.6, (tpl.astChurn / 50) * 0.5);
-      dynamicThreshold = 0.08 * (1 - complexityPenalty);
-    } else if (tpl.type === "test") {
-      dynamicThreshold = 0.08; // Safe test churn, permissive threshold
+    // Condition B uses the production v1 base table. Complexity decay matches
+    // computeThreshold(): finalThreshold *= (1 - 0.3 * clampedComplexity).
+    const complexity = Math.min(1, Math.max(0, tpl.astChurn / 50));
+    let dynamicThreshold = DEMO_BASE_THRESHOLDS[tpl.type];
+    if (tpl.type === "code" && complexity > 0) {
+      dynamicThreshold = DEMO_BASE_THRESHOLDS.code * (1 - 0.3 * complexity);
     }
 
     // Condition A Evaluation (Static):
@@ -242,6 +261,11 @@ export async function runSimulation(count: number = 50): Promise<SimulationResul
     mttrImprovementPercent,
     traces,
     createdAt: new Date().toISOString(),
+    evaluationKind: "synthetic-computed",
+    usesProductionClassifier: false,
+    usesProductionThresholdTable: true,
+    mttrIsSynthetic: true,
+    seed,
   };
 }
 

@@ -87,7 +87,7 @@ export function VerifyDashboard({
               Illustrative Demo Notice (Synthetic Data)
             </p>
             <p className="text-muted-foreground text-[11px]">
-              This simulation uses fixed synthetic commit templates and does not call the real classifier, threshold engine, or rollback execution path. Results shown below are illustrative only and should not be interpreted as an empirical benchmark or measured evaluation of CARF&apos;s actual performance.
+              Metrics are computed live from synthetic commit templates (not a hardcoded scorecard). The demo does <span className="font-semibold">not</span> call the production classifier, threshold engine, or rollback path. Condition B uses the same base rates as <span className="font-mono">DEFAULT_ENGINE_CONFIG</span> v1 (infra 1%, dependency 3%, config 5%, code 8%, data 1%). MTTR is a sampled delay, not a measured recovery time. Do not cite these numbers in the paper or presentations.
             </p>
           </div>
         </div>
@@ -107,7 +107,7 @@ export function VerifyDashboard({
               Synthetic Demo Results (50 Simulated Runs)
             </span>
             <span className="text-xs font-mono text-muted-foreground">
-              Executed at {new Date(simResult.createdAt).toLocaleTimeString()}
+              {simResult.evaluationKind} · seed {simResult.seed} · {new Date(simResult.createdAt).toLocaleTimeString()}
             </span>
           </div>
 
