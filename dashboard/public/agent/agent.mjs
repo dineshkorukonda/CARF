@@ -522,10 +522,11 @@ async function startDaemon() {
   process.on("SIGTERM", handleExit);
 }
 
-// CLI argument execution
+// CLI argument execution — skip when imported by tests
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
 const args = process.argv.slice(2);
 
-if (args.includes("--verify")) {
+if (isMain && args.includes("--verify")) {
   (async () => {
     try {
       const remoteData = await fetchConfig();
@@ -539,7 +540,7 @@ if (args.includes("--verify")) {
       process.exit(1);
     }
   })();
-} else if (args.includes("--uninstall")) {
+} else if (isMain && args.includes("--uninstall")) {
   (async () => {
     try {
       console.log("[carf-agent] Calling central API uninstall endpoint...");
@@ -551,7 +552,7 @@ if (args.includes("--verify")) {
       process.exit(0);
     }
   })();
-} else {
+} else if (isMain) {
   startDaemon().catch((err) => {
     console.error(`Fatal agent error: ${err.message}`);
     process.exit(1);
