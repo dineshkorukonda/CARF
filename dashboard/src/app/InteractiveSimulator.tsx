@@ -15,7 +15,6 @@ import {
   Cpu,
   ShieldCheck,
   ShieldAlert,
-  FastForward,
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -50,8 +49,8 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     categoryBadgeColor: "bg-red-500/15 text-red-400 border-red-500/30",
     sensitivity: "Strictest (P0)",
     window: "60 seconds",
-    threshold: 0.2,
-    simulatedError: 0.48,
+    threshold: 1.0,
+    simulatedError: 1.85,
     breaches: true,
     commitSha: "8f2a1b9",
     commitMsg: "fix(ingress): rewrite routing paths for API v2",
@@ -59,7 +58,7 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     diffSnippet: "--- a/k8s/ingress.yaml\n+++ b/k8s/ingress.yaml\n- path: /api/v1\n+ path: /api/v2",
     tier1: "Matches k8s/*.yaml pattern",
     tier2: "Ingress routing rule change detected",
-    reason: "Routing path changes can cause immediate total outage; zero-tolerance 0.20% ceiling applied.",
+    reason: "Routing path changes can cause immediate total outage; v1 infra ceiling is 1.00% over 60s.",
   },
   config: {
     key: "config",
@@ -68,7 +67,7 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     categoryBadgeColor: "bg-amber-500/15 text-amber-400 border-amber-500/30",
     sensitivity: "Medium",
     window: "5 minutes",
-    threshold: 2.5,
+    threshold: 5.0,
     simulatedError: 1.25,
     breaches: false,
     commitSha: "4c7e902",
@@ -77,7 +76,7 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     diffSnippet: "--- a/config/production.env\n+++ b/config/production.env\n- DATABASE_POOL_MAX=20\n+ DATABASE_POOL_MAX=5000",
     tier1: "Matches config/*.env pattern",
     tier2: "Scalar numeric environment variable update",
-    reason: "Pool sizing can induce mild contention; calibrated to 2.50% error ceiling over 5m window.",
+    reason: "Pool sizing can induce mild contention; v1 config ceiling is 5.00% over 5 minutes.",
   },
   dependency: {
     key: "dependency",
@@ -86,8 +85,8 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     categoryBadgeColor: "bg-purple-500/15 text-purple-400 border-purple-500/30",
     sensitivity: "High",
     window: "3 minutes",
-    threshold: 1.0,
-    simulatedError: 1.85,
+    threshold: 3.0,
+    simulatedError: 3.80,
     breaches: true,
     commitSha: "2b510ea",
     commitMsg: "bump(auth): express-session 1.17 -> 2.0-rc",
@@ -95,7 +94,7 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     diffSnippet: "--- a/package.json\n+++ b/package.json\n- \"express-session\": \"1.17.3\"\n+ \"express-session\": \"2.0.0-rc1\"",
     tier1: "Matches package.json / lockfiles",
     tier2: "Major semver increment across auth/crypto boundary",
-    reason: "Major breaking dependency bump in auth middleware; threshold restricted to 1.00%.",
+    reason: "Major breaking dependency bump in auth middleware; v1 dependency ceiling is 3.00% over 3 minutes.",
   },
   code: {
     key: "code",
@@ -104,7 +103,7 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     categoryBadgeColor: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
     sensitivity: "Standard",
     window: "15 minutes",
-    threshold: 5.0,
+    threshold: 8.0,
     simulatedError: 0.65,
     breaches: false,
     commitSha: "9d34c11",
@@ -113,7 +112,7 @@ const SCENARIOS: Record<ScenarioKey, Scenario> = {
     diffSnippet: "--- a/src/controllers/user.ts\n+++ b/src/controllers/user.ts\n- return res.json({ status: \"ok\" });\n+ return res.json({ status: \"success\" });",
     tier1: "Matches src/**/*.ts code pattern",
     tier2: "Non-critical payload serialization update",
-    reason: "Standard code refactor; generous 5.00% ceiling prevents noisy false-alarm rollbacks.",
+    reason: "Standard code refactor; v1 code ceiling is 8.00% over 15 minutes to avoid noisy false-alarm rollbacks.",
   },
 };
 
@@ -130,17 +129,17 @@ const RUNTIMES: Record<
   },
   kubernetes: {
     label: "Kubernetes",
-    badge: "Planned",
+    badge: "Augment API live",
     icon: Server,
-    command: "# Planned: CARF standalone Kubernetes adapter not yet built",
-    note: "Standalone adapter planned; Augment mode planned for external canary gating.",
+    command: "GET /v1/augment/threshold?owner=…&repo=…&sha=…",
+    note: "No standalone Kubernetes adapter yet. Query the live augment endpoint from your canary controller.",
   },
   gitops: {
     label: "GitOps / Argo",
-    badge: "Augment (Planned)",
+    badge: "Augment API live",
     icon: GitPullRequest,
-    command: "# Planned: External Argo controller aborts canary via GET /v1/augment/threshold",
-    note: "Augment mode consumer (Argo executes its own rollback).",
+    command: "GET /v1/augment/threshold?owner=…&repo=…&sha=…",
+    note: "Argo keeps its own rollback. CARF supplies the per-commit threshold; first-party AnalysisTemplate wiring is still an example, not a managed install.",
   },
 };
 
@@ -463,7 +462,7 @@ export function InteractiveSimulator() {
               <input
                 type="range"
                 min="0.0"
-                max="6.0"
+                max="10.0"
                 step="0.05"
                 value={manualErrorRate}
                 onChange={(e) => setManualErrorRate(parseFloat(e.target.value))}
@@ -474,7 +473,7 @@ export function InteractiveSimulator() {
                 <span className="text-foreground font-medium">
                   Threshold: {scenario.threshold.toFixed(2)}%
                 </span>
-                <span>6.00%</span>
+                <span>10.00%</span>
               </div>
             </div>
           )}
@@ -486,7 +485,7 @@ export function InteractiveSimulator() {
                 <Cpu className="size-3.5 text-foreground" />
                 Target Rollback Driver:
               </span>
-              <span className="text-[11px] text-muted-foreground">PM2 is live; other targets/augment mode planned</span>
+              <span className="text-[11px] text-muted-foreground">PM2 executes rollback; other targets use the live augment API</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {(Object.keys(RUNTIMES) as TargetRuntime[]).map((rKey) => {

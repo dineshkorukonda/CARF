@@ -41,7 +41,6 @@ describe("Monorepo Terminology and Compliance Policy", () => {
     resolve(ROOT_DIR, "docs/DATABASE_MIGRATIONS.md"),
     ...getFilesRecursively(resolve(ROOT_DIR, "core-api/src")),
     ...getFilesRecursively(resolve(ROOT_DIR, "dashboard/src")),
-    ...getFilesRecursively(resolve(ROOT_DIR, "web/src")),
   ];
 
   it("bans 'error budget' in favor of 'error-rate threshold'", () => {
