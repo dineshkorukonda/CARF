@@ -127,7 +127,7 @@ export default async function HomePage() {
           </h1>
 
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
-            Static error thresholds cause false-positive rollbacks. A docs change should not have the same error tolerance as an architectural refactor. CARF inspects your diffs to dynamically calibrate observation windows and error budgets before every release.
+            Static error thresholds cause false-positive rollbacks. A docs change should not have the same error tolerance as an architectural refactor. CARF inspects your diffs to dynamically calibrate observation windows and error-rate thresholds before every release.
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
