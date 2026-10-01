@@ -25,6 +25,15 @@ export interface RolloutMonitorOptions {
   now?: () => Date;
   /** Factory to reconstruct adapters during crash recovery. */
   adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
+  /** Optional rollback alert hook (Slack/email webhook). Failures must not block rollback. */
+  onRollbackAlert?: ((event: {
+    owner?: string | null | undefined;
+    repo?: string | null | undefined;
+    commitSha: string;
+    reason: string;
+    finalErrorRate?: number | null | undefined;
+    rollbackVerified?: boolean | null | undefined;
+  }) => Promise<void>) | undefined;
 }
 
 function realSleep(ms: number): Promise<void> {
@@ -38,6 +47,7 @@ export class RolloutMonitor {
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => Date;
   private readonly adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
+  private readonly onRollbackAlert?: RolloutMonitorOptions["onRollbackAlert"];
 
   private runningJobs = new Map<string, Promise<void>>();
   private isStopped = false;
@@ -49,6 +59,7 @@ export class RolloutMonitor {
     this.sleep = options.sleep ?? realSleep;
     this.now = options.now ?? (() => new Date());
     this.adapterFactory = options.adapterFactory;
+    this.onRollbackAlert = options.onRollbackAlert;
   }
 
   /**
@@ -143,6 +154,7 @@ export class RolloutMonitor {
               reason,
               finishedAt: this.now(),
             });
+            await this.notifyRollbackAlert(outcome, reason, health.errorRate, rollbackVerified);
           } else {
             await finalizeRolloutOutcome(this.prisma, {
               id: outcome.id,
@@ -402,6 +414,31 @@ export class RolloutMonitor {
       finishedAt: this.now(),
       readyAt: outcome.readyAt ?? undefined,
     });
+
+    await this.notifyRollbackAlert(outcome, reason, lastErrorRate, rollbackVerified);
+  }
+
+  private async notifyRollbackAlert(
+    outcome: RolloutOutcomeRecord,
+    reason: string,
+    finalErrorRate?: number | null,
+    rollbackVerified?: boolean | null
+  ): Promise<void> {
+    if (!this.onRollbackAlert) {
+      return;
+    }
+    try {
+      await this.onRollbackAlert({
+        owner: outcome.owner,
+        repo: outcome.repo,
+        commitSha: outcome.commitSha,
+        reason,
+        finalErrorRate,
+        rollbackVerified,
+      });
+    } catch (error) {
+      this.logger.error({ error, id: outcome.id }, "rollback alert dispatch failed");
+    }
   }
 
   private async hasDataSchemaChange(outcome: RolloutOutcomeRecord): Promise<boolean> {
