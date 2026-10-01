@@ -67,7 +67,7 @@ describe("computeThreshold", () => {
 
   it("picks the min threshold and max window independently even when different types are strictest for each", () => {
     // Craft a case where the type with the min threshold contribution differs from the
-    // type with the min window contribution.
+    // type with the max window contribution.
     const config: ThresholdConfig = {
       baseThreshold: { infra: 0.5, dependency: 0.01, config: 0.05, code: 0.08, data: 0.01 },
       baseWindow: { infra: 60, dependency: 5000, config: 300, code: 900, data: 600 },
