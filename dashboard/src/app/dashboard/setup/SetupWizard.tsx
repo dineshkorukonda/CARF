@@ -5,11 +5,15 @@ import Link from "next/link";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import { findRepoConnection, pm2FieldsFromStoredConfig } from "../../../lib/connectionLookup";
-import { resolveRepoMode } from "../../../lib/deploymentMode";
+import {
+  type DeploymentIntegration,
+  type RuntimeAdapter,
+  resolveFromLegacy,
+} from "../../../lib/capabilities";
 import { RepositorySelectionStep } from "./RepositorySelectionStep";
-import { DeploymentModeStep } from "./DeploymentModeStep";
-import { StandaloneSetup } from "./StandaloneSetup";
-import { AugmentSetup } from "./AugmentSetup";
+import { DeploymentIntegrationStep } from "./DeploymentIntegrationStep";
+import { RuntimeAdapterStep } from "./RuntimeAdapterStep";
+import { CapabilitiesPreviewStep } from "./CapabilitiesPreviewStep";
 
 export interface InstallationItem {
   id: string;
@@ -24,6 +28,8 @@ export interface RepoConnectionItem {
   owner: string;
   repo: string;
   mode?: string | null;
+  deploymentIntegration?: string | null;
+  runtimeAdapter?: string | null;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;
@@ -52,12 +58,31 @@ export function SetupWizard({
   // Pre-seed if initialRepoFullName is provided
   const seedRepo = initialRepoFullName || "";
   const existingConn = seedRepo ? findRepoConnection(connections, seedRepo) : null;
-  const initialMode = existingConn ? resolveRepoMode(existingConn) : null;
+  const initialResolved = existingConn ? resolveFromLegacy(existingConn) : null;
 
-  // Global wizard steps: 1 = Select Repo, 2 = Choose Mode, 3 = Mode-specific setup
-  const [step, setStep] = useState<1 | 2 | 3>(seedRepo ? (initialMode ? 3 : 2) : 1);
+  // Global wizard steps: 1 = Select Repo, 2 = Deployment Integration, 3 = Runtime Adapter, 4 = Capabilities Preview
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(seedRepo ? 2 : 1);
   const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(seedRepo);
-  const [selectedMode, setSelectedMode] = useState<"standalone" | "augment" | null>(initialMode);
+
+  const [deploymentIntegration, setDeploymentIntegration] = useState<DeploymentIntegration>(
+    initialResolved?.deploymentIntegration ?? "github_actions"
+  );
+  const [runtimeAdapter, setRuntimeAdapter] = useState<RuntimeAdapter>(
+    initialResolved?.runtimeAdapter ?? "none"
+  );
+
+  const initialPm2 = existingConn ? pm2FieldsFromStoredConfig(existingConn.storedConfig) : {};
+  const [pm2Config, setPm2Config] = useState<{
+    targetName: string;
+    cwd: string;
+    healthUrl: string;
+    layout: "releases" | "git";
+  }>({
+    targetName: initialPm2.targetName || (seedRepo ? seedRepo.split("/")[1] || seedRepo : ""),
+    cwd: initialPm2.cwd || `/opt/${seedRepo ? seedRepo.split("/")[1] || "app" : "app"}`,
+    healthUrl: initialPm2.healthUrl || "http://127.0.0.1:3000/healthz",
+    layout: initialPm2.layout || "git",
+  });
 
   // Connected repository names set for fast lookup
   const connectedRepoNames = new Set(
@@ -77,8 +102,6 @@ export function SetupWizard({
         }
       : null);
 
-  const initialPm2 = existingConn ? pm2FieldsFromStoredConfig(existingConn.storedConfig) : {};
-
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6">
       {/* Top Header */}
@@ -97,14 +120,14 @@ export function SetupWizard({
             Connect Repository
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Configure deployment policies, runtime observability, and automated rollbacks for your applications.
+            Configure 3-layer architecture: CARF Core policy, deployment integrations, and runtime adapters.
           </p>
         </div>
 
         {/* Global Progress Indicators */}
-        <div className="flex items-center gap-3 text-xs">
+        <div className="flex items-center gap-2 sm:gap-3 text-xs">
           <div
-            className={`flex items-center gap-1.5 font-semibold ${
+            className={`flex items-center gap-1 font-semibold ${
               step >= 1 ? "text-primary" : "text-muted-foreground"
             }`}
           >
@@ -119,13 +142,13 @@ export function SetupWizard({
             >
               {step > 1 ? <CheckCircle2 className="size-3" /> : "1"}
             </span>
-            <span>Select Repo</span>
+            <span className="hidden sm:inline">Repo</span>
           </div>
 
-          <div className="h-px w-6 bg-border" />
+          <div className="h-px w-4 sm:w-5 bg-border" />
 
           <div
-            className={`flex items-center gap-1.5 font-semibold ${
+            className={`flex items-center gap-1 font-semibold ${
               step >= 2 ? "text-primary" : "text-muted-foreground"
             }`}
           >
@@ -140,26 +163,47 @@ export function SetupWizard({
             >
               {step > 2 ? <CheckCircle2 className="size-3" /> : "2"}
             </span>
-            <span>Choose Mode</span>
+            <span className="hidden sm:inline">Deployment</span>
           </div>
 
-          <div className="h-px w-6 bg-border" />
+          <div className="h-px w-4 sm:w-5 bg-border" />
 
           <div
-            className={`flex items-center gap-1.5 font-semibold ${
-              step === 3 ? "text-primary" : "text-muted-foreground"
+            className={`flex items-center gap-1 font-semibold ${
+              step >= 3 ? "text-primary" : "text-muted-foreground"
             }`}
           >
             <span
               className={`flex size-5 items-center justify-center rounded-full text-[10px] ${
-                step === 3
+                step > 3
+                  ? "bg-primary text-primary-foreground"
+                  : step === 3
                   ? "border border-primary text-primary"
                   : "border border-border text-muted-foreground"
               }`}
             >
-              3
+              {step > 3 ? <CheckCircle2 className="size-3" /> : "3"}
             </span>
-            <span>Configure</span>
+            <span className="hidden sm:inline">Runtime</span>
+          </div>
+
+          <div className="h-px w-4 sm:w-5 bg-border" />
+
+          <div
+            className={`flex items-center gap-1 font-semibold ${
+              step === 4 ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            <span
+              className={`flex size-5 items-center justify-center rounded-full text-[10px] ${
+                step === 4
+                  ? "border border-primary text-primary"
+                  : "border border-border text-muted-foreground"
+              }`}
+            >
+              4
+            </span>
+            <span className="hidden sm:inline">Capabilities</span>
           </div>
         </div>
       </div>
@@ -169,40 +213,54 @@ export function SetupWizard({
         <RepositorySelectionStep
           repos={initialRepos}
           selectedRepoFullName={selectedRepoFullName}
-          onSelectRepo={(fullName) => setSelectedRepoFullName(fullName)}
+          onSelectRepo={(fullName) => {
+            setSelectedRepoFullName(fullName);
+            const repoName = fullName.split("/")[1] || fullName;
+            setPm2Config((prev) => ({
+              ...prev,
+              targetName: prev.targetName || repoName,
+              cwd: prev.cwd || `/opt/${repoName}`,
+            }));
+          }}
           onContinue={() => setStep(2)}
           hasGithubApp={Boolean(githubInstallation)}
           connectedRepoNames={connectedRepoNames}
         />
       )}
 
-      {/* STEP 2: CHOOSE DEPLOYMENT MODE */}
+      {/* STEP 2: CHOOSE DEPLOYMENT INTEGRATION */}
       {step === 2 && (
-        <DeploymentModeStep
+        <DeploymentIntegrationStep
           selectedRepo={selectedRepo}
-          selectedMode={selectedMode}
-          onSelectMode={(mode) => setSelectedMode(mode)}
+          selectedIntegration={deploymentIntegration}
+          onSelectIntegration={(integration) => setDeploymentIntegration(integration)}
           onBack={() => setStep(1)}
           onContinue={() => setStep(3)}
         />
       )}
 
-      {/* STEP 3: CONFIGURE (STANDALONE OR AUGMENT) */}
-      {step === 3 && selectedRepo && selectedMode === "standalone" && (
-        <StandaloneSetup
-          repo={selectedRepo}
-          installationId={primaryInstallationId}
-          accountName={accountName}
-          initialPm2={initialPm2}
-          onBackToMode={() => setStep(2)}
+      {/* STEP 3: CHOOSE RUNTIME ADAPTER */}
+      {step === 3 && (
+        <RuntimeAdapterStep
+          selectedRepo={selectedRepo}
+          selectedAdapter={runtimeAdapter}
+          onSelectAdapter={(adapter) => setRuntimeAdapter(adapter)}
+          pm2Config={pm2Config}
+          onChangePm2Config={(cfg) => setPm2Config(cfg)}
+          onBack={() => setStep(2)}
+          onContinue={() => setStep(4)}
         />
       )}
 
-      {step === 3 && selectedRepo && selectedMode === "augment" && (
-        <AugmentSetup
+      {/* STEP 4: CAPABILITIES PREVIEW & CONFIRMATION */}
+      {step === 4 && selectedRepo && (
+        <CapabilitiesPreviewStep
           repo={selectedRepo}
           installationId={primaryInstallationId}
-          onBackToMode={() => setStep(2)}
+          deploymentIntegration={deploymentIntegration}
+          runtimeAdapter={runtimeAdapter}
+          pm2Config={pm2Config}
+          onBack={() => setStep(3)}
         />
       )}
     </div>
