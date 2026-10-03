@@ -45,6 +45,7 @@ import {
   getAgentBadgeVariant,
 } from "../../../../lib/repoStatusDerivation";
 import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } from "../../../../lib/deploymentMode";
+import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
 import { commitPageHref, repoSetupHref } from "../../../../lib/dashboardNav";
@@ -104,6 +105,8 @@ export interface AuditLogItem {
 export interface RepoConnectionDetails {
   id: string;
   mode?: string | null;
+  deploymentIntegration?: string | null;
+  runtimeAdapter?: string | null;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;
@@ -137,9 +140,15 @@ export function RepoDetailView({
   auditLogs,
   activityError,
 }: RepoDetailViewProps) {
+  const resolved = resolveFromLegacy({
+    mode: connection?.mode,
+    deploymentIntegration: connection?.deploymentIntegration,
+    runtimeAdapter: connection?.runtimeAdapter,
+    storedConfig: connection?.storedConfig,
+  });
   const mode = resolveRepoMode(connection);
-  const isStandalone = mode === "standalone";
-  const isAugment = mode === "augment";
+  const isStandalone = resolved.capabilities.rollback || mode === "standalone";
+  const isAugment = !resolved.capabilities.rollback && mode === "augment";
   const augmentIntegration = resolveAugmentIntegration(connection);
 
   const [monitoringPaused, setMonitoringPaused] = useState<boolean>(
@@ -594,16 +603,19 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 {defaultBranch}
               </span>
 
-              {/* MODE BADGE */}
-              {isStandalone ? (
-                <span className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-2 py-0.5 text-[10px] font-bold text-foreground tracking-wider uppercase">
-                  STANDALONE
-                </span>
-              ) : (
-                <span className="rounded bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 tracking-wider uppercase">
-                  AUGMENT
-                </span>
-              )}
+              {/* 3-LAYER ARCHITECTURE BADGES */}
+              <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-primary uppercase">
+                {resolved.integrationLabel}
+              </span>
+              <span
+                className={`rounded border px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase ${
+                  resolved.runtimeStatus === "active"
+                    ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                    : "border-muted-foreground/30 bg-muted/40 text-muted-foreground"
+                }`}
+              >
+                {resolved.runtimeLabel}
+              </span>
 
               {/* STATUS BADGE */}
               <span
@@ -613,20 +625,13 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 {derivedStatus}
               </span>
 
-              {/* AGENT BADGE (Standalone Only) */}
-              {isStandalone && (
+              {/* AGENT BADGE (When Agent Required) */}
+              {resolved.requiresAgent && (
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
                 >
                   <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
                   {agentBadge.label}
-                </span>
-              )}
-
-              {/* INTEGRATION BADGE (Augment Only) */}
-              {isAugment && (
-                <span className="rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2.5 py-0.5 text-[10px] font-semibold capitalize">
-                  {augmentIntegration.replace("-", " ")}
                 </span>
               )}
             </div>
