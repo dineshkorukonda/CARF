@@ -6,7 +6,9 @@ export type DerivedRepoStatus =
   | "Last rollout succeeded"
   | "Last rollout succeeded, connection unverified"
   | "Last rollout rolled back"
-  | "Adapter error";
+  | "Adapter error"
+  | "Policy Ready"
+  | "Augment Active";
 
 export interface RepoStatusInput {
   /** Whether .carf.yml exists or a DB storedConfig is present */
@@ -19,11 +21,18 @@ export interface RepoStatusInput {
   latestOutcomeStatus?: "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED" | null;
   /** Total count of recorded RolloutOutcome rows for this repository */
   totalRollouts: number;
+  /** Deployment mode: "standalone" | "augment" */
+  mode?: "standalone" | "augment";
 }
 
 /**
  * Derives repository operational status strictly from recorded data.
- * Rules:
+ *
+ * For Augment mode:
+ * - Shows "Not connected" if not configured.
+ * - Shows "Policy Ready" when configured. Augment mode does not require PM2 verification.
+ *
+ * For Standalone mode:
  * - Shows "Not connected" if no config exists.
  * - Shows "Not verified" until connection check has passed, UNLESS the last rollout succeeded
  *   ("Last rollout succeeded, connection unverified").
@@ -33,6 +42,12 @@ export function deriveRepoStatus(input: RepoStatusInput): DerivedRepoStatus {
   if (!input.isConfigured) {
     return "Not connected";
   }
+
+  // Augment mode is strictly policy-based (external CD owns deployment/monitoring/rollback)
+  if (input.mode === "augment") {
+    return "Policy Ready";
+  }
+
   if (input.hasPendingRollout || input.latestOutcomeStatus === "PENDING") {
     return "Observing (PENDING)";
   }
@@ -68,6 +83,12 @@ export function getStatusBadgeVariant(status: DerivedRepoStatus): {
   dotClass: string;
 } {
   switch (status) {
+    case "Policy Ready":
+    case "Augment Active":
+      return {
+        colorClass: "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
+        dotClass: "bg-emerald-500",
+      };
     case "Observing (PENDING)":
       return {
         colorClass: "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800",

@@ -23,6 +23,8 @@ import {
   ShieldCheck,
   KeyRound,
   Ban,
+  Zap,
+  CheckCircle2,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -42,6 +44,7 @@ import {
   deriveAgentStatus,
   getAgentBadgeVariant,
 } from "../../../../lib/repoStatusDerivation";
+import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } from "../../../../lib/deploymentMode";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
 import { commitPageHref, repoSetupHref } from "../../../../lib/dashboardNav";
 
@@ -119,6 +122,7 @@ interface RepoDetailViewProps {
   commits: CommitWithDetails[];
   auditLogs: AuditLogItem[];
   activityError?: string | null;
+  coreApiKey?: string | null;
 }
 
 export function RepoDetailView({
@@ -131,7 +135,13 @@ export function RepoDetailView({
   commits,
   auditLogs,
   activityError,
+  coreApiKey,
 }: RepoDetailViewProps) {
+  const mode = resolveRepoMode(connection);
+  const isStandalone = mode === "standalone";
+  const isAugment = mode === "augment";
+  const augmentIntegration = resolveAugmentIntegration(connection);
+
   const [monitoringPaused, setMonitoringPaused] = useState<boolean>(
     connection?.monitoringPaused ?? false
   );
@@ -145,7 +155,7 @@ export function RepoDetailView({
     countdownSeconds,
   } = useLiveRolloutPolling(rollouts, installationId);
 
-  // Agent State
+  // Agent State (Standalone)
   const [agentRevoked, setAgentRevoked] = useState<boolean>(Boolean(connection?.agentRevoked));
   const [revokingAgent, setRevokingAgent] = useState<boolean>(false);
   const [generatingToken, setGeneratingToken] = useState<boolean>(false);
@@ -162,6 +172,19 @@ export function RepoDetailView({
     isVerified: Boolean(connection?.verifiedAt),
   });
   const agentBadge = getAgentBadgeVariant(agentStatus);
+
+  // Augment Verification & Snippet State
+  const [activeSnippetTab, setActiveSnippetTab] = useState<AugmentIntegration>(augmentIntegration);
+  const [copiedSnippet, setCopiedSnippet] = useState<boolean>(false);
+  const [copiedApiKey, setCopiedApiKey] = useState<boolean>(false);
+  const [verifyingPolicy, setVerifyingPolicy] = useState<boolean>(false);
+  const [policyVerifyResult, setPolicyVerifyResult] = useState<{
+    success: boolean;
+    policyReady: boolean;
+    threshold?: number;
+    window?: number;
+    message?: string;
+  } | null>(null);
 
   // Filters
   const [outcomeFilter, setOutcomeFilter] = useState<string>("ALL");
@@ -228,11 +251,12 @@ export function RepoDetailView({
     hasPendingRollout: liveRollouts.some((r) => r.status === "PENDING"),
     latestOutcomeStatus: liveRollouts[0]?.status ?? null,
     totalRollouts: liveRollouts.length,
+    mode,
   });
 
   const badge = getStatusBadgeVariant(derivedStatus);
 
-  // Toggle monitoring pause
+  // Toggle monitoring pause (Standalone only)
   const togglePause = async () => {
     setTogglingPause(true);
     try {
@@ -247,53 +271,18 @@ export function RepoDetailView({
           paused: nextPaused,
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || `HTTP ${res.status}`);
+      if (res.ok) {
+        setMonitoringPaused(nextPaused);
       }
-
-      setMonitoringPaused(nextPaused);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to toggle pause state");
+    } catch (err) {
+      console.error("Failed to toggle monitoring pause:", err);
     } finally {
       setTogglingPause(false);
     }
   };
 
-  // Revoke Agent Token
-  const handleRevokeAgent = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to revoke the agent for ${owner}/${repo}? The agent on your server will be disconnected and unable to report heartbeats.`
-      )
-    ) {
-      return;
-    }
-
-    setRevokingAgent(true);
-    setAgentActionMessage(null);
-    try {
-      const res = await fetch("/api/repo/revoke-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ installationId, owner, repo }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-      setAgentRevoked(true);
-      setGeneratedToken(null);
-      setAgentActionMessage("Agent token revoked. Agent status flipped to revoked.");
-    } catch (err: unknown) {
-      setAgentActionMessage(err instanceof Error ? err.message : "Failed to revoke agent");
-    } finally {
-      setRevokingAgent(false);
-    }
-  };
-
-  // Generate Fresh Token
-  const handleGenerateNewToken = async () => {
+  // Generate new token (Standalone only)
+  const generateNewToken = async () => {
     setGeneratingToken(true);
     setAgentActionMessage(null);
     try {
@@ -303,21 +292,95 @@ export function RepoDetailView({
         body: JSON.stringify({ installationId, owner, repo }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-      setGeneratedToken(data.token);
-      setAgentRevoked(false);
-      setAgentActionMessage("New install token generated. Run the updated install command on your host.");
-    } catch (err: unknown) {
-      setAgentActionMessage(err instanceof Error ? err.message : "Failed to generate token");
+      if (res.ok && data.token) {
+        setGeneratedToken(data.token);
+        setAgentRevoked(false);
+        setAgentActionMessage("New agent token minted. Run the installer command on your host.");
+      } else {
+        setAgentActionMessage(data.error || "Failed to generate token.");
+      }
+    } catch {
+      setAgentActionMessage("Network error while generating token.");
     } finally {
       setGeneratingToken(false);
     }
   };
 
-  const centralOrigin = typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
-  const activeToken = generatedToken || (connection?.installTokenPrefix ? `${connection.installTokenPrefix}...` : "");
-  const agentInstallCmd = activeToken ? `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${activeToken}` : `curl -fsSL ${centralOrigin}/install.sh | bash`;
+  // Revoke agent (Standalone only)
+  const revokeAgent = async () => {
+    if (!confirm("Are you sure you want to revoke this agent? It will immediately stop receiving telemetry.")) {
+      return;
+    }
+    setRevokingAgent(true);
+    setAgentActionMessage(null);
+    try {
+      const res = await fetch("/api/repo/revoke-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installationId, owner, repo }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAgentRevoked(true);
+        setGeneratedToken(null);
+        setAgentActionMessage("Agent revoked. Any running host agent with the previous token is now rejected.");
+      } else {
+        setAgentActionMessage(data.error || "Failed to revoke agent.");
+      }
+    } catch {
+      setAgentActionMessage("Network error while revoking agent.");
+    } finally {
+      setRevokingAgent(false);
+    }
+  };
+
+  // Run Augment Policy Verification
+  const runPolicyVerification = async () => {
+    setVerifyingPolicy(true);
+    setPolicyVerifyResult(null);
+    try {
+      const res = await fetch("/api/repo/augment-verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId,
+          owner,
+          repo,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPolicyVerifyResult(data);
+      } else {
+        setPolicyVerifyResult({
+          success: false,
+          policyReady: false,
+          message: data.error || "Verification failed",
+        });
+      }
+    } catch (err: unknown) {
+      setPolicyVerifyResult({
+        success: false,
+        policyReady: false,
+        message: err instanceof Error ? err.message : "Verification request failed",
+      });
+    } finally {
+      setVerifyingPolicy(false);
+    }
+  };
+
+  // Origins
+  const centralOrigin =
+    typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
+  const coreApiOrigin =
+    typeof window !== "undefined"
+      ? window.location.origin.replace(":3000", ":4000")
+      : "https://carf-core.indevs.in";
+
+  const effectiveToken = generatedToken || "";
+  const agentInstallCmd = effectiveToken
+    ? `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${effectiveToken}`
+    : `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=<CLICK_GENERATE_BELOW>`;
 
   const copyAgentCmd = () => {
     navigator.clipboard.writeText(agentInstallCmd);
@@ -325,8 +388,8 @@ export function RepoDetailView({
     setTimeout(() => setCopiedAgentCmd(false), 2000);
   };
 
-  // Trigger manual rollback
-  const handleManualRollback = async () => {
+  // Manual Rollback Execution
+  const executeManualRollback = async () => {
     if (!rollbackTarget) return;
     setRollingBack(true);
     setRollbackError(null);
@@ -350,7 +413,6 @@ export function RepoDetailView({
       setRollbackSuccess(
         `Rollback initiated successfully for ${rollbackTarget.commitSha.slice(0, 7)}.`
       );
-      // Update local status immutably
       setLiveRollouts((prev) =>
         prev.map((r) =>
           r.id === rollbackTarget.id
@@ -368,7 +430,7 @@ export function RepoDetailView({
     }
   };
 
-  // --- Graph 1 Data: Error Rate vs Threshold Over Time ---
+  // --- Graph 1 Data: Error Rate vs Threshold Over Time (Standalone) ---
   const graph1Data = useMemo(() => {
     if (!selectedRollout || !selectedRollout.samples || selectedRollout.samples.length === 0) {
       return [];
@@ -389,7 +451,7 @@ export function RepoDetailView({
     });
   }, [selectedRollout]);
 
-  // --- Graph 2 Data: Threshold & Window per Commit ---
+  // --- Graph 2 Data: Threshold & Window per Commit (Standalone & Augment) ---
   const graph2Data = useMemo(() => {
     return commits.slice(0, 20).map((c) => {
       const t = c.threshold;
@@ -456,6 +518,67 @@ export function RepoDetailView({
     });
   }, [commits, liveRollouts, outcomeFilter]);
 
+  // Snippets for Augment view
+  const githubActionsSnippet = `name: CARF Threshold Gate
+on: [push]
+
+jobs:
+  canary-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch CARF Change-Aware Threshold
+        run: |
+          RESPONSE=$(curl -fsSL "${coreApiOrigin}/v1/threshold?commit=\${{ github.sha }}" \\
+            -H "Authorization: Bearer \${{ secrets.CARF_API_KEY }}")
+          
+          THRESHOLD=$(echo "$RESPONSE" | jq -r '.threshold')
+          WINDOW=$(echo "$RESPONSE" | jq -r '.window')
+          echo "Calibrated error threshold: $THRESHOLD across \${WINDOW}s observation window"
+          echo "CARF_THRESHOLD=$THRESHOLD" >> $GITHUB_ENV
+          echo "CARF_WINDOW=$WINDOW" >> $GITHUB_ENV`;
+
+  const argoRolloutsSnippet = `apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: carf-canary-gate
+spec:
+  metrics:
+  - name: carf-change-aware-threshold
+    interval: 30s
+    successCondition: result <= 0.05
+    provider:
+      web:
+        url: "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit={{args.commit-sha}}"
+        headers:
+          - key: Authorization
+            value: "Bearer {{args.carf-api-key}}"
+        jsonPath: "{$.threshold}"`;
+
+  const flaggerSnippet = `apiVersion: flagger.app/v1beta1
+kind: MetricTemplate
+metadata:
+  name: carf-policy-gate
+  namespace: test
+spec:
+  provider:
+    type: webhook
+    address: "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}"
+    secretRef:
+      name: carf-api-secret`;
+
+  const genericHttpSnippet = `# Query change-aware threshold from your deployment pipeline:
+curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${COMMIT_SHA}" \\
+  -H "Authorization: Bearer \${CARF_API_KEY}"`;
+
+  const currentSnippet =
+    activeSnippetTab === "github-actions"
+      ? githubActionsSnippet
+      : activeSnippetTab === "argo-rollouts"
+      ? argoRolloutsSnippet
+      : activeSnippetTab === "flagger"
+      ? flaggerSnippet
+      : genericHttpSnippet;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       {/* Back Link */}
@@ -479,7 +602,11 @@ export function RepoDetailView({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
         <div className="flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40">
-            <FolderGit2 className="size-5 text-primary" />
+            {isStandalone ? (
+              <FolderGit2 className="size-5 text-primary" />
+            ) : (
+              <Zap className="size-5 text-blue-500" />
+            )}
           </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -489,71 +616,124 @@ export function RepoDetailView({
               <span className="rounded border border-border bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground">
                 {defaultBranch}
               </span>
+
+              {/* MODE BADGE */}
+              {isStandalone ? (
+                <span className="rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-2 py-0.5 text-[10px] font-bold text-foreground tracking-wider uppercase">
+                  STANDALONE
+                </span>
+              ) : (
+                <span className="rounded bg-blue-500/10 dark:bg-blue-500/20 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 tracking-wider uppercase">
+                  AUGMENT
+                </span>
+              )}
+
+              {/* STATUS BADGE */}
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.colorClass}`}
               >
                 <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
                 {derivedStatus}
               </span>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
-              >
-                <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
-                {agentBadge.label}
-              </span>
+
+              {/* AGENT BADGE (Standalone Only) */}
+              {isStandalone && (
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
+                >
+                  <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
+                  {agentBadge.label}
+                </span>
+              )}
+
+              {/* INTEGRATION BADGE (Augment Only) */}
+              {isAugment && (
+                <span className="rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-2.5 py-0.5 text-[10px] font-semibold capitalize">
+                  {augmentIntegration.replace("-", " ")}
+                </span>
+              )}
             </div>
+
             <p className="mt-1 text-xs text-muted-foreground">
-              {connection?.verifiedAt
-                ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
-                : "Linked — host verify has not passed yet. Rollouts still run from .carf.yml."}
+              {isStandalone ? (
+                connection?.verifiedAt
+                  ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
+                  : "Linked — host verify has not passed yet. Rollouts still run from .carf.yml."
+              ) : (
+                "Augment Mode — CARF provides change-aware threshold & window policy to your external deployment orchestrator."
+              )}
             </p>
           </div>
         </div>
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={togglePause}
-            disabled={togglingPause}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors ${
-              monitoringPaused
-                ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
-                : "border-border bg-card text-foreground hover:bg-muted"
-            }`}
-          >
-            {togglingPause ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : monitoringPaused ? (
-              <Play className="size-3.5" />
-            ) : (
-              <Pause className="size-3.5" />
-            )}
-            <span>{monitoringPaused ? "Resume Monitoring" : "Pause Monitoring"}</span>
-          </button>
+          {isStandalone ? (
+            <>
+              <button
+                type="button"
+                onClick={togglePause}
+                disabled={togglingPause}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors ${
+                  monitoringPaused
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20"
+                    : "border-border bg-card text-foreground hover:bg-muted"
+                }`}
+              >
+                {togglingPause ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : monitoringPaused ? (
+                  <Play className="size-3.5" />
+                ) : (
+                  <Pause className="size-3.5" />
+                )}
+                <span>{monitoringPaused ? "Resume Monitoring" : "Pause Monitoring"}</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setShowAgentSettings(!showAgentSettings)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
-          >
-            <Server className="size-3.5 text-primary" />
-            <span>{isHostColocated ? "Host Environment" : "Host Agent"}</span>
-            <ChevronDown className={`size-3 transition-transform ${showAgentSettings ? "rotate-180" : ""}`} />
-          </button>
+              <button
+                type="button"
+                onClick={() => setShowAgentSettings(!showAgentSettings)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
+              >
+                <Server className="size-3.5 text-primary" />
+                <span>{isHostColocated ? "Host Environment" : "Host Agent"}</span>
+                <ChevronDown className={`size-3 transition-transform ${showAgentSettings ? "rotate-180" : ""}`} />
+              </button>
 
-          <Link
-            href={repoSetupHref(owner, repo, { edit: true })}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
-          >
-            <Terminal className="size-3.5" />
-            <span>Edit connection</span>
-          </Link>
+              <Link
+                href={repoSetupHref(owner, repo, { edit: true })}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
+              >
+                <Terminal className="size-3.5" />
+                <span>Edit connection</span>
+              </Link>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={runPolicyVerification}
+                disabled={verifyingPolicy}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
+              >
+                <RefreshCw className={`size-3.5 ${verifyingPolicy ? "animate-spin" : ""}`} />
+                <span>{verifyingPolicy ? "Testing..." : "Test Policy Engine"}</span>
+              </button>
+
+              <Link
+                href={repoSetupHref(owner, repo, { edit: true })}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90"
+              >
+                <Zap className="size-3.5" />
+                <span>Reconfigure Integration</span>
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Expandable Host Agent Card */}
-      {showAgentSettings && (
+      {/* ─── STANDALONE: HOST AGENT DRAWER ─── */}
+      {isStandalone && showAgentSettings && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in-50 duration-200">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
             <div>
@@ -654,54 +834,165 @@ export function RepoDetailView({
             </div>
           </div>
 
-          {/* Agent Action Buttons */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border">
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-              <span>Update: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --update</code></span>
-              <span>Uninstall: <code className="font-mono bg-muted/60 px-1 py-0.5 rounded">curl -fsSL {centralOrigin}/install.sh | bash -s -- --uninstall</code></span>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleGenerateNewToken}
+                onClick={generateNewToken}
                 disabled={generatingToken}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors disabled:opacity-50"
               >
-                {generatingToken ? <Loader2 className="size-3 animate-spin" /> : <KeyRound className="size-3" />}
-                <span>Generate Fresh Token</span>
+                {generatingToken ? <Loader2 className="size-3.5 animate-spin" /> : <KeyRound className="size-3.5" />}
+                <span>Generate New Token</span>
               </button>
 
-              {!agentRevoked && (
-                <button
-                  type="button"
-                  onClick={handleRevokeAgent}
-                  disabled={revokingAgent}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 shadow-xs hover:bg-red-500/20 disabled:opacity-50"
-                >
-                  {revokingAgent ? <Loader2 className="size-3 animate-spin" /> : <Ban className="size-3" />}
-                  <span>Revoke Agent</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={revokeAgent}
+                disabled={revokingAgent || agentRevoked}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 shadow-xs hover:bg-rose-500/20 transition-colors disabled:opacity-50"
+              >
+                {revokingAgent ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
+                <span>{agentRevoked ? "Agent Revoked" : "Revoke Token"}</span>
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Paused Alert Banner */}
-      {monitoringPaused && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-700 dark:text-amber-400 flex items-start gap-2.5">
-          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold">Observation Monitoring Paused</p>
-            <p className="mt-0.5 text-amber-600 dark:text-amber-300">
-              New commits arriving via webhook will not start standalone observation loops or automated rollbacks. Existing rollout history is preserved.
-            </p>
+      {/* ─── AUGMENT: POLICY & INTEGRATION CARD ─── */}
+      {isAugment && (
+        <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Zap className="size-4 text-blue-500" />
+                <h2 className="text-sm font-semibold text-foreground">
+                  Augment Deployment Policy & CD Integration
+                </h2>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                CARF serves risk-calibrated thresholds to your deployment pipeline. Rollout and rollback are executed directly by your CD system.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="size-1.5 rounded-full bg-emerald-500" />
+                Policy: Ready
+              </span>
+            </div>
           </div>
+
+          {/* Endpoint and auth grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                Threshold Endpoint
+              </div>
+              <div className="font-mono text-foreground text-[11px] truncate">
+                GET {coreApiOrigin}/v1/threshold?commit=$COMMIT_SHA
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground uppercase">
+                <span>Installation Core API Key</span>
+                {coreApiKey && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(coreApiKey);
+                      setCopiedApiKey(true);
+                      setTimeout(() => setCopiedApiKey(false), 2000);
+                    }}
+                    className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                  >
+                    {copiedApiKey ? <Check className="size-2.5" /> : <Copy className="size-2.5" />}
+                    <span>{copiedApiKey ? "Copied" : "Copy Key"}</span>
+                  </button>
+                )}
+              </div>
+              <div className="font-mono text-foreground text-[11px]">
+                {coreApiKey ? `${coreApiKey.slice(0, 12)}••••••••••••` : "Configured in GitHub App"}
+              </div>
+            </div>
+          </div>
+
+          {/* Snippet Viewer */}
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 border-b border-border">
+                {[
+                  { id: "github-actions" as AugmentIntegration, label: "GitHub Actions" },
+                  { id: "argo-rollouts" as AugmentIntegration, label: "Argo Rollouts" },
+                  { id: "flagger" as AugmentIntegration, label: "Flagger" },
+                  { id: "generic" as AugmentIntegration, label: "cURL / Generic" },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveSnippetTab(tab.id)}
+                    className={`px-3 py-1.5 text-xs font-semibold transition-colors border-b-2 ${
+                      activeSnippetTab === tab.id
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(currentSnippet);
+                  setCopiedSnippet(true);
+                  setTimeout(() => setCopiedSnippet(false), 2000);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+              >
+                {copiedSnippet ? <Check className="size-3" /> : <Copy className="size-3" />}
+                <span>{copiedSnippet ? "Copied" : "Copy Snippet"}</span>
+              </button>
+            </div>
+
+            <pre className="rounded-lg bg-slate-950 p-4 font-mono text-xs text-emerald-400 overflow-x-auto select-all">
+              {currentSnippet}
+            </pre>
+          </div>
+
+          {/* Policy verification response */}
+          {policyVerifyResult && (
+            <div
+              className={`rounded-lg border p-3 text-xs ${
+                policyVerifyResult.success
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  : "border-rose-500/20 bg-rose-500/10 text-rose-600"
+              }`}
+            >
+              <div className="flex items-center gap-2 font-semibold">
+                {policyVerifyResult.success ? (
+                  <CheckCircle2 className="size-4" />
+                ) : (
+                  <AlertTriangle className="size-4" />
+                )}
+                <span>{policyVerifyResult.message}</span>
+              </div>
+              {policyVerifyResult.threshold && (
+                <div className="mt-1 text-[11px] font-mono">
+                  Calibrated base threshold: {policyVerifyResult.threshold} | Observation window:{" "}
+                  {policyVerifyResult.window}s
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Live Polling Banner */}
-      {isPolling && pendingRollout && (
+      {/* ─── STANDALONE: LIVE POLLING BANNER ─── */}
+      {isStandalone && isPolling && pendingRollout && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-700 dark:text-amber-400 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5">
             <Clock className="size-4 animate-spin text-amber-600 dark:text-amber-400" />
@@ -718,89 +1009,95 @@ export function RepoDetailView({
         </div>
       )}
 
-      {/* ── 4 Recharts Analytics Graphs ── */}
+      {/* ─── ANALYTICS GRAPHS ─── */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Graph 1: Error Rate vs Threshold Over Time */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Error Rate vs. Threshold Over Time</h2>
-              <p className="text-[11px] text-muted-foreground">
-                Live soak observation samples comparing error rate to the dynamic threshold.
-              </p>
-            </div>
-            {liveRollouts.length > 0 && (
-              <select
-                value={selectedRolloutId}
-                onChange={(e) => setSelectedRolloutId(e.target.value)}
-                className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {liveRollouts.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.commitSha.slice(0, 7)} ({r.status})
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          <div className="mt-4 h-64 w-full">
-            {graph1Data.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={graph1Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="time" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} unit="%" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
-                      fontSize: 12,
-                      borderRadius: 8,
-                    }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Line
-                    type="monotone"
-                    dataKey="errorRate"
-                    name="Observed Error Rate (%)"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                  />
-                  <Line
-                    type="stepAfter"
-                    dataKey="threshold"
-                    name="Threshold (%)"
-                    stroke="#6366f1"
-                    strokeWidth={2}
-                    strokeDasharray="4 4"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                No telemetry samples recorded for this rollout yet.
+        {/* STANDALONE: Graph 1 Error Rate vs Threshold Over Time */}
+        {isStandalone && (
+          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Error Rate vs. Threshold Over Time</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Live soak observation samples comparing error rate to the dynamic threshold.
+                </p>
               </div>
-            )}
-          </div>
-        </div>
+              {liveRollouts.length > 0 && (
+                <select
+                  value={selectedRolloutId}
+                  onChange={(e) => setSelectedRolloutId(e.target.value)}
+                  className="rounded-lg border border-border bg-background px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {liveRollouts.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.commitSha.slice(0, 7)} ({r.status})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
 
-        {/* Graph 2: Threshold & Window per Commit */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+            <div className="mt-4 h-64 w-full">
+              {graph1Data.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={graph1Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                    <XAxis dataKey="time" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} unit="%" />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "hsl(var(--card))",
+                        borderColor: "hsl(var(--border))",
+                        fontSize: 12,
+                        borderRadius: 8,
+                      }}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Line
+                      type="monotone"
+                      dataKey="errorRate"
+                      name="Observed Error Rate (%)"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                    <Line
+                      type="stepAfter"
+                      dataKey="threshold"
+                      name="Threshold (%)"
+                      stroke="#6366f1"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                  No telemetry samples recorded for this rollout yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* STANDALONE & AUGMENT: Graph 2: Threshold & Window per Commit */}
+        <div
+          className={`rounded-xl border border-border bg-card p-5 shadow-xs ${
+            isAugment ? "lg:col-span-2" : ""
+          }`}
+        >
           <div className="border-b border-border pb-3">
             <h2 className="text-sm font-semibold text-foreground">Dynamic Threshold & Window by Commit</h2>
             <p className="text-[11px] text-muted-foreground">
-              Calibrated sensitivity and observation soak windows per commit change type.
+              Calibrated sensitivity and observation soak windows calculated by CARF change-aware policy.
             </p>
           </div>
 
           <div className="mt-4 h-64 w-full">
             {graph2Data.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={graph2Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart data={graph2Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="sha" tick={{ fontSize: 10, fontFamily: "monospace" }} />
+                  <XAxis dataKey="sha" tick={{ fontSize: 10 }} />
                   <YAxis yAxisId="left" tick={{ fontSize: 10 }} unit="%" />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} unit="s" />
                   <Tooltip
@@ -812,102 +1109,123 @@ export function RepoDetailView({
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar yAxisId="left" dataKey="threshold" name="Threshold (%)" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar yAxisId="right" dataKey="window" name="Window (s)" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                No commit classifications recorded.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Graph 3: Change Vector Breakdown */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-          <div className="border-b border-border pb-3">
-            <h2 className="text-sm font-semibold text-foreground">Change-Vector Composition (%)</h2>
-            <p className="text-[11px] text-muted-foreground">
-              Weighted proportion of code, config, dependency, and infrastructure modifications.
-            </p>
-          </div>
-
-          <div className="mt-4 h-64 w-full">
-            {graph3Data.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={graph3Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="sha" tick={{ fontSize: 10, fontFamily: "monospace" }} />
-                  <YAxis tick={{ fontSize: 10 }} unit="%" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
-                      fontSize: 12,
-                      borderRadius: 8,
-                    }}
+                  <Line
+                    yAxisId="left"
+                    type="monotone"
+                    dataKey="threshold"
+                    name="Threshold (%)"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
                   />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="code" name="Code" stackId="a" fill="#3b82f6" />
-                  <Bar dataKey="config" name="Config" fill="#f59e0b" stackId="a" />
-                  <Bar dataKey="dependency" name="Dependency" fill="#ec4899" stackId="a" />
-                  <Bar dataKey="infra" name="Infra" fill="#10b981" stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                No vector compositions available.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Graph 4: Rollout Outcomes */}
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-          <div className="border-b border-border pb-3">
-            <h2 className="text-sm font-semibold text-foreground">Rollout Outcomes Breakdown</h2>
-            <p className="text-[11px] text-muted-foreground">
-              Aggregate distribution of successful rollouts, rollbacks, and failures.
-            </p>
-          </div>
-
-          <div className="mt-4 h-64 w-full">
-            {liveRollouts.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={graph4Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      borderColor: "hsl(var(--border))",
-                      fontSize: 12,
-                      borderRadius: 8,
-                    }}
+                  <Line
+                    yAxisId="right"
+                    type="stepAfter"
+                    dataKey="window"
+                    name="Observation Window (s)"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    strokeDasharray="4 4"
                   />
-                  <Bar dataKey="count" name="Rollouts" radius={[4, 4, 0, 0]} />
-                </BarChart>
+                </LineChart>
               </ResponsiveContainer>
             ) : (
               <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                No rollouts observed yet.
+                No commit classifications available yet.
               </div>
             )}
           </div>
         </div>
+
+        {/* STANDALONE ONLY: Graph 3 Change Vector Breakdown & Graph 4 Outcome Breakdown */}
+        {isStandalone && (
+          <>
+            <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+              <div className="border-b border-border pb-3">
+                <h2 className="text-sm font-semibold text-foreground">Change Vector Breakdown by Commit</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Proportion of modifications detected across infrastructure, dependencies, config, and code.
+                </p>
+              </div>
+
+              <div className="mt-4 h-64 w-full">
+                {graph3Data.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={graph3Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                      <XAxis dataKey="sha" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} unit="%" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          fontSize: 12,
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="code" name="Code" fill="#3b82f6" stackId="a" />
+                      <Bar dataKey="config" name="Config" fill="#10b981" stackId="a" />
+                      <Bar dataKey="dependency" name="Dependencies" fill="#f59e0b" stackId="a" />
+                      <Bar dataKey="infra" name="Infrastructure" fill="#ef4444" stackId="a" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                    No change vectors analyzed yet.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+              <div className="border-b border-border pb-3">
+                <h2 className="text-sm font-semibold text-foreground">Rollout Outcomes Breakdown</h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Summary of historical verdicts across all recorded rollouts for this repository.
+                </p>
+              </div>
+
+              <div className="mt-4 h-64 w-full">
+                {liveRollouts.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={graph4Data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" />
+                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          borderColor: "hsl(var(--border))",
+                          fontSize: 12,
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Bar dataKey="count" name="Count" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                    No rollouts recorded yet.
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* ── Commits & Rollout Lifecycle Table ── */}
+      {/* ─── COMMITS & CHANGE CLASSIFICATION TABLE (Standalone & Augment) ─── */}
       <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">
-              Commits & Rollout Lifecycle ({filteredCommits.length})
+              {isStandalone ? "Commits & Rollout Lifecycle" : "Commits & Change-Aware Risk Classification"} ({filteredCommits.length})
             </h2>
             <p className="text-[11px] text-muted-foreground">
-              History of analyzed commits, calibrated thresholds, and active or past rollouts.
+              {isStandalone
+                ? "History of analyzed commits, calibrated thresholds, and active or past rollouts."
+                : "History of classified commits with multi-vector change scores and calibrated threshold policies."}
             </p>
           </div>
 
@@ -921,22 +1239,24 @@ export function RepoDetailView({
               <RefreshCw className={`size-3 ${refreshingCommits ? "animate-spin" : ""}`} />
               <span>{refreshingCommits ? "Pulling & classifying..." : "Refresh commits"}</span>
             </button>
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
-              {["ALL", "PENDING", "SUCCESS", "ROLLED_BACK", "FAILED", "NONE"].map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setOutcomeFilter(f)}
-                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                    outcomeFilter === f
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {f === "NONE" ? "Unmonitored" : f.charAt(0) + f.slice(1).toLowerCase()}
-                </button>
-              ))}
-            </div>
+            {isStandalone && (
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/30 p-0.5 text-xs">
+                {["ALL", "PENDING", "SUCCESS", "ROLLED_BACK", "FAILED", "NONE"].map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setOutcomeFilter(f)}
+                    className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      outcomeFilter === f
+                        ? "bg-background text-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {f === "NONE" ? "Unmonitored" : f.charAt(0) + f.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -949,7 +1269,7 @@ export function RepoDetailView({
         <div className="mt-4 divide-y divide-border border border-border rounded-lg overflow-hidden">
           {filteredCommits.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
-              No commits match the selected outcome filter.
+              No commits recorded yet. Push changes to this repository or click &quot;Refresh commits&quot;.
             </div>
           ) : (
             filteredCommits.map((c) => {
@@ -993,46 +1313,50 @@ export function RepoDetailView({
                     </div>
 
                     <div className="flex items-center gap-3">
-                      {/* Rollout Status Badge */}
-                      {rollout ? (
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                              rollout.status === "SUCCESS"
-                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                                : rollout.status === "ROLLED_BACK"
-                                ? "bg-red-500/10 text-red-600 dark:text-red-400"
-                                : rollout.status === "FAILED"
-                                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 animate-pulse"
-                            }`}
-                          >
-                            {rollout.status === "SUCCESS"
-                              ? "Promoted"
-                              : rollout.status === "ROLLED_BACK"
-                              ? "Rolled Back"
-                              : rollout.status === "PENDING"
-                              ? "Observing"
-                              : rollout.status}
-                          </span>
+                      {/* Standalone: Rollout Status Badge */}
+                      {isStandalone && (
+                        <>
+                          {rollout ? (
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                                  rollout.status === "SUCCESS"
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : rollout.status === "ROLLED_BACK"
+                                    ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                                    : rollout.status === "FAILED"
+                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                    : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 animate-pulse"
+                                }`}
+                              >
+                                {rollout.status === "SUCCESS"
+                                  ? "Promoted"
+                                  : rollout.status === "ROLLED_BACK"
+                                  ? "Rolled Back"
+                                  : rollout.status === "PENDING"
+                                  ? "Observing"
+                                  : rollout.status}
+                              </span>
 
-                          {rollout.status === "PENDING" && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRollbackTarget(rollout);
-                                setRollbackError(null);
-                                setRollbackSuccess(null);
-                              }}
-                              className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/20"
-                            >
-                              <RotateCcw className="size-3" />
-                              <span>Roll Back</span>
-                            </button>
+                              {rollout.status === "PENDING" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setRollbackTarget(rollout);
+                                    setRollbackError(null);
+                                    setRollbackSuccess(null);
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-0.5 text-[11px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/20"
+                                >
+                                  <RotateCcw className="size-3" />
+                                  <span>Roll Back</span>
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground font-mono">No rollout</span>
                           )}
-                        </div>
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground font-mono">No rollout</span>
+                        </>
                       )}
 
                       {/* Threshold info pill */}
@@ -1048,47 +1372,41 @@ export function RepoDetailView({
                   {isExpanded && (
                     <div className="bg-muted/20 p-4 border-t border-border space-y-3 text-xs">
                       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                        <div>
-                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Change Vector</span>
-                          <div className="mt-1 font-mono text-[11px] text-foreground">
-                            Code: {c.changeVector ? (c.changeVector.code * 100).toFixed(0) : 0}% | Config:{" "}
-                            {c.changeVector ? (c.changeVector.config * 100).toFixed(0) : 0}%
-                          </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                            Calibrated Threshold
+                          </span>
+                          <p className="font-mono text-foreground font-semibold">
+                            {c.threshold ? `${(c.threshold.finalThreshold * 100).toFixed(2)}%` : "N/A"}
+                          </p>
                         </div>
-                        <div>
-                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Dependencies / Infra</span>
-                          <div className="mt-1 font-mono text-[11px] text-foreground">
-                            Deps: {c.changeVector ? (c.changeVector.dependency * 100).toFixed(0) : 0}% | Infra:{" "}
-                            {c.changeVector ? (c.changeVector.infrastructure * 100).toFixed(0) : 0}%
-                          </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                            Observation Window
+                          </span>
+                          <p className="font-mono text-foreground font-semibold">
+                            {c.threshold ? `${c.threshold.finalWindow} seconds` : "N/A"}
+                          </p>
                         </div>
-                        <div>
-                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Calibrated Soak Window</span>
-                          <div className="mt-1 font-mono text-[11px] text-foreground">
-                            {c.threshold ? `${c.threshold.finalWindow} seconds` : "Default (300s)"}
-                          </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                            Risk Factors
+                          </span>
+                          <p className="text-foreground">
+                            {c.threshold?.activeTypes?.length ? c.threshold.activeTypes.join(", ") : "Standard code change"}
+                          </p>
                         </div>
-                        <div>
-                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Active Rule Tags</span>
-                          <div className="mt-1 font-mono text-[11px] text-foreground">
-                            {c.threshold?.activeTypes?.join(", ") || "standard"}
-                          </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] font-medium text-muted-foreground uppercase">
+                            Classification
+                          </span>
+                          <p className="font-mono text-foreground text-[11px]">
+                            {c.changeVector
+                              ? `code:${(c.changeVector.code * 100).toFixed(0)}% cfg:${(c.changeVector.config * 100).toFixed(0)}% dep:${(c.changeVector.dependency * 100).toFixed(0)}% inf:${(c.changeVector.infrastructure * 100).toFixed(0)}%`
+                              : "Standard"}
+                          </p>
                         </div>
                       </div>
-
-                      {rollout && (
-                        <div className="mt-2 rounded border border-border bg-card p-3">
-                          <span className="text-[10px] text-muted-foreground uppercase font-medium">Rollout Telemetry Summary</span>
-                          <div className="mt-1 flex flex-wrap gap-4 text-[11px] font-mono text-foreground">
-                            <span>Started: {new Date(rollout.startedAt).toLocaleTimeString()}</span>
-                            <span>
-                              Finished: {rollout.finishedAt ? new Date(rollout.finishedAt).toLocaleTimeString() : "In progress"}
-                            </span>
-                            {rollout.reason && <span>Reason: {rollout.reason}</span>}
-                            <span>Samples recorded: {rollout.samples?.length || 0}</span>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1098,7 +1416,7 @@ export function RepoDetailView({
         </div>
       </div>
 
-      {/* ── Audit Logs Section ── */}
+      {/* ─── AUDIT LOGS SECTION ─── */}
       <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
         <div className="border-b border-border pb-3">
           <h2 className="text-sm font-semibold text-foreground">Automated Action Audit Trail</h2>
@@ -1135,55 +1453,47 @@ export function RepoDetailView({
         </div>
       </div>
 
-      {/* ── Manual Rollback Modal ── */}
-      {rollbackTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
-            <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+      {/* ─── MANUAL ROLLBACK MODAL (Standalone Only) ─── */}
+      {isStandalone && rollbackTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-4">
+            <div className="flex items-center gap-2 text-rose-500 font-bold">
               <ShieldAlert className="size-5" />
-              <h3 className="text-base font-bold text-foreground">Confirm Manual Rollback</h3>
+              <span>Confirm Manual Rollback</span>
             </div>
-
-            <p className="mt-2 text-xs text-muted-foreground">
-              Triggering a manual rollback will instruct the host adapter to reload PM2 to the previous
-              active release commit for:
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure you want to trigger a manual rollback for commit{" "}
+              <strong className="font-mono text-foreground">{rollbackTarget.commitSha.slice(0, 7)}</strong>?
+              This instructs the host agent to immediately revert the PM2 deployment.
             </p>
 
-            <div className="my-4 rounded-lg border border-border bg-muted/30 p-3 font-mono text-xs">
-              <div>Commit: <span className="font-bold text-foreground">{rollbackTarget.commitSha}</span></div>
-              <div className="mt-1">Window: {rollbackTarget.window}s</div>
-              <div className="mt-1">Threshold: {(rollbackTarget.threshold * 100).toFixed(1)}%</div>
-            </div>
-
             {rollbackError && (
-              <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-2.5 text-xs text-red-600 dark:text-red-400">
+              <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-600">
                 {rollbackError}
               </div>
             )}
-
             {rollbackSuccess && (
-              <div className="mb-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2.5 text-xs text-emerald-600 dark:text-emerald-400">
+              <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-600">
                 {rollbackSuccess}
               </div>
             )}
 
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
               <button
                 type="button"
                 onClick={() => setRollbackTarget(null)}
-                disabled={rollingBack}
-                className="rounded-lg border border-border px-3.5 py-2 text-xs text-foreground hover:bg-muted"
+                className="rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-muted"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleManualRollback}
+                onClick={executeManualRollback}
                 disabled={rollingBack}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 disabled:opacity-50"
               >
-                {rollingBack ? <Loader2 className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}
-                <span>{rollingBack ? "Executing Rollback..." : "Rollback Process"}</span>
+                {rollingBack && <Loader2 className="size-3.5 animate-spin" />}
+                <span>Execute Rollback</span>
               </button>
             </div>
           </div>

@@ -12,6 +12,17 @@ describe("deriveRepoStatus", () => {
     ).toBe("Not connected");
   });
 
+  it("returns 'Policy Ready' for Augment mode when configured without PM2/agent", () => {
+    expect(
+      deriveRepoStatus({
+        isConfigured: true,
+        isVerified: false,
+        totalRollouts: 0,
+        mode: "augment",
+      })
+    ).toBe("Policy Ready");
+  });
+
   it("returns 'Not verified' when repo is configured but connection check has not passed and no rollouts exist", () => {
     expect(
       deriveRepoStatus({

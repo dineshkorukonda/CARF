@@ -4,6 +4,7 @@ import { POST as heartbeatHandler } from "../../src/app/api/agent/heartbeat/rout
 import { GET as configHandler } from "../../src/app/api/agent/config/route";
 import { POST as rolloutOutcomeHandler } from "../../src/app/api/agent/rollout-outcome/route";
 import { POST as revokeHandler } from "../../src/app/api/repo/revoke-agent/route";
+import { POST as generateTokenHandler } from "../../src/app/api/repo/generate-token/route";
 import { hashInstallToken } from "../../src/lib/agentToken";
 import { prisma } from "../../src/lib/prisma";
 import * as auth from "../../src/lib/auth";
@@ -17,6 +18,7 @@ vi.mock("../../src/lib/prisma", () => ({
       findFirst: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+      upsert: vi.fn(),
     },
     commit: {
       findFirst: vi.fn(),
@@ -27,6 +29,10 @@ vi.mock("../../src/lib/prisma", () => ({
     },
     rolloutSample: {
       createMany: vi.fn(),
+    },
+    installation: {
+      findFirst: vi.fn(),
+      upsert: vi.fn(),
     },
   },
 }));
@@ -49,6 +55,66 @@ describe("Agent API Routes", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("POST /api/repo/generate-token", () => {
+    it("returns 401 when unauthenticated", async () => {
+      vi.mocked(auth.getCurrentAccount).mockResolvedValue(null);
+      const req = new NextRequest("http://localhost:3000/api/repo/generate-token", {
+        method: "POST",
+        body: JSON.stringify({ owner: "octocat", repo: "hello-world", installationId: "inst-1" }),
+      });
+      const res = await generateTokenHandler(req);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 400 when owner or repo is missing, never defaulting to 'production'", async () => {
+      vi.mocked(auth.getCurrentAccount).mockResolvedValue({ id: "acc-1" } as any);
+      const req = new NextRequest("http://localhost:3000/api/repo/generate-token", {
+        method: "POST",
+        body: JSON.stringify({ installationId: "inst-1" }),
+      });
+      const res = await generateTokenHandler(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain("Missing required fields: owner and repo");
+    });
+
+    it("returns 400 when installationId is missing", async () => {
+      vi.mocked(auth.getCurrentAccount).mockResolvedValue({ id: "acc-1" } as any);
+      const req = new NextRequest("http://localhost:3000/api/repo/generate-token", {
+        method: "POST",
+        body: JSON.stringify({ owner: "octocat", repo: "hello-world" }),
+      });
+      const res = await generateTokenHandler(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain("installationId");
+    });
+
+    it("returns 200 and mints token for valid owner, repo and installation", async () => {
+      vi.mocked(auth.getCurrentAccount).mockResolvedValue({ id: "acc-1" } as any);
+      vi.mocked(accountService.getInstallationForAccount).mockResolvedValue({
+        id: "inst-1",
+        installationId: "12345",
+      } as any);
+      vi.mocked(prisma.repoConnection.upsert).mockResolvedValue({
+        owner: "octocat",
+        repo: "hello-world",
+        installationId: "12345",
+      } as any);
+
+      const req = new NextRequest("http://localhost:3000/api/repo/generate-token", {
+        method: "POST",
+        body: JSON.stringify({ owner: "octocat", repo: "hello-world", installationId: "12345" }),
+      });
+      const res = await generateTokenHandler(req);
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.owner).toBe("octocat");
+      expect(data.repo).toBe("hello-world");
+      expect(data.token).toMatch(/^carf_inst_/);
+    });
   });
 
   describe("POST /api/agent/heartbeat", () => {
