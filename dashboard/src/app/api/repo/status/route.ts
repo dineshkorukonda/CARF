@@ -6,6 +6,7 @@ import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { getCarfConfigFile, getRepoFile } from "../../../../adapters/github/contentsClient";
 import { listInstallationRepos } from "../../../../adapters/github/reposClient";
 import { parseDeclaredMode, resolveRepoMode, repoIdentityKey } from "../../../../lib/deploymentMode";
+import { resolveFromLegacy } from "../../../../lib/capabilities";
 
 export async function GET(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -48,7 +49,15 @@ export async function GET(request: NextRequest) {
 
     const connections = await prisma.repoConnection.findMany({
       where: { installationId },
-      select: { owner: true, repo: true, mode: true, storedConfig: true, installTokenHash: true },
+      select: {
+        owner: true,
+        repo: true,
+        mode: true,
+        deploymentIntegration: true,
+        runtimeAdapter: true,
+        storedConfig: true,
+        installTokenHash: true,
+      },
     });
     const connectionByRepo = new Map(
       connections.map((c) => [repoIdentityKey(c.owner, c.repo), c] as const)
@@ -63,12 +72,20 @@ export async function GET(request: NextRequest) {
           ]);
 
           let yamlMode: string | undefined;
+          let yamlDeploymentIntegration: string | undefined;
+          let yamlRuntimeAdapter: string | undefined;
           let adapterKind: string | undefined;
           let adapterTarget: string | undefined;
 
           if (configFile?.content) {
             const modeMatch = configFile.content.match(/mode:\s*["']?([a-zA-Z0-9_-]+)["']?/);
             if (modeMatch) yamlMode = modeMatch[1];
+
+            const depMatch = configFile.content.match(/deploymentIntegration:\s*["']?([a-zA-Z0-9_-]+)["']?/);
+            if (depMatch) yamlDeploymentIntegration = depMatch[1];
+
+            const runtimeMatch = configFile.content.match(/runtimeAdapter:\s*["']?([a-zA-Z0-9_-]+)["']?/);
+            if (runtimeMatch) yamlRuntimeAdapter = runtimeMatch[1];
 
             const kindMatch = configFile.content.match(/kind:\s*["']?([a-zA-Z0-9_-]+)["']?/);
             if (kindMatch) adapterKind = kindMatch[1];
@@ -82,12 +99,28 @@ export async function GET(request: NextRequest) {
             ? resolveRepoMode(connection)
             : parseDeclaredMode(yamlMode) ?? undefined;
 
+          const resolved = resolveFromLegacy({
+            mode: connection ? connection.mode : parseDeclaredMode(yamlMode) ?? undefined,
+            deploymentIntegration: connection?.deploymentIntegration ?? yamlDeploymentIntegration,
+            runtimeAdapter: connection?.runtimeAdapter ?? yamlRuntimeAdapter,
+            storedConfig: connection?.storedConfig,
+            adapter: adapterKind ? { kind: adapterKind } : undefined,
+          });
+
           return {
             name: r.name,
             fullName: `${r.owner}/${r.name}`,
             isProtected: !!configFile,
             hasWorkflow: !!workflowFile,
             mode,
+            deploymentIntegration: resolved.deploymentIntegration,
+            runtimeAdapter: resolved.runtimeAdapter,
+            capabilities: resolved.capabilities,
+            integrationLabel: resolved.integrationLabel,
+            runtimeLabel: resolved.runtimeLabel,
+            runtimeStatus: resolved.runtimeStatus,
+            deploymentStatus: resolved.deploymentStatus,
+            requiresAgent: resolved.requiresAgent,
             adapterKind,
             adapterTarget,
           };
@@ -102,9 +135,16 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    return NextResponse.json({ statuses });
-  } catch (error) {
-    console.error("[api/repo/status] Failed to fetch statuses:", error);
-    return NextResponse.json({ error: "Failed to check repository statuses" }, { status: 500 });
+    return NextResponse.json({
+      installationId,
+      statuses,
+      repositories: statuses,
+    });
+  } catch (error: unknown) {
+    console.error("[api/repo/status] Error checking repositories:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch repository statuses from GitHub" },
+      { status: 502 }
+    );
   }
 }

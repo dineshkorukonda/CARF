@@ -4,12 +4,13 @@ import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { generateInstallToken } from "../../../../lib/agentToken";
 import { resolveRepoMode } from "../../../../lib/deploymentMode";
+import { resolveFromLegacy } from "../../../../lib/capabilities";
 
 /**
  * Regenerates a Host Agent install token for an existing Standalone repository.
  *
  * Never creates a RepoConnection. Never invents owner/repo defaults
- * (including "production"). Augment repositories cannot mint agent tokens.
+ * (including "production"). Repositories without active runtime adapters cannot mint agent tokens.
  */
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -70,7 +71,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (resolveRepoMode(connection) !== "standalone") {
+  const resolved = resolveFromLegacy(connection);
+  if (!resolved.requiresAgent && resolveRepoMode(connection) !== "standalone") {
     return NextResponse.json(
       { error: "Host agent tokens are only issued for Standalone repositories." },
       { status: 400 }
@@ -95,5 +97,7 @@ export async function POST(request: NextRequest) {
     repo: updated.repo,
     installationId: installation.installationId,
     mode: "standalone",
+    deploymentIntegration: resolved.deploymentIntegration,
+    runtimeAdapter: resolved.runtimeAdapter,
   });
 }
