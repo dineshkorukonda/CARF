@@ -23,6 +23,14 @@ describe("readOrEmpty", () => {
     expect(activityErrorMessage(err)).toBe(result.error);
   });
 
+  it("tells the operator to migrate when RepoConnection.mode is missing", () => {
+    const err = Object.assign(new Error("The column `mode` does not exist in the current database."), {
+      code: "P2022",
+      meta: { modelName: "RepoConnection", column: "mode" },
+    });
+    expect(activityErrorMessage(err)).toMatch(/npx prisma migrate deploy/);
+  });
+
   it("returns a generic message for other database failures", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const result = await readOrEmpty("rollouts", async () => {

@@ -8,6 +8,8 @@ import { createInstallationToken } from "../../../adapters/github/installationTo
 import { listInstallationRepos, type InstallationRepo } from "../../../adapters/github/reposClient";
 import { findRepoConnection, splitRepoFullName } from "../../../lib/connectionLookup";
 import { projectPageHref } from "../../../lib/dashboardNav";
+import { activityErrorMessage } from "../../../lib/repoActivity";
+import { loadRepoConnections } from "../../../lib/loadRepoConnections";
 import { SetupWizard } from "./SetupWizard";
 
 export default async function SetupPage(props: {
@@ -20,11 +22,18 @@ export default async function SetupPage(props: {
   const initialRepoFullName = typeof searchParams.repo === "string" ? searchParams.repo : "";
   const forceEdit = searchParams.edit === "1";
 
-  const installations = await listInstallationsForAccount(prisma, account.id);
+  let installations: Awaited<ReturnType<typeof listInstallationsForAccount>> = [];
+  let installationsError: string | null = null;
+  try {
+    installations = await listInstallationsForAccount(prisma, account.id);
+  } catch (err) {
+    console.error("[dashboard/setup] failed to load installations:", err);
+    installationsError = activityErrorMessage(err);
+  }
 
-  // Fetch repos from the GitHub App installation if present
   const githubInstallation = installations.find((i) => !i.installationId.startsWith("host_"));
   let repos: InstallationRepo[] = [];
+  let reposError: string | null = null;
   if (githubInstallation) {
     try {
       const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
@@ -32,19 +41,16 @@ export default async function SetupPage(props: {
       repos = await listInstallationRepos(token);
     } catch (err) {
       console.error("[dashboard/setup] failed to load repos:", err);
+      reposError = "GitHub repositories could not be loaded. Confirm the GitHub App installation and retry.";
     }
   }
 
-  // Fetch RepoConnection rows for this account's installations
-  const connections = await prisma.repoConnection.findMany({
-    where: {
-      installationId: {
-        in: installations.map((i) => String(i.installationId)),
-      },
-    },
-  });
+  const connectionRead = await loadRepoConnections(
+    prisma,
+    installations.map((i) => String(i.installationId))
+  );
+  const connections = connectionRead.value;
 
-  // Already linked: don't send the user through onboarding again if they specifically requested an already configured repo
   if (initialRepoFullName && !forceEdit) {
     const existing = findRepoConnection(connections, initialRepoFullName);
     const parts = splitRepoFullName(initialRepoFullName);
@@ -55,11 +61,24 @@ export default async function SetupPage(props: {
 
   return (
     <SetupWizard
-      installations={installations}
-      initialRepos={repos}
+      installations={installations.map((installation) => ({
+        id: installation.id,
+        installationId: installation.installationId,
+        targetLogin: installation.targetLogin,
+        targetType: installation.targetType,
+      }))}
+      initialRepos={repos.map((repo) => ({
+        id: repo.id,
+        name: repo.name,
+        full_name: repo.full_name,
+        owner: { login: repo.owner.login },
+        default_branch: repo.default_branch,
+        private: Boolean(repo.private),
+      }))}
       connections={connections}
       initialRepoFullName={initialRepoFullName}
       accountName={account.name || account.email?.split("@")[0] || "server"}
+      loadError={installationsError || connectionRead.error || reposError}
     />
   );
 }

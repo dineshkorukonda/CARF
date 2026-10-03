@@ -7,6 +7,7 @@ import { signGithubAppJwt } from "../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../adapters/github/installationTokenClient";
 import { listInstallationRepos, type InstallationRepo } from "../../adapters/github/reposClient";
 import { listIntegratedRepos, readOrEmpty } from "../../lib/repoActivity";
+import { loadRepoConnections } from "../../lib/loadRepoConnections";
 import { RepoListView } from "./RepoListView";
 
 export default async function DashboardPage() {
@@ -35,15 +36,11 @@ export default async function DashboardPage() {
   // blank the whole repositories page.
   const installationIds = installations.map((i) => String(i.installationId));
 
+  const connectionRead = await loadRepoConnections(prisma, installationIds);
   const activity = await readOrEmpty(
     "[dashboard/page] failed to load rollout activity:",
     () =>
       Promise.all([
-        prisma.repoConnection.findMany({
-          where: {
-            installationId: { in: installationIds },
-          },
-        }),
         prisma.rolloutOutcome.findMany({
           where: {
             installationId: { in: installationIds },
@@ -63,9 +60,10 @@ export default async function DashboardPage() {
           take: 200,
         }),
       ]),
-    [[], [], []] as const,
+    [[], []] as const,
   );
-  const [connections, rollouts, commits] = activity.value;
+  const [rollouts, commits] = activity.value;
+  const connections = connectionRead.value;
 
   const githubRepos = repos.map((r) => ({
     ...r,
@@ -79,7 +77,7 @@ export default async function DashboardPage() {
       connections={connections}
       rollouts={rollouts}
       commits={commits}
-      activityError={activity.error}
+      activityError={connectionRead.error || activity.error}
     />
   );
 }

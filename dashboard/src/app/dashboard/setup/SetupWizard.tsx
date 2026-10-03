@@ -36,6 +36,7 @@ interface SetupWizardProps {
   connections: RepoConnectionItem[];
   initialRepoFullName?: string;
   accountName?: string;
+  loadError?: string | null;
 }
 
 export function SetupWizard({
@@ -44,6 +45,7 @@ export function SetupWizard({
   connections,
   initialRepoFullName = "",
   accountName = "server",
+  loadError = null,
 }: SetupWizardProps) {
   // Determine if a GitHub App is attached
   const githubInstallation = installations.find((i) => !i.installationId.startsWith("host_"));
@@ -163,6 +165,12 @@ export function SetupWizard({
           </div>
         </div>
       </div>
+
+      {loadError ? (
+        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" role="status">
+          {loadError}
+        </p>
+      ) : null}
 
       {/* STEP 1: SELECT REPOSITORY */}
       {step === 1 && (

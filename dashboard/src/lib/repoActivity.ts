@@ -69,6 +69,12 @@ export function activityErrorMessage(err: unknown): string {
     : "";
   if (code === "P2021" || code === "P2022") {
     const suffix = detail ? ` Missing: ${detail}.` : "";
+    const mentionsMode =
+      /mode|DeploymentMode/i.test(detail) ||
+      /mode|DeploymentMode/i.test(err && typeof err === "object" && "message" in err ? String((err as { message: unknown }).message) : "");
+    if (mentionsMode) {
+      return `Repository connections could not be loaded because RepoConnection.mode is missing.${suffix} From core-api, run \`npx prisma migrate deploy\` (additive DeploymentMode migration). Do not reset the database.`;
+    }
     return `Rollout history is unavailable because the database is missing a table or column the app expects.${suffix} In Neon SQL, run core-api/prisma/repair-rollout-schema.sql then reload.`;
   }
   return "Rollout history could not be loaded. Repositories from the GitHub App are still listed.";
