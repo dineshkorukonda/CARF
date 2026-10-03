@@ -161,4 +161,38 @@ describe("POST /api/repo/link", () => {
     expect(json.integration).toBe("github-actions");
     expect(json.installToken).toBeUndefined();
   });
+
+  it("commits 3-layer configuration with explicit deploymentIntegration and runtimeAdapter", async () => {
+    const res = await linkRepo(
+      new NextRequest(`${BASE_URL}/api/repo/link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId: "163039391",
+          owner: "dineshkorukonda",
+          repo: "cloud-app",
+          deploymentIntegration: "argo_rollouts",
+          runtimeAdapter: "none",
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(putCarfConfigFile).toHaveBeenCalled();
+    const yaml = putCarfConfigFile.mock.calls[0]![2] as string;
+    expect(yaml).toContain("deploymentIntegration: argo_rollouts");
+    expect(yaml).toContain("runtimeAdapter: none");
+    expect(repoConnectionUpsert).toHaveBeenCalled();
+    const upsertArgs = repoConnectionUpsert.mock.calls[0]![0] as {
+      create: { deploymentIntegration: string; runtimeAdapter: string; mode: string };
+    };
+    expect(upsertArgs.create.deploymentIntegration).toBe("argo_rollouts");
+    expect(upsertArgs.create.runtimeAdapter).toBe("none");
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.deploymentIntegration).toBe("argo_rollouts");
+    expect(json.runtimeAdapter).toBe("none");
+    expect(json.capabilities.policy).toBe(true);
+    expect(json.capabilities.rollback).toBe(false);
+  });
 });

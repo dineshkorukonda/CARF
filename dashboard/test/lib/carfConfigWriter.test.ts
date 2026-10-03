@@ -1,6 +1,6 @@
 import { dump, load } from "js-yaml";
 import { describe, expect, it } from "vitest";
-import { applyClassificationThresholdPatch, applyModeAdapterPatch, InvalidCarfConfigError } from "../../src/lib/carfConfigWriter";
+import { applyClassificationThresholdPatch, applyModeAdapterPatch, applyThreeLayerConfigPatch, InvalidCarfConfigError } from "../../src/lib/carfConfigWriter";
 
 describe("applyModeAdapterPatch", () => {
   it("creates a minimal document when the repo has no .carf.yml yet", () => {
@@ -120,5 +120,35 @@ describe("applyClassificationThresholdPatch", () => {
     expect(() =>
       applyClassificationThresholdPatch(null, { classification: { rules: [{ type: "infra", patterns: [""] }] } })
     ).toThrow();
+  });
+});
+
+describe("applyThreeLayerConfigPatch", () => {
+  it("writes 3-layer configuration for PM2 runtime and GitHub Actions integration", () => {
+    const result = applyThreeLayerConfigPatch(null, {
+      deploymentIntegration: "github_actions",
+      runtimeAdapter: "pm2",
+      adapter: { kind: "pm2", target: "sahaay" },
+    });
+
+    expect(load(result)).toEqual({
+      deploymentIntegration: "github_actions",
+      runtimeAdapter: "pm2",
+      mode: "standalone",
+      adapter: { kind: "pm2", target: "sahaay" },
+    });
+  });
+
+  it("writes 3-layer configuration for policy-only (none) runtime", () => {
+    const result = applyThreeLayerConfigPatch(null, {
+      deploymentIntegration: "argo_rollouts",
+      runtimeAdapter: "none",
+    });
+
+    expect(load(result)).toEqual({
+      deploymentIntegration: "argo_rollouts",
+      runtimeAdapter: "none",
+      mode: "augment",
+    });
   });
 });

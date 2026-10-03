@@ -2,11 +2,15 @@ import { dump, load } from "js-yaml";
 import {
   AdapterConfigSchema,
   ClassificationSchema,
+  DeploymentIntegrationSchema,
   ModeSchema,
+  RuntimeAdapterSchema,
   ThresholdSchema,
   type AdapterConfig,
   type ClassificationConfig,
+  type DeploymentIntegrationConfig,
   type Mode,
+  type RuntimeAdapterConfig,
   type ThresholdConfig,
 } from "./carfConfigSchema";
 
@@ -38,35 +42,58 @@ function serialize(config: Record<string, unknown>): string {
 }
 
 export interface ModeAdapterPatch {
-  mode: Mode;
-  /** Required when `mode === "standalone"`; ignored (and any existing value dropped, see
+  mode?: Mode;
+  deploymentIntegration?: DeploymentIntegrationConfig;
+  runtimeAdapter?: RuntimeAdapterConfig;
+  /** Required when `mode === "standalone"` or `runtimeAdapter === "pm2"`; ignored (and any existing value dropped, see
    *  below) when `mode === "augment"`. */
   adapter?: AdapterConfig;
 }
 
 /**
- * Merges a mode/adapter patch (issue #62's form) into an existing `.carf.yml`, leaving
+ * Merges a mode/adapter patch (or 3-layer architecture patch) into an existing `.carf.yml`, leaving
  * every other top-level key (`classification`, `threshold`, and anything this dashboard
  * doesn't know about yet) untouched.
  */
 export function applyModeAdapterPatch(existingYaml: string | null, patch: ModeAdapterPatch): string {
   const next = parseExistingConfig(existingYaml);
 
-  const mode = ModeSchema.parse(patch.mode);
-  next.mode = mode;
+  if (patch.deploymentIntegration) {
+    next.deploymentIntegration = DeploymentIntegrationSchema.parse(patch.deploymentIntegration);
+  }
+  if (patch.runtimeAdapter) {
+    next.runtimeAdapter = RuntimeAdapterSchema.parse(patch.runtimeAdapter);
+  }
 
-  if (mode === "standalone") {
+  const derivedMode = patch.mode
+    ? ModeSchema.parse(patch.mode)
+    : (patch.runtimeAdapter === "pm2" ? "standalone" : "augment");
+
+  next.mode = derivedMode;
+
+  if (derivedMode === "standalone" || patch.runtimeAdapter === "pm2") {
     if (!patch.adapter) {
       throw new InvalidCarfConfigError("adapter is required when mode is standalone");
     }
     next.adapter = AdapterConfigSchema.parse(patch.adapter);
   } else {
-    // Augment mode never reads `adapter` -- drop a stale value rather than carry dead
+    // Augment / none mode never reads `adapter` -- drop a stale value rather than carry dead
     // config forward (matches issue #50's "avoid a silently-inert selection" ethos).
     delete next.adapter;
   }
 
   return serialize(next);
+}
+
+export interface ThreeLayerConfigPatch {
+  deploymentIntegration: DeploymentIntegrationConfig;
+  runtimeAdapter: RuntimeAdapterConfig;
+  adapter?: AdapterConfig;
+  mode?: Mode;
+}
+
+export function applyThreeLayerConfigPatch(existingYaml: string | null, patch: ThreeLayerConfigPatch): string {
+  return applyModeAdapterPatch(existingYaml, patch);
 }
 
 export interface ClassificationThresholdPatch {
