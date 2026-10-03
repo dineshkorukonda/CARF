@@ -17,6 +17,7 @@ import {
 } from "../../../../lib/carfConfigSchema";
 import { generateInstallToken } from "../../../../lib/agentToken";
 import { resolveRepoMode, type DeploymentMode } from "../../../../lib/deploymentMode";
+import { resolveFromLegacy } from "../../../../lib/capabilities";
 
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest) {
   let owner = "";
   let repo = "";
   let mode = "";
+  let deploymentIntegration: string | undefined;
+  let runtimeAdapter: string | undefined;
   let adapterKind = "";
   let adapterTarget = "";
   let integration = "";
@@ -38,7 +41,9 @@ export async function POST(request: NextRequest) {
     installationId = String(body.installationId ?? "");
     owner = String(body.owner ?? "");
     repo = String(body.repo ?? "");
-    mode = String(body.mode ?? "");
+    mode = typeof body.mode === "string" ? body.mode : "";
+    deploymentIntegration = typeof body.deploymentIntegration === "string" ? body.deploymentIntegration : undefined;
+    runtimeAdapter = typeof body.runtimeAdapter === "string" ? body.runtimeAdapter : undefined;
     adapterKind = String(body.adapterKind ?? "");
     adapterTarget = String(body.adapterTarget ?? "");
     integration = String(body.integration ?? "github-actions");
@@ -60,27 +65,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!installationId || !owner || !repo || !mode) {
+  if (!installationId || !owner || !repo || (!mode && !deploymentIntegration && !runtimeAdapter)) {
     return NextResponse.json(
-      { error: "Missing required fields: installationId, owner, repo, mode" },
+      { error: "Missing required fields: installationId, owner, repo, and configuration" },
       { status: 400 }
     );
   }
 
-  if (mode !== "standalone" && mode !== "augment") {
+  if (mode && mode !== "standalone" && mode !== "augment") {
     return NextResponse.json(
       { error: "mode must be explicitly 'standalone' or 'augment'" },
       { status: 400 }
     );
   }
 
-  const deploymentMode: DeploymentMode = resolveRepoMode({ mode });
+  const resolved = resolveFromLegacy({
+    mode: mode || undefined,
+    deploymentIntegration,
+    runtimeAdapter,
+    adapter: adapterKind ? { kind: adapterKind } : undefined,
+  });
 
-  if (mode === "standalone" && (!adapterKind || !adapterTarget)) {
-    return NextResponse.json(
-      { error: "adapterKind and adapterTarget are required for standalone mode" },
-      { status: 400 }
-    );
+  const deploymentMode: DeploymentMode = resolveRepoMode({ mode: resolved.capabilities.rollback ? "standalone" : "augment" });
+
+  if (resolved.runtimeAdapter === "pm2") {
+    adapterKind = adapterKind || "pm2";
+    if (!adapterTarget) {
+      return NextResponse.json(
+        { error: "adapterKind and adapterTarget are required for standalone mode" },
+        { status: 400 }
+      );
+    }
   }
 
   const installation = await getInstallationForAccount(prisma, account.id, installationId);
@@ -95,7 +110,7 @@ export async function POST(request: NextRequest) {
     const existingFile = await getCarfConfigFile(owner, repo, token).catch(() => null);
 
     const adapterConfig =
-      mode === "standalone"
+      resolved.runtimeAdapter === "pm2"
         ? AdapterConfigSchema.parse({
             kind: adapterKind as AdapterKind,
             target: adapterTarget,
@@ -104,7 +119,9 @@ export async function POST(request: NextRequest) {
         : undefined;
 
     const nextYaml = applyModeAdapterPatch(existingFile?.content ?? null, {
-      mode: mode === "standalone" ? "standalone" : "augment",
+      mode: deploymentMode,
+      deploymentIntegration: resolved.deploymentIntegration,
+      runtimeAdapter: resolved.runtimeAdapter,
       adapter: adapterConfig,
     });
 
@@ -118,7 +135,12 @@ export async function POST(request: NextRequest) {
     );
 
     if (deploymentMode === "augment") {
-      const storedConfig = { mode: "augment" as const, integration };
+      const storedConfig = {
+        mode: "augment" as const,
+        integration,
+        deploymentIntegration: resolved.deploymentIntegration,
+        runtimeAdapter: resolved.runtimeAdapter,
+      };
 
       try {
         await prisma.repoConnection.upsert({
@@ -134,6 +156,8 @@ export async function POST(request: NextRequest) {
             owner,
             repo,
             mode: "augment",
+            deploymentIntegration: resolved.deploymentIntegration,
+            runtimeAdapter: resolved.runtimeAdapter,
             storedConfig,
             verifiedAt: null,
             installTokenHash: null,
@@ -142,6 +166,8 @@ export async function POST(request: NextRequest) {
           },
           update: {
             mode: "augment",
+            deploymentIntegration: resolved.deploymentIntegration,
+            runtimeAdapter: resolved.runtimeAdapter,
             storedConfig,
             verifiedAt: null,
             installTokenHash: null,
@@ -156,13 +182,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         mode: "augment",
+        deploymentIntegration: resolved.deploymentIntegration,
+        runtimeAdapter: resolved.runtimeAdapter,
+        capabilities: resolved.capabilities,
         integration,
         owner,
         repo,
       });
     }
 
-    const storedConfig = { mode: "standalone" as const, ...adapterConfig };
+    const storedConfig = {
+      mode: "standalone" as const,
+      deploymentIntegration: resolved.deploymentIntegration,
+      runtimeAdapter: resolved.runtimeAdapter,
+      ...adapterConfig,
+    };
     const { token: installToken, hash: installTokenHash, prefix: installTokenPrefix } = generateInstallToken();
 
     try {
@@ -179,6 +213,8 @@ export async function POST(request: NextRequest) {
           owner,
           repo,
           mode: "standalone",
+          deploymentIntegration: resolved.deploymentIntegration,
+          runtimeAdapter: resolved.runtimeAdapter,
           storedConfig,
           verifiedAt: null,
           installTokenHash,
@@ -187,6 +223,8 @@ export async function POST(request: NextRequest) {
         },
         update: {
           mode: "standalone",
+          deploymentIntegration: resolved.deploymentIntegration,
+          runtimeAdapter: resolved.runtimeAdapter,
           storedConfig,
           installTokenHash,
           installTokenPrefix,
@@ -200,6 +238,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       mode: "standalone",
+      deploymentIntegration: resolved.deploymentIntegration,
+      runtimeAdapter: resolved.runtimeAdapter,
+      capabilities: resolved.capabilities,
       owner,
       repo,
       adapterKind,
