@@ -5,6 +5,7 @@ import { prisma } from "../../../../lib/prisma";
 import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { getCarfConfigFile, getRepoFile } from "../../../../adapters/github/contentsClient";
 import { listInstallationRepos } from "../../../../adapters/github/reposClient";
+import { parseDeclaredMode, resolveRepoMode, repoIdentityKey } from "../../../../lib/deploymentMode";
 
 export async function GET(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -45,6 +46,14 @@ export async function GET(request: NextRequest) {
       }));
     }
 
+    const connections = await prisma.repoConnection.findMany({
+      where: { installationId },
+      select: { owner: true, repo: true, mode: true, storedConfig: true, installTokenHash: true },
+    });
+    const connectionByRepo = new Map(
+      connections.map((c) => [repoIdentityKey(c.owner, c.repo), c] as const)
+    );
+
     const statuses = await Promise.all(
       repoList.map(async (r) => {
         try {
@@ -53,29 +62,32 @@ export async function GET(request: NextRequest) {
             getRepoFile(r.owner, r.name, ".github/workflows/carf.yml", token).catch(() => null),
           ]);
 
-          let mode: string | undefined;
+          let yamlMode: string | undefined;
           let adapterKind: string | undefined;
           let adapterTarget: string | undefined;
 
           if (configFile?.content) {
             const modeMatch = configFile.content.match(/mode:\s*["']?([a-zA-Z0-9_-]+)["']?/);
-            if (modeMatch) mode = modeMatch[1];
+            if (modeMatch) yamlMode = modeMatch[1];
 
-            // Parse adapter.kind: `kind: pm2` or `kind: "pm2"`
             const kindMatch = configFile.content.match(/kind:\s*["']?([a-zA-Z0-9_-]+)["']?/);
             if (kindMatch) adapterKind = kindMatch[1];
 
-            // Parse adapter.target: `target: api-server` or `target: "api-server"`
             const targetMatch = configFile.content.match(/target:\s*["']?([a-zA-Z0-9_./:@-]+)["']?/);
             if (targetMatch) adapterTarget = targetMatch[1];
           }
+
+          const connection = connectionByRepo.get(repoIdentityKey(r.owner, r.name));
+          const mode = connection
+            ? resolveRepoMode(connection)
+            : parseDeclaredMode(yamlMode) ?? undefined;
 
           return {
             name: r.name,
             fullName: `${r.owner}/${r.name}`,
             isProtected: !!configFile,
             hasWorkflow: !!workflowFile,
-            mode: mode ?? (configFile ? "balanced" : undefined),
+            mode,
             adapterKind,
             adapterTarget,
           };

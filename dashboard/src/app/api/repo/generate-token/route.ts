@@ -3,13 +3,13 @@ import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { generateInstallToken } from "../../../../lib/agentToken";
+import { resolveRepoMode } from "../../../../lib/deploymentMode";
 
 /**
- * Generates an installation token for the CARF Host Agent.
+ * Regenerates a Host Agent install token for an existing Standalone repository.
  *
- * This endpoint is explicitly Standalone-oriented.
- * It requires an explicit GitHub owner and repository name, and an authorized installation.
- * It NEVER defaults to or creates an implicit "production" repository.
+ * Never creates a RepoConnection. Never invents owner/repo defaults
+ * (including "production"). Augment repositories cannot mint agent tokens.
  */
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -24,10 +24,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { installationId, owner, repo } = body;
-
-  const resolvedOwner = typeof owner === "string" ? owner.trim() : "";
-  const resolvedRepo = typeof repo === "string" ? repo.trim() : "";
+  const resolvedOwner = typeof body.owner === "string" ? body.owner.trim() : "";
+  const resolvedRepo = typeof body.repo === "string" ? body.repo.trim() : "";
+  const resolvedInstallationId = typeof body.installationId === "string" ? body.installationId.trim() : "";
 
   if (!resolvedOwner || !resolvedRepo) {
     return NextResponse.json(
@@ -36,14 +35,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!installationId || typeof installationId !== "string" || !installationId.trim()) {
+  if (!resolvedInstallationId) {
     return NextResponse.json(
       { error: "Missing required field: installationId must be specified" },
       { status: 400 }
     );
   }
 
-  const resolvedInstallationId = installationId.trim();
   const installation = await getInstallationForAccount(prisma, account.id, resolvedInstallationId);
   if (!installation) {
     return NextResponse.json(
@@ -52,9 +50,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { token, hash, prefix } = generateInstallToken();
-
-  const connection = await prisma.repoConnection.upsert({
+  const connection = await prisma.repoConnection.findUnique({
     where: {
       installationId_owner_repo: {
         installationId: installation.installationId,
@@ -62,15 +58,30 @@ export async function POST(request: NextRequest) {
         repo: resolvedRepo,
       },
     },
-    create: {
-      installationId: installation.installationId,
-      owner: resolvedOwner,
-      repo: resolvedRepo,
-      installTokenHash: hash,
-      installTokenPrefix: prefix,
-      agentRevoked: false,
-    },
-    update: {
+  });
+
+  if (!connection) {
+    return NextResponse.json(
+      {
+        error:
+          "Repository is not linked yet. Complete Standalone setup before generating a host agent token.",
+      },
+      { status: 404 }
+    );
+  }
+
+  if (resolveRepoMode(connection) !== "standalone") {
+    return NextResponse.json(
+      { error: "Host agent tokens are only issued for Standalone repositories." },
+      { status: 400 }
+    );
+  }
+
+  const { token, hash, prefix } = generateInstallToken();
+
+  const updated = await prisma.repoConnection.update({
+    where: { id: connection.id },
+    data: {
       installTokenHash: hash,
       installTokenPrefix: prefix,
       agentRevoked: false,
@@ -80,8 +91,9 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     token,
     prefix,
-    owner: connection.owner,
-    repo: connection.repo,
+    owner: updated.owner,
+    repo: updated.repo,
     installationId: installation.installationId,
+    mode: "standalone",
   });
 }

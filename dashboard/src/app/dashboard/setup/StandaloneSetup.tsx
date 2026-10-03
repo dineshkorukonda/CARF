@@ -88,10 +88,52 @@ export function StandaloneSetup({
   const centralOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
 
-  // Mint agent token for THIS specific repo
+  const persistStandaloneLink = useCallback(async (): Promise<string | null> => {
+    const res = await fetch("/api/repo/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        installationId,
+        owner: repo.owner.login,
+        repo: repo.name,
+        mode: "standalone",
+        adapterKind: "pm2",
+        adapterTarget: targetName.trim(),
+        layout,
+        cwd,
+        healthUrl,
+        startupGraceSeconds,
+        ...(layout === "releases" ? { releasesDir, currentSymlink } : {}),
+      }),
+    });
+    const data = (await res.json()) as { error?: string; installToken?: string };
+    if (!res.ok) {
+      throw new Error(data.error || "Failed to link standalone repository");
+    }
+    return data.installToken ?? null;
+  }, [
+    installationId,
+    repo.owner.login,
+    repo.name,
+    targetName,
+    layout,
+    cwd,
+    healthUrl,
+    startupGraceSeconds,
+    releasesDir,
+    currentSymlink,
+  ]);
+
   const generateAgentToken = useCallback(async () => {
     setGeneratingToken(true);
+    setCommitError(null);
     try {
+      // Token minting requires an existing Standalone connection — persist first.
+      const linkedToken = await persistStandaloneLink();
+      if (linkedToken) {
+        setInstallToken(linkedToken);
+        return;
+      }
       const res = await fetch("/api/repo/generate-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,18 +143,18 @@ export function StandaloneSetup({
           repo: repo.name,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.token) {
-          setInstallToken(data.token);
-        }
+      const data = (await res.json()) as { token?: string; error?: string };
+      if (res.ok && data.token) {
+        setInstallToken(data.token);
+      } else if (data.error) {
+        setCommitError(data.error);
       }
     } catch (err) {
-      console.error("Failed to generate host agent token:", err);
+      setCommitError(err instanceof Error ? err.message : "Failed to generate host agent token");
     } finally {
       setGeneratingToken(false);
     }
-  }, [installationId, repo.owner.login, repo.name]);
+  }, [installationId, persistStandaloneLink, repo.owner.login, repo.name]);
 
   // Deferred token generation when landing on subStep 2 without token
   useEffect(() => {
@@ -284,7 +326,7 @@ export function StandaloneSetup({
                 type="text"
                 value={targetName}
                 onChange={(e) => setTargetName(e.target.value)}
-                placeholder="e.g. my-app or production"
+                placeholder="PM2 process name (e.g. sahaay)"
                 className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs font-mono text-foreground focus:ring-1 focus:ring-primary"
               />
               <p className="text-[11px] text-muted-foreground">

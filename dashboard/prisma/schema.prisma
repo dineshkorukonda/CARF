@@ -186,6 +186,11 @@ enum RolloutTrigger {
   manual
 }
 
+enum DeploymentMode {
+  standalone
+  augment
+}
+
 // Records the lifecycle and outcome of a live Standalone rollback loop for a commit.
 // Created as PENDING on processCommit success, then driven to terminal status (SUCCESS,
 // ROLLED_BACK, or FAILED) by the background monitor worker.
@@ -235,21 +240,22 @@ model RolloutSample {
 // Stores repository connection state, verification report, pause toggle, and fallback config.
 // Rule: .carf.yml in the repository root strictly takes precedence over storedConfig warm present.
 model RepoConnection {
-  id                 String    @id @default(cuid())
+  id                 String         @id @default(cuid())
   installationId     String
   owner              String
   repo               String
+  mode               DeploymentMode @default(standalone)
   verifiedAt         DateTime?
   verificationReport Json?
-  monitoringPaused   Boolean   @default(false)
+  monitoringPaused   Boolean        @default(false)
   storedConfig       Json?
   installTokenHash   String?
   installTokenPrefix String?
   agentLastHeartbeat DateTime?
   agentVersion       String?
-  agentRevoked       Boolean?  @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  agentRevoked       Boolean?       @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@unique([installationId, owner, repo])
   @@index([installationId])

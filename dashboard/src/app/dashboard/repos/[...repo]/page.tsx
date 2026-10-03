@@ -129,11 +129,6 @@ export default async function RepoDetailPage(props: {
   const activityError =
     connectionRead.error || rolloutsRead.error || commitsRead.error || auditRead.error;
 
-  const matchingInstallation =
-    installations.find((i) => String(i.installationId) === String(connection?.installationId)) ||
-    installations[0];
-  const coreApiKey = matchingInstallation?.coreApiKey ?? null;
-
   return (
     <RepoDetailView
       owner={owner}
@@ -145,7 +140,6 @@ export default async function RepoDetailPage(props: {
       commits={commits as unknown as CommitWithDetails[]}
       auditLogs={auditLogs as unknown as AuditLogItem[]}
       activityError={activityError}
-      coreApiKey={coreApiKey}
     />
   );
 }

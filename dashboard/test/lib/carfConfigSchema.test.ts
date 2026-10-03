@@ -59,6 +59,9 @@ describe("ModeSchema", () => {
 
   it("rejects anything else", () => {
     expect(ModeSchema.safeParse("observe").success).toBe(false);
+    expect(ModeSchema.safeParse("balanced").success).toBe(false);
+    expect(ModeSchema.safeParse("conservative").success).toBe(false);
+    expect(ModeSchema.safeParse("aggressive").success).toBe(false);
   });
 });
 

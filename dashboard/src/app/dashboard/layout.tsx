@@ -12,11 +12,11 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
   const installations = await listInstallationsForAccount(prisma, account.id);
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-dvh min-h-0 overflow-hidden">
       <SidebarShell installations={installations} accountEmail={account.email} />
-      <div className="flex min-w-0 flex-1 flex-col bg-slate-50">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-slate-50">
         <Topbar accountEmail={account.email} installations={installations} />
-        <div className="flex-1">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
