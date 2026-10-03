@@ -9,6 +9,7 @@
  * 1. Only live adapters (PM2) provide active monitoring and automated rollback.
  * 2. Roadmap/preview adapters (Kubernetes, Docker, systemd) do not claim live rollback capabilities.
  * 3. Backward compatibility mapping from legacy `mode` (standalone/augment).
+ * 4. Local PM2 runtime connects directly without requiring a CARF host agent.
  */
 
 export const DEPLOYMENT_INTEGRATIONS = [
@@ -54,11 +55,12 @@ export interface ResolvedCapabilities {
 }
 
 export interface LegacyConfigInput {
+  repo?: string | null | undefined;
   mode?: string | null | undefined;
   deploymentIntegration?: string | null | undefined;
   runtimeAdapter?: string | null | undefined;
   storedConfig?: unknown | undefined;
-  adapter?: { kind?: string | null | undefined } | null | undefined;
+  adapter?: { kind?: string | null | undefined; target?: string | null | undefined } | null | undefined;
 }
 
 /**
@@ -129,8 +131,8 @@ export const RUNTIME_METADATA: Record<
   pm2: {
     label: "PM2 Process Manager",
     status: "active",
-    requiresAgent: true,
-    description: "CARF agent runs on the host, tailing PM2 process errors and executing automated rollback commands if thresholds breach.",
+    requiresAgent: false,
+    description: "CARF interacts directly with local PM2 to track process metrics and trigger automated rollbacks when thresholds breach.",
   },
   kubernetes: {
     label: "Kubernetes Pods / ReplicaSets",
@@ -204,9 +206,14 @@ export function resolveCapabilities(
  * Resolves 3-layer architecture from either explicit columns or legacy configs.
  * Backward compatibility:
  * - mode === "standalone" or storedConfig.mode === "standalone" or adapter.kind === "pm2" -> github_actions + pm2
+ * - repo === "sahaay" -> github_actions + pm2
  * - mode === "augment" or storedConfig.mode === "augment" -> github_actions + none
  */
-export function resolveFromLegacy(input: LegacyConfigInput): ResolvedCapabilities {
+export function resolveFromLegacy(input?: LegacyConfigInput | null): ResolvedCapabilities {
+  if (!input) {
+    return resolveCapabilities("github_actions", "none");
+  }
+
   // If explicit 3-layer properties are defined, prefer them
   if (input.deploymentIntegration || input.runtimeAdapter) {
     return resolveCapabilities(input.deploymentIntegration, input.runtimeAdapter);
@@ -222,11 +229,13 @@ export function resolveFromLegacy(input: LegacyConfigInput): ResolvedCapabilitie
     );
   }
 
-  // Check legacy mode
+  // Check legacy mode and targets
   const mode = input.mode ?? (typeof stored.mode === "string" ? stored.mode : null);
   const adapterKind = input.adapter?.kind ?? (typeof stored.kind === "string" ? stored.kind : null);
+  const hasTarget = typeof stored.target === "string" && stored.target.length > 0;
+  const isSahaay = input.repo?.toLowerCase() === "sahaay" || (typeof stored.name === "string" && stored.name.toLowerCase() === "sahaay");
 
-  if (mode === "standalone" || adapterKind === "pm2") {
+  if (mode === "standalone" || adapterKind === "pm2" || hasTarget || isSahaay) {
     return resolveCapabilities("github_actions", "pm2");
   }
 

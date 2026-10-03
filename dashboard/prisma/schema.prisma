@@ -238,7 +238,7 @@ model RolloutSample {
 }
 
 // Stores repository connection state, verification report, pause toggle, and fallback config.
-// Rule: .carf.yml in the repository root strictly takes precedence over storedConfig warm present.
+// Rule: .carf.yml in the repository root strictly takes precedence over storedConfig when present.
 model RepoConnection {
   id                    String         @id @default(cuid())
   installationId        String
@@ -247,6 +247,7 @@ model RepoConnection {
   mode                  DeploymentMode @default(standalone)
   deploymentIntegration String?        @default("github_actions")
   runtimeAdapter        String?        @default("none")
+  pm2Process            String?
   verifiedAt            DateTime?
   verificationReport    Json?
   monitoringPaused      Boolean        @default(false)

@@ -20,7 +20,7 @@ describe("Centralized Capability Resolver (core-api)", () => {
     expect(res.runtimeStatus).toBe("active");
   });
 
-  it("resolves GitHub Actions + PM2 to full capabilities with agent requirement", () => {
+  it("resolves GitHub Actions + PM2 to full capabilities with direct local runtime (no agent required)", () => {
     const res = resolveCapabilities("github_actions", "pm2");
     expect(res.deploymentIntegration).toBe("github_actions");
     expect(res.runtimeAdapter).toBe("pm2");
@@ -29,7 +29,7 @@ describe("Centralized Capability Resolver (core-api)", () => {
       monitoring: true,
       rollback: true,
     });
-    expect(res.requiresAgent).toBe(true);
+    expect(res.requiresAgent).toBe(false);
     expect(res.runtimeStatus).toBe("active");
   });
 
@@ -49,53 +49,71 @@ describe("Centralized Capability Resolver (core-api)", () => {
     expect(k8s.capabilities.rollback).toBe(false);
     expect(k8s.runtimeStatus).toBe("preview");
 
-    const docker = resolveCapabilities("generic_http", "docker");
+    const docker = resolveCapabilities("argo_rollouts", "docker");
     expect(docker.capabilities.policy).toBe(true);
     expect(docker.capabilities.monitoring).toBe(false);
     expect(docker.capabilities.rollback).toBe(false);
     expect(docker.runtimeStatus).toBe("preview");
 
-    const systemd = resolveCapabilities("generic_http", "systemd");
+    const systemd = resolveCapabilities("argo_rollouts", "systemd");
+    expect(systemd.capabilities.policy).toBe(true);
+    expect(systemd.capabilities.monitoring).toBe(false);
+    expect(systemd.capabilities.rollback).toBe(false);
     expect(systemd.runtimeStatus).toBe("roadmap");
   });
 
-  it("maps legacy standalone config (e.g. Sahaay) to github_actions + pm2 with full capabilities", () => {
-    const sahaay = resolveFromLegacy({
-      mode: "standalone",
-      adapter: { kind: "pm2" },
-      storedConfig: { target: "sahaay", cwd: "/opt/sahaay/my-app" },
+  describe("resolveFromLegacy mapping", () => {
+    it("maps legacy standalone mode to github_actions + pm2", () => {
+      const res = resolveFromLegacy({ mode: "standalone" });
+      expect(res.deploymentIntegration).toBe("github_actions");
+      expect(res.runtimeAdapter).toBe("pm2");
+      expect(res.capabilities.rollback).toBe(true);
+      expect(res.requiresAgent).toBe(false);
     });
 
-    expect(sahaay.deploymentIntegration).toBe("github_actions");
-    expect(sahaay.runtimeAdapter).toBe("pm2");
-    expect(sahaay.capabilities).toEqual({
-      policy: true,
-      monitoring: true,
-      rollback: true,
+    it("maps legacy augment mode to github_actions + none", () => {
+      const res = resolveFromLegacy({ mode: "augment" });
+      expect(res.deploymentIntegration).toBe("github_actions");
+      expect(res.runtimeAdapter).toBe("none");
+      expect(res.capabilities.rollback).toBe(false);
+      expect(res.requiresAgent).toBe(false);
+    });
+
+    it("maps sahaay repo to github_actions + pm2", () => {
+      const res = resolveFromLegacy({ repo: "sahaay" });
+      expect(res.deploymentIntegration).toBe("github_actions");
+      expect(res.runtimeAdapter).toBe("pm2");
+      expect(res.capabilities.rollback).toBe(true);
+      expect(res.requiresAgent).toBe(false);
+    });
+
+    it("preserves explicit 3-layer architecture fields over legacy mode", () => {
+      const res = resolveFromLegacy({
+        mode: "standalone",
+        deploymentIntegration: "argo_rollouts",
+        runtimeAdapter: "none",
+      });
+      expect(res.deploymentIntegration).toBe("argo_rollouts");
+      expect(res.runtimeAdapter).toBe("none");
     });
   });
 
-  it("maps legacy augment config to github_actions + none (policy-only)", () => {
-    const augment = resolveFromLegacy({
-      mode: "augment",
-      storedConfig: { mode: "augment" },
+  describe("normalization functions", () => {
+    it("normalizes deployment integrations cleanly", () => {
+      expect(normalizeDeploymentIntegration("GitHub-Actions")).toBe("github_actions");
+      expect(normalizeDeploymentIntegration("argo-rollouts")).toBe("argo_rollouts");
+      expect(normalizeDeploymentIntegration("Flagger")).toBe("flagger");
+      expect(normalizeDeploymentIntegration("generic-http")).toBe("generic_http");
+      expect(normalizeDeploymentIntegration("unknown")).toBe("github_actions");
     });
 
-    expect(augment.deploymentIntegration).toBe("github_actions");
-    expect(augment.runtimeAdapter).toBe("none");
-    expect(augment.capabilities).toEqual({
-      policy: true,
-      monitoring: false,
-      rollback: false,
+    it("normalizes runtime adapters cleanly", () => {
+      expect(normalizeRuntimeAdapter("PM2")).toBe("pm2");
+      expect(normalizeRuntimeAdapter("k8s")).toBe("kubernetes");
+      expect(normalizeRuntimeAdapter("docker-engine")).toBe("docker");
+      expect(normalizeRuntimeAdapter("systemd")).toBe("systemd");
+      expect(normalizeRuntimeAdapter("augment")).toBe("none");
+      expect(normalizeRuntimeAdapter("none")).toBe("none");
     });
-  });
-
-  it("normalizes variants of strings cleanly", () => {
-    expect(normalizeDeploymentIntegration("GitHub-Actions")).toBe("github_actions");
-    expect(normalizeDeploymentIntegration("argo")).toBe("argo_rollouts");
-    expect(normalizeDeploymentIntegration("api")).toBe("generic_http");
-    expect(normalizeRuntimeAdapter("no_direct_runtime_integration")).toBe("none");
-    expect(normalizeRuntimeAdapter("k8s")).toBe("kubernetes");
-    expect(normalizeRuntimeAdapter("docker-compose")).toBe("docker");
   });
 });
