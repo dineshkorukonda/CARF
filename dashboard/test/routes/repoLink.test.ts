@@ -82,7 +82,7 @@ describe("POST /api/repo/link", () => {
     expect(res.status).toBe(401);
   });
 
-  it("commits standalone PM2 git layout fields and returns JSON", async () => {
+  it("commits standalone PM2 git layout fields and returns JSON with installToken", async () => {
     const res = await linkRepo(
       new NextRequest(`${BASE_URL}/api/repo/link`, {
         method: "POST",
@@ -113,11 +113,50 @@ describe("POST /api/repo/link", () => {
     expect(yaml).not.toContain("version:");
     expect(repoConnectionUpsert).toHaveBeenCalled();
     const upsertArgs = repoConnectionUpsert.mock.calls[0]![0] as {
-      create: { verifiedAt: Date | null; storedConfig: { target: string } };
+      create: { verifiedAt: Date | null; storedConfig: { target: string }; installTokenHash: string | null };
       update: { storedConfig: { target: string } };
     };
     expect(upsertArgs.create.verifiedAt).toBeNull();
     expect(upsertArgs.create.storedConfig.target).toBe("sahaay");
+    expect(upsertArgs.create.installTokenHash).toBeTruthy();
     expect(upsertArgs.update.storedConfig.target).toBe("sahaay");
+    const json = await res.json();
+    expect(json.installToken).toBeTruthy();
+  });
+
+  it("commits augment mode without adapter and without generating installToken", async () => {
+    const res = await linkRepo(
+      new NextRequest(`${BASE_URL}/api/repo/link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          installationId: "163039391",
+          owner: "dineshkorukonda",
+          repo: "daily",
+          mode: "augment",
+          integration: "github-actions",
+        }),
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(putCarfConfigFile).toHaveBeenCalled();
+    const yaml = putCarfConfigFile.mock.calls[0]![2] as string;
+    expect(yaml).toContain("mode: augment");
+    expect(yaml).not.toContain("adapter:");
+    expect(yaml).not.toContain("kind: pm2");
+    expect(repoConnectionUpsert).toHaveBeenCalled();
+    const upsertArgs = repoConnectionUpsert.mock.calls[0]![0] as {
+      create: { verifiedAt: Date | null; storedConfig: { mode: string; integration: string }; installTokenHash: string | null };
+    };
+    expect(upsertArgs.create.verifiedAt).toBeNull();
+    expect(upsertArgs.create.storedConfig.mode).toBe("augment");
+    expect(upsertArgs.create.storedConfig.integration).toBe("github-actions");
+    expect(upsertArgs.create.installTokenHash).toBeNull();
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.mode).toBe("augment");
+    expect(json.integration).toBe("github-actions");
+    expect(json.installToken).toBeUndefined();
   });
 });
