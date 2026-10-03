@@ -75,6 +75,7 @@
 
 html {
   color-scheme: light;
+  height: 100%;
 }
 
 html.dark {
@@ -82,6 +83,7 @@ html.dark {
 }
 
 body {
+  min-height: 100dvh;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);

@@ -19,6 +19,23 @@ vi.mock("../../src/lib/auth", () => ({
   getCurrentAccount: vi.fn().mockResolvedValue({ id: "acc_test", email: "test@example.com" }),
 }));
 
+vi.mock("../../src/lib/accountService", () => ({
+  getInstallationForAccount: vi.fn().mockResolvedValue({
+    id: "inst_row",
+    installationId: "12345",
+    userId: "acc_test",
+    targetLogin: "acme",
+    targetType: "User",
+    repositorySelection: "all",
+    coreApiKey: "key_mock_123",
+    createdAt: new Date(),
+  }),
+}));
+
+vi.mock("../../src/lib/coreApiAccess", () => ({
+  ensureCoreApiKey: vi.fn().mockResolvedValue("key_mock_123"),
+}));
+
 vi.mock("../../src/lib/installationAccess", () => ({
   verifyInstallationAccess: vi.fn().mockResolvedValue(true),
 }));
@@ -31,7 +48,9 @@ const mockFindUniqueInstallation = vi.fn();
 const mockFindFirstInstallation = vi.fn();
 const mockUpsertRepoConnection = vi.fn();
 const mockFindUniqueRepoConnection = vi.fn();
+const mockUpdateRepoConnection = vi.fn();
 const mockCommitFindMany = vi.fn();
+const mockCommitFindFirst = vi.fn();
 
 vi.mock("../../src/lib/prisma", () => ({
   prisma: {
@@ -44,9 +63,11 @@ vi.mock("../../src/lib/prisma", () => ({
     repoConnection: {
       upsert: (...args: unknown[]) => mockUpsertRepoConnection(...args),
       findUnique: (...args: unknown[]) => mockFindUniqueRepoConnection(...args),
+      update: (...args: unknown[]) => mockUpdateRepoConnection(...args),
     },
     commit: {
       findMany: (...args: unknown[]) => mockCommitFindMany(...args),
+      findFirst: (...args: unknown[]) => mockCommitFindFirst(...args),
     },
   },
 }));
@@ -125,6 +146,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
       expect(mockUpsertRepoConnection).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({
+            mode: "standalone",
             storedConfig: expect.objectContaining({
               mode: "standalone",
               kind: "pm2",
@@ -193,6 +215,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
       expect(mockUpsertRepoConnection).toHaveBeenCalledWith(
         expect.objectContaining({
           create: expect.objectContaining({
+            mode: "augment",
             storedConfig: expect.objectContaining({
               mode: "augment",
               integration: "github-actions",
@@ -218,7 +241,6 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           installationId: "12345",
-          // owner and repo missing
         }),
       });
 
@@ -226,12 +248,60 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
       const json = await res.json();
       expect(res.status).toBe(400);
       expect(json.error).toMatch(/owner and repo/i);
+      expect(mockUpsertRepoConnection).not.toHaveBeenCalled();
+    });
+
+    it("does not create a connection when generate-token is called for an unknown repo", async () => {
+      mockFindUniqueRepoConnection.mockResolvedValue(null);
+      const req = new NextRequest("http://localhost/api/repo/generate-token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          installationId: "12345",
+          owner: "dineshkorukonda",
+          repo: "production",
+        }),
+      });
+
+      const res = await generateTokenPost(req);
+      const json = await res.json();
+      expect(res.status).toBe(404);
+      expect(json.error).toMatch(/not linked/i);
+      expect(mockUpsertRepoConnection).not.toHaveBeenCalled();
+    });
+
+    it("refuses host-agent tokens for Augment repositories", async () => {
+      mockFindUniqueRepoConnection.mockResolvedValue({
+        id: "conn_aug",
+        mode: "augment",
+        storedConfig: { mode: "augment", integration: "github-actions" },
+      });
+      const req = new NextRequest("http://localhost/api/repo/generate-token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          installationId: "12345",
+          owner: "dineshkorukonda",
+          repo: "daily",
+        }),
+      });
+
+      const res = await generateTokenPost(req);
+      expect(res.status).toBe(400);
+      expect(mockUpdateRepoConnection).not.toHaveBeenCalled();
     });
   });
 
   describe("Augment Policy Verification", () => {
-    it("verifies policy readiness without host agent", async () => {
-      mockCommitFindMany.mockResolvedValue([]);
+    it("reports a real 404 as authenticated routing, not a fabricated threshold", async () => {
+      mockCommitFindFirst.mockResolvedValue(null);
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        text: async () => JSON.stringify({ error: "commit not found" }),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
       const req = new NextRequest("http://localhost/api/repo/augment-verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -247,8 +317,11 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
       expect(res.status).toBe(200);
       expect(json.success).toBe(true);
       expect(json.policyReady).toBe(true);
-      expect(json.threshold).toBe(0.05);
-      expect(json.window).toBe(30);
+      expect(json.authenticated).toBe(true);
+      expect(json.threshold).toBeUndefined();
+      expect(json.window).toBeUndefined();
+      expect(json.message).toMatch(/404/i);
+      vi.unstubAllGlobals();
     });
   });
 

@@ -19,7 +19,10 @@ export default async function SettingsPage(props: {
   return (
     <SettingsTabsView
       account={account}
-      installations={installations}
+      installations={installations.map((inst) => ({
+        ...inst,
+        coreApiKey: inst.coreApiKey ? "present" : null,
+      }))}
       bannerError={error}
       bannerSuccess={success}
     />

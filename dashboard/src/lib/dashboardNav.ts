@@ -1,8 +1,23 @@
 export const DASHBOARD_NAV_ITEMS = [
   { href: "/dashboard", exact: true, label: "Repositories" },
-  { href: "/dashboard/verify", exact: false, label: "Threshold Demo" },
-  { href: "/dashboard/settings", exact: false, label: "Settings" },
+  { href: "/dashboard/settings", exact: false, label: "GitHub App / Integrations" },
 ] as const;
+
+export const DASHBOARD_NAV_GROUPS = [
+  {
+    id: "product",
+    label: "Product",
+    items: [DASHBOARD_NAV_ITEMS[0]],
+  },
+  {
+    id: "configuration",
+    label: "Configuration",
+    items: [DASHBOARD_NAV_ITEMS[1]],
+  },
+] as const;
+
+/** Internal / research route. Not part of the product sidebar. */
+export const THRESHOLD_DEMO_HREF = "/dashboard/verify";
 
 export const INSTALLATION_SECTION_ITEMS = [
   { id: "status", label: "Live Status" },

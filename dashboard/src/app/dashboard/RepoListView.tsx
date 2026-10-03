@@ -9,13 +9,18 @@ import {
   RotateCcw,
   Clock,
   ArrowRight,
-  Sparkles,
 } from "lucide-react";
 import {
   deriveRepoStatus,
   getStatusBadgeVariant,
+  deriveAgentStatus,
 } from "../../lib/repoStatusDerivation";
-import { resolveRepoMode, resolveAugmentIntegration } from "../../lib/deploymentMode";
+import {
+  resolveRepoMode,
+  resolveAugmentIntegration,
+  augmentIntegrationLabel,
+  repoIdentityKey,
+} from "../../lib/deploymentMode";
 import { commitPageHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
 
@@ -33,6 +38,7 @@ interface RepoConnectionItem {
   installationId: string;
   owner: string;
   repo: string;
+  mode?: string | null;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;
@@ -71,6 +77,12 @@ interface RepoListViewProps {
   activityError?: string | null;
 }
 
+function connectionFor(connections: RepoConnectionItem[], owner: string, repo: string) {
+  return connections.find(
+    (c) => c.owner.toLowerCase() === owner.toLowerCase() && c.repo.toLowerCase() === repo.toLowerCase()
+  );
+}
+
 export function RepoListView({
   repos,
   connections,
@@ -78,13 +90,28 @@ export function RepoListView({
   commits,
   activityError,
 }: RepoListViewProps) {
-  // Metrics
-  const totalCommits = commits.length;
-  const totalRollouts = rollouts.length;
-  const rolledBackCount = rollouts.filter((r) => r.status === "ROLLED_BACK").length;
-  const activePendingCount = rollouts.filter((r) => r.status === "PENDING").length;
+  const standaloneKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const c of connections) {
+      if (resolveRepoMode(c) === "standalone") keys.add(repoIdentityKey(c.owner, c.repo));
+    }
+    return keys;
+  }, [connections]);
 
-  // Chart data: rollouts by day over last 14 days
+  const standaloneRollouts = useMemo(
+    () =>
+      rollouts.filter((r) =>
+        r.owner && r.repo ? standaloneKeys.has(repoIdentityKey(r.owner, r.repo)) : false
+      ),
+    [rollouts, standaloneKeys]
+  );
+
+  const totalCommits = commits.length;
+  const totalRollouts = standaloneRollouts.length;
+  const rolledBackCount = standaloneRollouts.filter((r) => r.status === "ROLLED_BACK").length;
+  const activePendingCount = standaloneRollouts.filter((r) => r.status === "PENDING").length;
+  const augmentRepoCount = connections.filter((c) => resolveRepoMode(c) === "augment").length;
+
   const chartData = useMemo(() => {
     const buckets: Record<string, OutcomeDayBucket> = {};
     const now = new Date();
@@ -93,7 +120,7 @@ export function RepoListView({
       d.setDate(d.getDate() - i);
       const key = d.toISOString().split("T")[0]!;
       buckets[key] = {
-        date: key.slice(5), // MM-DD
+        date: key.slice(5),
         SUCCESS: 0,
         ROLLED_BACK: 0,
         FAILED: 0,
@@ -102,7 +129,7 @@ export function RepoListView({
       };
     }
 
-    rollouts.forEach((r) => {
+    standaloneRollouts.forEach((r) => {
       const dateKey = new Date(r.startedAt).toISOString().split("T")[0]!;
       if (buckets[dateKey]) {
         buckets[dateKey][r.status] = (buckets[dateKey][r.status] || 0) + 1;
@@ -111,18 +138,23 @@ export function RepoListView({
     });
 
     return Object.values(buckets);
-  }, [rollouts]);
+  }, [standaloneRollouts]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
-      {/* Page Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Repositories & Deployment Overview</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Repositories</h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Monitor Standalone runtime rollouts with automated rollback, and change-aware dynamic threshold policies for Augment deployments.
+            CARF supports two deployment modes: Standalone (PM2 + Host Agent) and Augment (external CD + CARF policy).
           </p>
         </div>
+        <Link
+          href="/dashboard/setup"
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+        >
+          Add Repository
+        </Link>
       </div>
 
       {activityError ? (
@@ -131,9 +163,7 @@ export function RepoListView({
         </p>
       ) : null}
 
-      {/* Metric Cards with Denominators */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Metric 1: Commits Analyzed */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold uppercase tracking-wider text-[11px]">Commits Analyzed</span>
@@ -141,12 +171,11 @@ export function RepoListView({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">{totalCommits}</span>
-            <span className="text-xs text-muted-foreground">commits recorded</span>
+            <span className="text-xs text-muted-foreground">webhook records</span>
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">Source: Webhook commit intake</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Shared classification intake for both modes</p>
         </div>
 
-        {/* Metric 2: Standalone Rollouts */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold uppercase tracking-wider text-[11px]">Standalone Rollouts</span>
@@ -154,14 +183,11 @@ export function RepoListView({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">{totalRollouts}</span>
-            <span className="text-xs text-muted-foreground">
-              {totalCommits > 0 ? `across ${totalCommits} commits` : "rollouts"}
-            </span>
+            <span className="text-xs text-muted-foreground">monitored</span>
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">Source: Host agent PM2 executions</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Standalone RolloutOutcome rows only</p>
         </div>
 
-        {/* Metric 3: Rollbacks Executed */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold uppercase tracking-wider text-[11px]">Rollbacks Executed</span>
@@ -170,13 +196,12 @@ export function RepoListView({
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">{rolledBackCount}</span>
             <span className="text-xs text-muted-foreground">
-              {totalRollouts > 0 ? `of ${totalRollouts} rollouts` : "rollbacks"}
+              {totalRollouts > 0 ? `of ${totalRollouts} rollouts` : "standalone"}
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-muted-foreground">Triggered on error-rate threshold breach</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">Standalone threshold-breach rollbacks</p>
         </div>
 
-        {/* Metric 4: Active Observation Loops */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold uppercase tracking-wider text-[11px]">Active Observation</span>
@@ -184,45 +209,41 @@ export function RepoListView({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">{activePendingCount}</span>
-            {activePendingCount > 0 ? (
-              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
-                Observing
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">idle</span>
-            )}
+            <span className="text-xs text-muted-foreground">
+              {activePendingCount > 0 ? "standalone windows" : "idle"}
+            </span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {activePendingCount > 0 ? "Observation loops in progress" : "No active rollout observation windows"}
+            {activePendingCount > 0
+              ? "Standalone observation loops in progress"
+              : "No active standalone observation windows"}
           </p>
         </div>
       </div>
 
-      {/* Rollout Outcomes Over Time Chart */}
-      <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-        <div className="flex items-center justify-between border-b border-border pb-3">
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Rollouts by Outcome (Last 14 Days)</h2>
-            <p className="text-[11px] text-muted-foreground">
-              Recorded rollout observation verdicts grouped by day across all standalone repositories.
-            </p>
+      {standaloneRollouts.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Standalone rollouts (last 14 days)</h2>
+              <p className="text-[11px] text-muted-foreground">
+                Observation verdicts for Standalone repositories only. Augment repos do not create rollout rows.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <RolloutOutcomeChart data={chartData} />
           </div>
         </div>
-        <div className="mt-4">
-          <RolloutOutcomeChart data={chartData} />
-        </div>
-      </div>
+      )}
 
-      {/* Connected Repositories List */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        <div>
           <h2 className="text-sm font-semibold text-foreground">Connected repositories ({repos.length})</h2>
-          <Link
-            href="/dashboard/setup"
-            className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
-          >
-            Connect repository
-          </Link>
+          <p className="text-[11px] text-muted-foreground">
+            {standaloneKeys.size} standalone
+            {augmentRepoCount > 0 ? ` · ${augmentRepoCount} augment` : ""}
+          </p>
         </div>
 
         {repos.length === 0 ? (
@@ -230,31 +251,25 @@ export function RepoListView({
             <FolderGit2 className="mx-auto size-8 text-muted-foreground/60" />
             <p className="mt-2 text-xs font-semibold text-foreground">No connected repositories</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Only repos that have completed CARF setup appear here. GitHub App access alone is not enough.
+              Add a repository, then choose Standalone or Augment. GitHub App access alone is not enough.
             </p>
             <Link
               href="/dashboard/setup"
               className="mt-4 inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
             >
-              Connect a repository
+              Add Repository
             </Link>
           </div>
         ) : (
-          <div className="divide-y divide-border rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {repos.map((repo) => {
-              const repoRollouts = rollouts.filter(
+              const repoConn = connectionFor(connections, repo.owner, repo.name);
+              const mode = resolveRepoMode(repoConn);
+              const repoRollouts = standaloneRollouts.filter(
                 (r) =>
                   r.owner?.toLowerCase() === repo.owner.toLowerCase() &&
                   r.repo?.toLowerCase() === repo.name.toLowerCase()
               );
-              const repoConn = connections.find(
-                (c) =>
-                  c.owner.toLowerCase() === repo.owner.toLowerCase() &&
-                  c.repo.toLowerCase() === repo.name.toLowerCase()
-              );
-
-              const mode = resolveRepoMode(repoConn);
-              const augmentIntegration = resolveAugmentIntegration(repoConn);
               const latestRollout = repoRollouts[0];
               const derivedStatus = deriveRepoStatus({
                 isConfigured: Boolean(repoConn),
@@ -264,115 +279,113 @@ export function RepoListView({
                 totalRollouts: repoRollouts.length,
                 mode,
               });
-
               const badge = getStatusBadgeVariant(derivedStatus);
-              const repoRollbacks = repoRollouts.filter((r) => r.status === "ROLLED_BACK").length;
               const cfg = (repoConn?.storedConfig ?? {}) as Record<string, unknown>;
               const pm2Target = typeof cfg.target === "string" ? cfg.target : undefined;
+              const agentStatus = deriveAgentStatus({
+                agentLastHeartbeat: repoConn?.agentLastHeartbeat,
+                agentRevoked: repoConn?.agentRevoked,
+                isVerified: Boolean(repoConn?.verifiedAt),
+              });
 
               return (
-                <div
+                <article
                   key={repo.id}
-                  className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between transition-colors hover:bg-muted/20"
+                  className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs"
                 >
-                  <div className="flex items-start gap-3">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40">
-                      {mode === "augment" ? (
-                        <Sparkles className="size-4 text-violet-500" />
-                      ) : (
-                        <FolderGit2 className="size-4 text-primary" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/dashboard/repos/${repo.owner}/${repo.name}`}
-                          className="font-semibold text-sm text-foreground hover:underline"
-                        >
-                          {repo.full_name}
-                        </Link>
-                        <span className="rounded border border-border bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground">
-                          {repo.default_branch}
-                        </span>
-
-                        {/* Mode Badge */}
-                        {mode === "augment" ? (
-                          <span className="rounded bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400">
-                            AUGMENT
-                          </span>
-                        ) : (
-                          <span className="rounded bg-sky-500/10 border border-sky-500/30 px-2 py-0.5 text-[10px] font-bold text-sky-600 dark:text-sky-400">
-                            STANDALONE
-                          </span>
-                        )}
-
-                        {/* Status Badge */}
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.colorClass}`}
-                        >
-                          <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
-                          {derivedStatus}
-                        </span>
-
-                        {repoConn?.monitoringPaused && (
-                          <span className="rounded bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
-                            Monitoring Paused
-                          </span>
-                        )}
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-sm text-foreground">{repo.full_name}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Branch <span className="font-mono text-foreground">{repo.default_branch}</span>
+                        </p>
                       </div>
-
-                      {/* Mode-Specific Metadata Row */}
-                      {mode === "augment" ? (
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span>Integration: <strong className="text-foreground">{augmentIntegration}</strong></span>
-                          <span>•</span>
-                          <span>Policy: <strong className="text-foreground">Change-aware ready</strong></span>
-                          <span>•</span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">No host agent required</span>
-                        </div>
-                      ) : (
-                        <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          {pm2Target && (
-                            <>
-                              <span>PM2: <code className="font-mono text-foreground font-semibold">{pm2Target}</code></span>
-                              <span>•</span>
-                            </>
-                          )}
-                          <span>{repoRollouts.length} rollouts</span>
-                          <span>•</span>
-                          <span>{repoRollbacks} rollbacks</span>
-                          <span>•</span>
-                          <span>
-                            {repoConn?.verifiedAt
-                              ? `Connection verified: ${new Date(repoConn.verifiedAt).toLocaleDateString()}`
-                              : "Connection not verified"}
-                          </span>
-                          {latestRollout && (
-                            <>
-                              <span>•</span>
-                              <Link
-                                href={commitPageHref(repo.owner, repo.name, latestRollout.commitSha)}
-                                className="font-mono text-[11px] hover:underline"
-                              >
-                                Latest: {latestRollout.commitSha.slice(0, 7)} ({latestRollout.status})
-                              </Link>
-                            </>
-                          )}
-                        </div>
-                      )}
+                      <span
+                        className={`shrink-0 rounded border px-2 py-0.5 text-[10px] font-bold tracking-wider ${
+                          mode === "augment"
+                            ? "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                            : "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300"
+                        }`}
+                      >
+                        {mode === "augment" ? "AUGMENT" : "STANDALONE"}
+                      </span>
                     </div>
+
+                    {mode === "standalone" ? (
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Runtime</dt>
+                          <dd className="font-semibold text-foreground">PM2</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Target</dt>
+                          <dd className="font-mono font-semibold text-foreground">{pm2Target || "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Host Agent</dt>
+                          <dd className="font-semibold text-foreground">
+                            {agentStatus === "online" || agentStatus === "colocated"
+                              ? "Connected"
+                              : agentStatus === "offline"
+                                ? "Offline"
+                                : agentStatus === "revoked"
+                                  ? "Revoked"
+                                  : "Not installed"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Status</dt>
+                          <dd className={`font-semibold ${badge.colorClass.split(" ")[1] ?? "text-foreground"}`}>
+                            {derivedStatus}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Rollouts</dt>
+                          <dd className="font-semibold text-foreground">{repoRollouts.length}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Rollbacks</dt>
+                          <dd className="font-semibold text-foreground">
+                            {repoRollouts.filter((r) => r.status === "ROLLED_BACK").length}
+                          </dd>
+                        </div>
+                      </dl>
+                    ) : (
+                      <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Integration</dt>
+                          <dd className="font-semibold text-foreground">
+                            {augmentIntegrationLabel(resolveAugmentIntegration(repoConn))}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Policy</dt>
+                          <dd className="font-semibold text-foreground">{derivedStatus}</dd>
+                        </div>
+                      </dl>
+                    )}
+
+                    {mode === "standalone" && latestRollout ? (
+                      <Link
+                        href={commitPageHref(repo.owner, repo.name, latestRollout.commitSha)}
+                        className="font-mono text-[11px] text-muted-foreground hover:underline"
+                      >
+                        Latest: {latestRollout.commitSha.slice(0, 7)} ({latestRollout.status})
+                      </Link>
+                    ) : null}
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="mt-4 flex items-center justify-end">
                     <Link
                       href={`/dashboard/repos/${repo.owner}/${repo.name}`}
                       className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
                     >
-                      <span>Open project</span>
+                      <span>Open Project</span>
                       <ArrowRight className="size-3" />
                     </Link>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>

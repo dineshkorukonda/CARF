@@ -113,10 +113,11 @@ describe("POST /api/repo/link", () => {
     expect(yaml).not.toContain("version:");
     expect(repoConnectionUpsert).toHaveBeenCalled();
     const upsertArgs = repoConnectionUpsert.mock.calls[0]![0] as {
-      create: { verifiedAt: Date | null; storedConfig: { target: string }; installTokenHash: string | null };
+      create: { mode?: string; verifiedAt: Date | null; storedConfig: { target: string }; installTokenHash: string | null };
       update: { storedConfig: { target: string } };
     };
     expect(upsertArgs.create.verifiedAt).toBeNull();
+    expect(upsertArgs.create.mode).toBe("standalone");
     expect(upsertArgs.create.storedConfig.target).toBe("sahaay");
     expect(upsertArgs.create.installTokenHash).toBeTruthy();
     expect(upsertArgs.update.storedConfig.target).toBe("sahaay");
@@ -147,9 +148,10 @@ describe("POST /api/repo/link", () => {
     expect(yaml).not.toContain("kind: pm2");
     expect(repoConnectionUpsert).toHaveBeenCalled();
     const upsertArgs = repoConnectionUpsert.mock.calls[0]![0] as {
-      create: { verifiedAt: Date | null; storedConfig: { mode: string; integration: string }; installTokenHash: string | null };
+      create: { mode: string; verifiedAt: Date | null; storedConfig: { mode: string; integration: string }; installTokenHash: string | null };
     };
     expect(upsertArgs.create.verifiedAt).toBeNull();
+    expect(upsertArgs.create.mode).toBe("augment");
     expect(upsertArgs.create.storedConfig.mode).toBe("augment");
     expect(upsertArgs.create.storedConfig.integration).toBe("github-actions");
     expect(upsertArgs.create.installTokenHash).toBeNull();

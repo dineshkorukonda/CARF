@@ -14,7 +14,8 @@ import { env } from "../../../../config/env";
 /**
  * POST /api/repo/unlink
  *
- * Unlinks a repository from CARF by deleting `.carf.yml` on GitHub.
+ * Unlinks a repository from CARF by deleting `.carf.yml` on GitHub and
+ * removing the RepoConnection row. RolloutOutcome / commit history is kept.
  *
  * Body: { installationId, owner, repo }
  * Response: { success: true, message: string }
@@ -55,24 +56,25 @@ export async function POST(request: NextRequest) {
     const { token } = await createInstallationToken(installationId, appJwt);
 
     const existingFile = await getCarfConfigFile(owner, repo, token);
-    if (!existingFile) {
-      return NextResponse.json({
-        success: true,
-        message: `Repository ${owner}/${repo} is already unlinked.`,
-      });
+    if (existingFile) {
+      await deleteCarfConfigFile(
+        owner,
+        repo,
+        "chore(carf): unlink repository — remove .carf.yml configuration",
+        existingFile.sha,
+        token
+      );
     }
 
-    await deleteCarfConfigFile(
-      owner,
-      repo,
-      "chore(carf): unlink repository — remove .carf.yml configuration",
-      existingFile.sha,
-      token
-    );
+    await prisma.repoConnection.deleteMany({
+      where: { installationId, owner, repo },
+    });
 
     return NextResponse.json({
       success: true,
-      message: `Successfully unlinked ${owner}/${repo} from CARF.`,
+      message: existingFile
+        ? `Successfully unlinked ${owner}/${repo} from CARF.`
+        : `Repository ${owner}/${repo} had no .carf.yml; the dashboard connection was removed.`,
     });
   } catch (error: unknown) {
     console.error("[api/repo/unlink] Failed to delete .carf.yml:", error);

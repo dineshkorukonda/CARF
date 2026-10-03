@@ -51,9 +51,7 @@ export function AugmentSetup({
   } | null>(null);
 
   const coreApiOrigin =
-    typeof window !== "undefined"
-      ? window.location.origin.replace(":3000", ":4000")
-      : "https://carf-core.indevs.in";
+    typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
 
   // Commit mode: augment to .carf.yml
   const commitAugmentLink = async () => {
@@ -222,7 +220,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${repo.owner.login}&repo=${repo.
                 desc: "Kubernetes progressive delivery using Envoy/Istio/Linkerd and MetricTemplate gates.",
               },
               {
-                id: "generic" as AugmentIntegration,
+                id: "generic-http" as AugmentIntegration,
                 title: "Generic HTTP / API",
                 desc: "Custom deployment scripts, Jenkins, GitLab CI, or internal deployment platforms.",
               },
@@ -373,7 +371,7 @@ mode: augment
                   { id: "github-actions" as AugmentIntegration, label: "GitHub Actions" },
                   { id: "argo-rollouts" as AugmentIntegration, label: "Argo Rollouts" },
                   { id: "flagger" as AugmentIntegration, label: "Flagger" },
-                  { id: "generic" as AugmentIntegration, label: "cURL / Generic" },
+                  { id: "generic-http" as AugmentIntegration, label: "Generic HTTP" },
                 ].map((tab) => (
                   <button
                     key={tab.id}

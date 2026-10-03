@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   FolderGit2,
-  ShieldCheck,
   Sliders,
   ChevronsLeft,
   ChevronsRight,
@@ -16,13 +15,12 @@ import {
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
-import { DASHBOARD_NAV_ITEMS } from "../../lib/dashboardNav";
+import { DASHBOARD_NAV_GROUPS } from "../../lib/dashboardNav";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
 const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/dashboard": FolderGit2,
-  "/dashboard/verify": ShieldCheck,
   "/dashboard/settings": Sliders,
 };
 
@@ -96,11 +94,11 @@ export function SidebarShell({
   return (
     <aside
       className={
-        "flex shrink-0 flex-col justify-between bg-sidebar text-sidebar-foreground transition-[width] duration-150 " +
+        "flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground transition-[width] duration-150 " +
         (collapsed ? "w-16" : "w-60")
       }
     >
-      <div className="flex flex-col gap-5 py-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto py-6">
         {/* Brand header */}
         <div className={collapsed ? "flex flex-col items-center gap-3 px-3" : "flex items-center justify-between px-4"}>
           <Link href="/dashboard" className="flex items-center gap-2 text-sm font-bold tracking-wide">
@@ -123,28 +121,31 @@ export function SidebarShell({
           </button>
         </div>
 
-        {/* Global Navigation - Strictly the 5 routes */}
-        <div className="flex flex-col gap-2">
-          {!collapsed && (
-            <div className="px-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
-                Menu
-              </p>
+        <div className="flex flex-col gap-5">
+          {DASHBOARD_NAV_GROUPS.map((group) => (
+            <div key={group.id} className="flex flex-col gap-2">
+              {!collapsed && (
+                <div className="px-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+                    {group.label}
+                  </p>
+                </div>
+              )}
+              <nav className="flex flex-col gap-0.5 px-3">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    href={item.href}
+                    exact={item.exact}
+                    collapsed={collapsed}
+                    icon={NAV_ICONS[item.href] ?? FolderGit2}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
             </div>
-          )}
-          <nav className="flex flex-col gap-0.5 px-3">
-            {DASHBOARD_NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.href}
-                href={item.href}
-                exact={item.exact}
-                collapsed={collapsed}
-                icon={NAV_ICONS[item.href] ?? FolderGit2}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+          ))}
         </div>
 
         {primary && (
@@ -170,8 +171,7 @@ export function SidebarShell({
         )}
       </div>
 
-      {/* User footer */}
-      <div className="flex flex-col gap-2 border-t border-sidebar-foreground/10 p-3">
+      <div className="flex shrink-0 flex-col gap-2 border-t border-sidebar-foreground/10 p-3">
         <Link
           href="/dashboard/settings"
           title={collapsed ? accountEmail : undefined}
