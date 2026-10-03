@@ -78,6 +78,15 @@ class FakeLockPrismaClient implements StandaloneLoopLockPrismaClient {
 
 class FakeRolloutOutcomePrismaClient implements RolloutOutcomePrismaClient {
   created: unknown[] = [];
+  connection: {
+    mode?: string;
+    storedConfig?: unknown;
+    monitoringPaused?: boolean;
+  } | null = null;
+
+  repoConnection = {
+    findUnique: vi.fn(async () => this.connection),
+  };
 
   rolloutOutcome = {
     create: vi.fn(async (args: unknown) => {
@@ -221,6 +230,20 @@ describe("handleWebhookCommit", () => {
       expect.objectContaining({ installationId: "inst-1" }),
       expect.stringContaining("issued a new installation API key")
     );
+  });
+
+  it("skips the standalone loop when RepoConnection.mode is augment even if .carf.yml says standalone", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const outcomes = new FakeRolloutOutcomePrismaClient();
+    outcomes.connection = { mode: "augment", storedConfig: { mode: "augment", integration: "github-actions" } };
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      standaloneLoopRunner,
+      rolloutOutcomePrismaClient: outcomes,
+    });
+    await handleWebhookCommit(target, deps);
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+    expect(outcomes.rolloutOutcome.upsert).not.toHaveBeenCalled();
   });
 
   it("Augment mode (explicit) persists and stops -- never calls the loop runner", async () => {

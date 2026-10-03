@@ -3,45 +3,73 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
-export function ApiKeyCopyButton({ apiKey }: { apiKey: string | null | undefined }) {
-  const [copied, setCopied] = useState(false);
+function maskKey(apiKey: string): string {
+  if (apiKey.length <= 10) return "••••••••";
+  return `${apiKey.slice(0, 6)}••••••••${apiKey.slice(-4)}`;
+}
 
-  if (!apiKey) {
+export function ApiKeyCopyButton({
+  apiKey,
+  installationId,
+}: {
+  apiKey?: string | null;
+  installationId?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!apiKey && !installationId) {
     return <span className="text-muted-foreground text-xs font-mono">None</span>;
   }
 
   const handleCopy = async () => {
+    setBusy(true);
+    setError(null);
     try {
-      await navigator.clipboard.writeText(apiKey);
+      let value = apiKey ?? "";
+      if (installationId) {
+        const res = await fetch("/api/repo/api-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ installationId }),
+        });
+        const data = (await res.json()) as { apiKey?: string; error?: string };
+        if (!res.ok || !data.apiKey) {
+          throw new Error(data.error || "Could not load API key");
+        }
+        value = data.apiKey;
+      }
+      await navigator.clipboard.writeText(value);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for environments without clipboard API
-      const textarea = document.createElement("textarea");
-      textarea.value = apiKey;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Copy failed");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      title="Copy API key to clipboard"
-      className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-    >
-      <span className="max-w-[120px] truncate sm:max-w-[180px]">{apiKey}</span>
-      {copied ? (
-        <Check className="size-3 shrink-0 text-emerald-500" />
-      ) : (
-        <Copy className="size-3 shrink-0 text-muted-foreground" />
-      )}
-      <span className="sr-only">{copied ? "Copied" : "Copy"}</span>
-    </button>
+    <span className="inline-flex items-center gap-2">
+      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+        {apiKey ? maskKey(apiKey) : "••••••••••••"}
+      </span>
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        disabled={busy}
+        title="Copy API key"
+        className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+      >
+        {copied ? (
+          <Check className="size-3 shrink-0 text-emerald-500" />
+        ) : (
+          <Copy className="size-3 shrink-0 text-muted-foreground" />
+        )}
+        <span className="sr-only">{copied ? "Copied" : "Copy"}</span>
+      </button>
+      {error ? <span className="text-[10px] text-rose-600">{error}</span> : null}
+    </span>
   );
 }

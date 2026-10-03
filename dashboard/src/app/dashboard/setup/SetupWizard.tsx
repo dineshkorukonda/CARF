@@ -23,6 +23,7 @@ export interface RepoConnectionItem {
   installationId: string;
   owner: string;
   repo: string;
+  mode?: string | null;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;

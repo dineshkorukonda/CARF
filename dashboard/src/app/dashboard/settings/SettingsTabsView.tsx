@@ -24,9 +24,9 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
       {/* Page Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Settings & Integrations</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">GitHub App & Integrations</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Manage your GitHub App connection, installation API keys, and account security.
+            Connect the CARF GitHub App, review installations, and copy API keys through an explicit action. Keys are masked on this page.
           </p>
         </div>
 
@@ -140,7 +140,7 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                         <span className="text-muted-foreground text-[11px]">Core API Key:</span>
-                        <ApiKeyCopyButton apiKey={inst.coreApiKey} />
+                        <ApiKeyCopyButton installationId={inst.installationId} />
                       </div>
                     </div>
 

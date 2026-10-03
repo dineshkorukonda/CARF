@@ -19,6 +19,9 @@ export default async function VerifyRootPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6 md:p-8">
+      <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800">
+        Internal research route. This page is not part of the product sidebar and uses synthetic data.
+      </p>
       <VerifyDashboard
         installationId={primary.installationId}
         repoName={primary.targetLogin || `Installation #${primary.installationId}`}

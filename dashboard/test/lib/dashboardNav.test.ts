@@ -5,6 +5,7 @@ import {
   projectCommitsHref,
   projectThresholdsHref,
   DASHBOARD_NAV_ITEMS,
+  THRESHOLD_DEMO_HREF,
   repoSetupHref,
   projectPageHref,
   commitPageHref,
@@ -88,13 +89,18 @@ describe("repo onboarding hrefs", () => {
     expect(commitPageHref("dineshkorukonda", "Sahaay", "abc123def")).toBe(
       "/dashboard/commits/dineshkorukonda/Sahaay/abc123def",
     );
+    expect(THRESHOLD_DEMO_HREF).toBe("/dashboard/verify");
   });
 
-  it("keeps the global sidebar to repositories, verify, and settings", () => {
+  it("keeps the global sidebar to repositories and GitHub App / Integrations", () => {
     expect(DASHBOARD_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Repositories",
-      "Threshold Demo",
-      "Settings",
+      "GitHub App / Integrations",
+    ]);
+    expect(DASHBOARD_NAV_ITEMS.some((item) => item.label.includes("Demo"))).toBe(false);
+    expect(DASHBOARD_NAV_ITEMS.map((item) => item.href)).toEqual([
+      "/dashboard",
+      "/dashboard/settings",
     ]);
   });
 });

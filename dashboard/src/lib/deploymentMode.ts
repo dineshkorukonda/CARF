@@ -1,23 +1,16 @@
 /**
- * Centralized Deployment Mode Resolution for CARF repositories.
+ * Authoritative deployment-mode resolution for CARF repositories.
  *
- * CARF supports two distinct operating architectures:
+ * STANDALONE: CARF monitors the host via PM2 + Host Agent and owns rollback.
+ * AUGMENT: an external CD system owns rollout/monitor/rollback; CARF serves policy.
  *
- * 1. STANDALONE:
- *    - CARF actively monitors the deployment via PM2 on the host.
- *    - A CARF Host Agent runs on the deployment server.
- *    - CARF owns live soak health monitoring and automated rollback execution.
- *
- * 2. AUGMENT:
- *    - An external deployment / CD system (GitHub Actions, Argo Rollouts, Flagger)
- *      owns deployment, health monitoring, and rollback.
- *    - CARF provides change-aware threshold/window policies via the /v1/threshold API.
- *    - No PM2 target, no Host Agent, and no PM2 verification is required.
+ * Prefer RepoConnection.mode. storedConfig is only a fallback for rows that
+ * predate the column or have not been regenerated yet.
  */
 
 export type DeploymentMode = "standalone" | "augment";
 
-export type AugmentIntegration = "github-actions" | "argo-rollouts" | "flagger" | "generic";
+export type AugmentIntegration = "github-actions" | "argo-rollouts" | "flagger" | "generic-http";
 
 export interface RepoConfigLookupInput {
   storedConfig?: unknown;
@@ -25,33 +18,38 @@ export interface RepoConfigLookupInput {
   mode?: string | null;
 }
 
+function parseMode(value: unknown): DeploymentMode | null {
+  if (value === "augment" || value === "standalone") return value;
+  return null;
+}
+
+function storedConfigObject(stored: unknown): Record<string, unknown> | null {
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return null;
+  return stored as Record<string, unknown>;
+}
+
 /**
- * Resolves repository deployment mode from storedConfig or explicit mode field.
+ * Resolves repository deployment mode.
  *
- * Safe fallback rules:
- * - If explicit mode is "augment" -> "augment"
- * - If explicit mode is "standalone" -> "standalone"
- * - If storedConfig has an integration field (e.g. github-actions) -> "augment"
- * - If storedConfig has PM2 adapter keys (target, layout, cwd) -> "standalone" (preserves Sahaay)
- * - If installTokenHash is present -> "standalone"
- * - Default -> "standalone"
+ * Order:
+ * 1. Explicit RepoConnection.mode
+ * 2. storedConfig.mode
+ * 3. storedConfig.integration => augment
+ * 4. PM2 adapter keys / install token => standalone (preserves Sahaay)
+ * 5. null input / no cues => standalone (legacy product default; new UI never
+ *    writes a connection without an explicit user-chosen mode)
  */
 export function resolveRepoMode(input?: RepoConfigLookupInput | null): DeploymentMode {
   if (!input) return "standalone";
 
-  // Check explicit mode string
-  if (input.mode === "augment") return "augment";
-  if (input.mode === "standalone") return "standalone";
+  const fromColumn = parseMode(input.mode);
+  if (fromColumn) return fromColumn;
 
-  // Inspect storedConfig json blob
-  if (input.storedConfig && typeof input.storedConfig === "object" && !Array.isArray(input.storedConfig)) {
-    const cfg = input.storedConfig as Record<string, unknown>;
-
-    if (cfg.mode === "augment") return "augment";
-    if (cfg.mode === "standalone") return "standalone";
-
-    if (typeof cfg.integration === "string") return "augment";
-
+  const cfg = storedConfigObject(input.storedConfig);
+  if (cfg) {
+    const fromStored = parseMode(cfg.mode);
+    if (fromStored) return fromStored;
+    if (typeof cfg.integration === "string" && cfg.integration.trim()) return "augment";
     if (
       typeof cfg.target === "string" ||
       typeof cfg.name === "string" ||
@@ -63,26 +61,32 @@ export function resolveRepoMode(input?: RepoConfigLookupInput | null): Deploymen
     }
   }
 
-  // If an installTokenHash exists and no augment cues exist, it was registered as standalone
-  if (input.installTokenHash) {
-    return "standalone";
-  }
-
+  if (input.installTokenHash) return "standalone";
   return "standalone";
 }
 
-/**
- * Resolves the chosen Augment integration (e.g. GitHub Actions, Argo Rollouts, Flagger, Generic HTTP).
- */
 export function resolveAugmentIntegration(input?: RepoConfigLookupInput | null): AugmentIntegration {
-  if (input?.storedConfig && typeof input.storedConfig === "object" && !Array.isArray(input.storedConfig)) {
-    const cfg = input.storedConfig as Record<string, unknown>;
-    const integration = typeof cfg.integration === "string" ? cfg.integration.toLowerCase() : "";
-    if (integration === "argo-rollouts" || integration === "argo") return "argo-rollouts";
-    if (integration === "flagger") return "flagger";
-    if (integration === "generic" || integration === "api") return "generic";
+  const cfg = storedConfigObject(input?.storedConfig);
+  const integration = typeof cfg?.integration === "string" ? cfg.integration.toLowerCase() : "";
+  if (integration === "argo-rollouts" || integration === "argo") return "argo-rollouts";
+  if (integration === "flagger") return "flagger";
+  if (integration === "generic" || integration === "generic-http" || integration === "api" || integration === "http") {
+    return "generic-http";
   }
   return "github-actions";
+}
+
+export function augmentIntegrationLabel(integration: AugmentIntegration): string {
+  switch (integration) {
+    case "github-actions":
+      return "GitHub Actions";
+    case "argo-rollouts":
+      return "Argo Rollouts";
+    case "flagger":
+      return "Flagger";
+    case "generic-http":
+      return "Generic HTTP";
+  }
 }
 
 export function isStandaloneRepo(input?: RepoConfigLookupInput | null): boolean {
@@ -91,4 +95,12 @@ export function isStandaloneRepo(input?: RepoConfigLookupInput | null): boolean 
 
 export function isAugmentRepo(input?: RepoConfigLookupInput | null): boolean {
   return resolveRepoMode(input) === "augment";
+}
+
+export function repoIdentityKey(owner: string, repo: string): string {
+  return `${owner}/${repo}`.toLowerCase();
+}
+
+export function isAccidentalProductionRepoName(repo: string): boolean {
+  return repo.trim().toLowerCase() === "production";
 }

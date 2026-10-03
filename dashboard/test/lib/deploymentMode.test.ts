@@ -4,6 +4,7 @@ import {
   resolveAugmentIntegration,
   isStandaloneRepo,
   isAugmentRepo,
+  isAccidentalProductionRepoName,
 } from "../../src/lib/deploymentMode";
 
 describe("deploymentMode resolution", () => {
@@ -11,6 +12,21 @@ describe("deploymentMode resolution", () => {
     expect(resolveRepoMode(null)).toBe("standalone");
     expect(resolveRepoMode(undefined)).toBe("standalone");
     expect(resolveRepoMode({})).toBe("standalone");
+  });
+
+  it("treats RepoConnection.mode as authoritative over storedConfig", () => {
+    expect(
+      resolveRepoMode({
+        mode: "augment",
+        storedConfig: { mode: "standalone", target: "sahaay" },
+      })
+    ).toBe("augment");
+    expect(
+      resolveRepoMode({
+        mode: "standalone",
+        storedConfig: { mode: "augment", integration: "github-actions" },
+      })
+    ).toBe("standalone");
   });
 
   it("recognizes explicit mode string", () => {
@@ -49,6 +65,15 @@ describe("deploymentMode resolution", () => {
     ).toBe("flagger");
     expect(
       resolveAugmentIntegration({ storedConfig: { integration: "generic" } })
-    ).toBe("generic");
+    ).toBe("generic-http");
+    expect(
+      resolveAugmentIntegration({ storedConfig: { integration: "generic-http" } })
+    ).toBe("generic-http");
+  });
+
+  it("does not treat the word production as a special repository", () => {
+    expect(isAccidentalProductionRepoName("production")).toBe(true);
+    expect(isAccidentalProductionRepoName("Sahaay")).toBe(false);
+    expect(resolveRepoMode({ storedConfig: { target: "production" } })).toBe("standalone");
   });
 });

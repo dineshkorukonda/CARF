@@ -102,6 +102,7 @@ export interface AuditLogItem {
 
 export interface RepoConnectionDetails {
   id: string;
+  mode?: string | null;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;
@@ -122,7 +123,6 @@ interface RepoDetailViewProps {
   commits: CommitWithDetails[];
   auditLogs: AuditLogItem[];
   activityError?: string | null;
-  coreApiKey?: string | null;
 }
 
 export function RepoDetailView({
@@ -135,7 +135,6 @@ export function RepoDetailView({
   commits,
   auditLogs,
   activityError,
-  coreApiKey,
 }: RepoDetailViewProps) {
   const mode = resolveRepoMode(connection);
   const isStandalone = mode === "standalone";
@@ -372,10 +371,7 @@ export function RepoDetailView({
   // Origins
   const centralOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
-  const coreApiOrigin =
-    typeof window !== "undefined"
-      ? window.location.origin.replace(":3000", ":4000")
-      : "https://carf-core.indevs.in";
+  const coreApiOrigin = centralOrigin;
 
   const effectiveToken = generatedToken || "";
   const agentInstallCmd = effectiveToken
@@ -888,34 +884,50 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
               <div className="text-[11px] font-medium text-muted-foreground uppercase">
-                Threshold Endpoint
+                CARF Threshold Endpoint
               </div>
               <div className="font-mono text-foreground text-[11px] truncate">
                 GET {coreApiOrigin}/v1/threshold?commit=$COMMIT_SHA
               </div>
             </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                Augment Threshold Endpoint
+              </div>
+              <div className="font-mono text-foreground text-[11px] truncate">
+                GET {coreApiOrigin}/v1/augment/threshold?owner={owner}&repo={repo}&sha=$COMMIT_SHA
+              </div>
+            </div>
 
             <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
               <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground uppercase">
-                <span>Installation Core API Key</span>
-                {coreApiKey && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(coreApiKey);
-                      setCopiedApiKey(true);
-                      setTimeout(() => setCopiedApiKey(false), 2000);
-                    }}
-                    className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
-                  >
-                    {copiedApiKey ? <Check className="size-2.5" /> : <Copy className="size-2.5" />}
-                    <span>{copiedApiKey ? "Copied" : "Copy Key"}</span>
-                  </button>
-                )}
+                <span>Installation API Key</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/repo/api-key", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ installationId }),
+                      });
+                      const data = (await res.json()) as { apiKey?: string };
+                      if (res.ok && data.apiKey) {
+                        await navigator.clipboard.writeText(data.apiKey);
+                        setCopiedApiKey(true);
+                        setTimeout(() => setCopiedApiKey(false), 2000);
+                      }
+                    } catch {
+                      // copy is best-effort
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                >
+                  {copiedApiKey ? <Check className="size-2.5" /> : <Copy className="size-2.5" />}
+                  <span>{copiedApiKey ? "Copied" : "Copy Key"}</span>
+                </button>
               </div>
-              <div className="font-mono text-foreground text-[11px]">
-                {coreApiKey ? `${coreApiKey.slice(0, 12)}••••••••••••` : "Configured in GitHub App"}
-              </div>
+              <div className="font-mono text-foreground text-[11px]">••••••••••••••••</div>
             </div>
           </div>
 
@@ -927,7 +939,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                   { id: "github-actions" as AugmentIntegration, label: "GitHub Actions" },
                   { id: "argo-rollouts" as AugmentIntegration, label: "Argo Rollouts" },
                   { id: "flagger" as AugmentIntegration, label: "Flagger" },
-                  { id: "generic" as AugmentIntegration, label: "cURL / Generic" },
+                  { id: "generic-http" as AugmentIntegration, label: "Generic HTTP" },
                 ].map((tab) => (
                   <button
                     key={tab.id}

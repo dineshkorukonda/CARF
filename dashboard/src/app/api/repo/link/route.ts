@@ -16,6 +16,7 @@ import {
   type AdapterKind,
 } from "../../../../lib/carfConfigSchema";
 import { generateInstallToken } from "../../../../lib/agentToken";
+import { resolveRepoMode, type DeploymentMode } from "../../../../lib/deploymentMode";
 
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
@@ -66,6 +67,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (mode !== "standalone" && mode !== "augment") {
+    return NextResponse.json(
+      { error: "mode must be explicitly 'standalone' or 'augment'" },
+      { status: 400 }
+    );
+  }
+
+  const deploymentMode: DeploymentMode = resolveRepoMode({ mode });
+
   if (mode === "standalone" && (!adapterKind || !adapterTarget)) {
     return NextResponse.json(
       { error: "adapterKind and adapterTarget are required for standalone mode" },
@@ -107,8 +117,8 @@ export async function POST(request: NextRequest) {
       existingFile?.sha
     );
 
-    if (mode === "augment") {
-      const storedConfig = { mode: "augment", integration };
+    if (deploymentMode === "augment") {
+      const storedConfig = { mode: "augment" as const, integration };
 
       try {
         await prisma.repoConnection.upsert({
@@ -123,6 +133,7 @@ export async function POST(request: NextRequest) {
             installationId,
             owner,
             repo,
+            mode: "augment",
             storedConfig,
             verifiedAt: null,
             installTokenHash: null,
@@ -130,8 +141,12 @@ export async function POST(request: NextRequest) {
             agentRevoked: false,
           },
           update: {
+            mode: "augment",
             storedConfig,
             verifiedAt: null,
+            installTokenHash: null,
+            installTokenPrefix: null,
+            agentRevoked: false,
           },
         });
       } catch (dbErr) {
@@ -147,8 +162,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Standalone mode: generate host agent token and store PM2 configuration
-    const storedConfig = { mode: "standalone", ...adapterConfig };
+    const storedConfig = { mode: "standalone" as const, ...adapterConfig };
     const { token: installToken, hash: installTokenHash, prefix: installTokenPrefix } = generateInstallToken();
 
     try {
@@ -164,6 +178,7 @@ export async function POST(request: NextRequest) {
           installationId,
           owner,
           repo,
+          mode: "standalone",
           storedConfig,
           verifiedAt: null,
           installTokenHash,
@@ -171,6 +186,7 @@ export async function POST(request: NextRequest) {
           agentRevoked: false,
         },
         update: {
+          mode: "standalone",
           storedConfig,
           installTokenHash,
           installTokenPrefix,

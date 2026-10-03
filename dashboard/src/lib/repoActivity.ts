@@ -43,6 +43,8 @@ export function listIntegratedRepos(
   for (const c of connections) {
     const key = repoKey(c.owner, c.repo);
     if (seen.has(key)) continue;
+    // Never invent a GitHub repository named "production" unless GitHub returned it.
+    if (c.repo.trim().toLowerCase() === "production") continue;
     extras.push({
       id: syntheticRepoId(c.owner, c.repo),
       name: c.repo,

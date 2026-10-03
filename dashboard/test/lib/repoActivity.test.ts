@@ -67,4 +67,26 @@ describe("listIntegratedRepos", () => {
     expect(listed).toHaveLength(1);
     expect(listed[0]!.full_name).toBe("dineshkorukonda/Sahaay");
   });
+
+  it("does not invent a GitHub repository named production", () => {
+    const listed = listIntegratedRepos([], [{ owner: "dineshkorukonda", repo: "production" }]);
+    expect(listed).toEqual([]);
+  });
+
+  it("keeps a real GitHub repository that happens to be named production", () => {
+    const listed = listIntegratedRepos(
+      [
+        {
+          id: 9,
+          name: "production",
+          full_name: "dineshkorukonda/production",
+          owner: "dineshkorukonda",
+          default_branch: "main",
+          private: false,
+        },
+      ],
+      [{ owner: "dineshkorukonda", repo: "production" }]
+    );
+    expect(listed.map((r) => r.full_name)).toEqual(["dineshkorukonda/production"]);
+  });
 });

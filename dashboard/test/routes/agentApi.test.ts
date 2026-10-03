@@ -46,6 +46,7 @@ describe("Agent API Routes", () => {
     installationId: "inst-1",
     owner: "octocat",
     repo: "hello-world",
+    mode: "standalone",
     installTokenHash: validHash,
     installTokenPrefix: "carf_inst_0123",
     agentRevoked: false,
@@ -98,7 +99,11 @@ describe("Agent API Routes", () => {
         id: "inst-1",
         installationId: "12345",
       } as any);
-      vi.mocked(prisma.repoConnection.upsert).mockResolvedValue({
+      vi.mocked(prisma.repoConnection.findUnique).mockResolvedValue({
+        ...mockConnection,
+        installationId: "12345",
+      } as any);
+      vi.mocked(prisma.repoConnection.update).mockResolvedValue({
         owner: "octocat",
         repo: "hello-world",
         installationId: "12345",
@@ -114,6 +119,7 @@ describe("Agent API Routes", () => {
       expect(data.owner).toBe("octocat");
       expect(data.repo).toBe("hello-world");
       expect(data.token).toMatch(/^carf_inst_/);
+      expect(prisma.repoConnection.upsert).not.toHaveBeenCalled();
     });
   });
 

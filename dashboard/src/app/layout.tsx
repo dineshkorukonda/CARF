@@ -30,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {THEME_INIT_SCRIPT}
         </Script>
       </head>
-      <body className="min-h-screen bg-background text-foreground">
+      <body className="min-h-dvh bg-background text-foreground">
         <Suspense fallback={null}>
           <TopProgressBar />
         </Suspense>
