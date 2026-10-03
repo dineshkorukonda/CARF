@@ -1,10 +1,10 @@
-import type { FastifyInstance, FastifySchema } from "fastify";
-import { defaultExec, type CommandExecutor, LocalCommandExecutor, type ExecFn } from "../adapters/execFn.js";
-import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
-import { prisma as defaultPrisma } from "../db/client.js";
-
 import path from "node:path";
 import { access, constants as fsConstants, lstat } from "node:fs/promises";
+import type { FastifyInstance, FastifySchema } from "fastify";
+import { defaultExec, type CommandExecutor, LocalCommandExecutor, type ExecFn } from "../adapters/execFn.js";
+import { PM2Adapter } from "../adapters/pm2.js";
+import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
+import { prisma as defaultPrisma } from "../db/client.js";
 
 export interface Pm2AppInfo {
   name: string;
@@ -12,6 +12,9 @@ export interface Pm2AppInfo {
   restarts: number;
   uptime: number;
   cwd?: string | undefined;
+  pid?: number | undefined;
+  cpu?: number | undefined;
+  memory?: number | undefined;
 }
 
 export interface VerificationCheckItem {
@@ -67,6 +70,11 @@ interface RawPm2Env {
 
 interface RawPm2Process {
   name?: string;
+  pid?: number;
+  monit?: {
+    cpu?: number;
+    memory?: number;
+  };
   pm2_env?: RawPm2Env;
 }
 
@@ -91,6 +99,9 @@ const responseSchema: FastifySchema = {
           restarts: { type: "integer" },
           uptime: { type: "integer" },
           cwd: { type: "string" },
+          pid: { type: "integer" },
+          cpu: { type: "number" },
+          memory: { type: "number" },
         },
         additionalProperties: false,
       },
@@ -110,8 +121,53 @@ const responseSchema: FastifySchema = {
   },
 };
 
+const discoveryResponseSchema: FastifySchema = {
+  response: {
+    200: {
+      type: "object",
+      required: ["runtime", "connected", "processes"],
+      properties: {
+        runtime: { type: "string" },
+        connected: { type: "boolean" },
+        processes: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["name", "status", "restarts", "uptime"],
+            properties: {
+              name: { type: "string" },
+              status: { type: "string" },
+              restarts: { type: "integer" },
+              uptime: { type: "integer" },
+              cwd: { type: "string" },
+              pid: { type: "integer" },
+              cpu: { type: "number" },
+              memory: { type: "number" },
+            },
+            additionalProperties: false,
+          },
+        },
+        error: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+    401: {
+      type: "object",
+      required: ["error"],
+      properties: { error: { type: "string" } },
+      additionalProperties: false,
+    },
+    500: {
+      type: "object",
+      required: ["error"],
+      properties: { error: { type: "string" } },
+      additionalProperties: false,
+    },
+  },
+};
+
 /**
- * GET /v1/pm2/apps — returns read-only pm2 process summary (name, status, restarts, uptime, cwd).
+ * GET /v1/pm2/apps — returns read-only pm2 process summary (name, status, restarts, uptime, cwd, pid, cpu, memory).
  * Never returns environment variables or command-line arguments.
  * Requires Authorization: Bearer <installation API key>.
  */
@@ -128,6 +184,17 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
   }
 
   const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as InstallationAuthPrismaClient);
+
+  app.get("/v1/pm2/discovery", { schema: discoveryResponseSchema }, async (request, reply) => {
+    const installationId = await resolveInstallationFromAuthHeader(prismaClient, request.headers.authorization);
+    if (!installationId) {
+      return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
+    }
+
+    const adapter = new PM2Adapter("", { exec: executor });
+    const result = await adapter.discover();
+    return reply.code(200).send(result);
+  });
 
   app.get("/v1/pm2/apps", { schema: responseSchema }, async (request, reply) => {
     const installationId = await resolveInstallationFromAuthHeader(prismaClient, request.headers.authorization);
@@ -154,13 +221,17 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
           const uptimeMs = typeof pm2Env.pm_uptime === "number" && pm2Env.pm_uptime > 0 ? Math.max(0, now - pm2Env.pm_uptime) : 0;
           const uptime = Math.floor(uptimeMs / 1000);
 
-          return {
+          const item: Pm2AppInfo = {
             name: proc.name!,
             status,
             restarts,
             uptime,
             cwd: pm2Env.pm_cwd,
           };
+          if (typeof proc.pid === "number") item.pid = proc.pid;
+          if (typeof proc.monit?.cpu === "number") item.cpu = proc.monit.cpu;
+          if (typeof proc.monit?.memory === "number") item.memory = proc.monit.memory;
+          return item;
         });
 
       return reply.code(200).send(sanitized);
@@ -374,124 +445,124 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
         });
       }
     } else {
-    // Check 4: Releases directory exists
-    const releasesDir = body.target.releasesDir || (body.target.cwd ? `${body.target.cwd}/releases` : "/var/www/releases");
-    let releasesDirPassed = false;
-    let releasesDirMsg = "";
-    try {
-      if (options.fsAccess) {
-        await checkAccess(releasesDir);
-        releasesDirPassed = true;
-      } else {
-        await executor.exec(`test -d "${releasesDir}"`);
-        releasesDirPassed = true;
-      }
-      releasesDirMsg = `Releases directory '${releasesDir}' exists on host`;
-    } catch (err: unknown) {
-      releasesDirPassed = false;
-      releasesDirMsg = `Releases directory '${releasesDir}' not found on host: ${err instanceof Error ? err.message : "Directory does not exist"}`;
-    }
-    checks.push({
-      id: "releases_dir",
-      title: "Releases Directory",
-      passed: releasesDirPassed,
-      message: releasesDirMsg,
-    });
-
-    // Check 5: Current is a symbolic link (test -L)
-    const currentSymlink = body.target.currentSymlink || (body.target.cwd ? `${body.target.cwd}/current` : "/var/www/current");
-    let symlinkPassed = false;
-    let symlinkMsg = "";
-    try {
-      if (options.lstat) {
-        const stat = await options.lstat(currentSymlink);
-        symlinkPassed = stat.isSymbolicLink();
-      } else {
-        await executor.exec(`test -L "${currentSymlink}"`);
-        symlinkPassed = true;
-      }
-      symlinkMsg = symlinkPassed
-        ? `'${currentSymlink}' is a valid symbolic link`
-        : `'${currentSymlink}' exists but is not a symbolic link`;
-    } catch (err: unknown) {
+      // Check 4: Releases directory exists
+      const releasesDir = body.target.releasesDir || (body.target.cwd ? `${body.target.cwd}/releases` : "/var/www/releases");
+      let releasesDirPassed = false;
+      let releasesDirMsg = "";
       try {
-        const stat = await lstat(currentSymlink);
-        symlinkPassed = stat.isSymbolicLink();
+        if (options.fsAccess) {
+          await checkAccess(releasesDir);
+          releasesDirPassed = true;
+        } else {
+          await executor.exec(`test -d "${releasesDir}"`);
+          releasesDirPassed = true;
+        }
+        releasesDirMsg = `Releases directory '${releasesDir}' exists on host`;
+      } catch (err: unknown) {
+        releasesDirPassed = false;
+        releasesDirMsg = `Releases directory '${releasesDir}' not found on host: ${err instanceof Error ? err.message : "Directory does not exist"}`;
+      }
+      checks.push({
+        id: "releases_dir",
+        title: "Releases Directory",
+        passed: releasesDirPassed,
+        message: releasesDirMsg,
+      });
+
+      // Check 5: Current is a symbolic link (test -L)
+      const currentSymlink = body.target.currentSymlink || (body.target.cwd ? `${body.target.cwd}/current` : "/var/www/current");
+      let symlinkPassed = false;
+      let symlinkMsg = "";
+      try {
+        if (options.lstat) {
+          const stat = await options.lstat(currentSymlink);
+          symlinkPassed = stat.isSymbolicLink();
+        } else {
+          await executor.exec(`test -L "${currentSymlink}"`);
+          symlinkPassed = true;
+        }
         symlinkMsg = symlinkPassed
           ? `'${currentSymlink}' is a valid symbolic link`
           : `'${currentSymlink}' exists but is not a symbolic link`;
-      } catch {
-        symlinkPassed = false;
-        symlinkMsg = `'${currentSymlink}' is not a symbolic link: ${err instanceof Error ? err.message : "Symlink does not exist"}`;
-      }
-    }
-    checks.push({
-      id: "current_symlink",
-      title: "Current Symlink",
-      passed: symlinkPassed,
-      message: symlinkMsg,
-    });
-
-    // Check 6: Shared paths exist (one item each)
-    const sharedPaths = body.target.sharedPaths || body.target.sharedDirs || [];
-    if (sharedPaths.length === 0) {
-      checks.push({
-        id: "shared_paths",
-        title: "Shared Paths",
-        passed: true,
-        message: "No shared paths configured",
-      });
-    } else {
-      for (let i = 0; i < sharedPaths.length; i++) {
-        const sharedPath = sharedPaths[i];
-        if (!sharedPath) continue;
-        let pathPassed = false;
-        let pathMsg = "";
+      } catch (err: unknown) {
         try {
-          if (options.fsAccess) {
-            await checkAccess(sharedPath);
-            pathPassed = true;
-          } else {
-            await executor.exec(`test -e "${sharedPath}"`);
-            pathPassed = true;
-          }
-          pathMsg = `Shared path '${sharedPath}' exists on host`;
-        } catch (err: unknown) {
-          pathPassed = false;
-          pathMsg = `Shared path '${sharedPath}' not found on host: ${err instanceof Error ? err.message : "Path does not exist"}`;
+          const stat = await lstat(currentSymlink);
+          symlinkPassed = stat.isSymbolicLink();
+          symlinkMsg = symlinkPassed
+            ? `'${currentSymlink}' is a valid symbolic link`
+            : `'${currentSymlink}' exists but is not a symbolic link`;
+        } catch {
+          symlinkPassed = false;
+          symlinkMsg = `'${currentSymlink}' is not a symbolic link: ${err instanceof Error ? err.message : "Symlink does not exist"}`;
         }
-        checks.push({
-          id: `shared_path_${i}`,
-          title: `Shared Path: ${sharedPath}`,
-          passed: pathPassed,
-          message: pathMsg,
-        });
       }
-    }
+      checks.push({
+        id: "current_symlink",
+        title: "Current Symlink",
+        passed: symlinkPassed,
+        message: symlinkMsg,
+      });
 
-    // Check 7: Rollback permission check (test -w on the parent directory of current)
-    const currentParentDir = path.dirname(currentSymlink);
-    let permPassed = false;
-    let permMsg = "";
-    try {
-      if (options.fsAccess) {
-        await checkAccess(currentParentDir, fsConstants.W_OK);
-        permPassed = true;
+      // Check 6: Shared paths exist (one item each)
+      const sharedPaths = body.target.sharedPaths || body.target.sharedDirs || [];
+      if (sharedPaths.length === 0) {
+        checks.push({
+          id: "shared_paths",
+          title: "Shared Paths",
+          passed: true,
+          message: "No shared paths configured",
+        });
       } else {
-        await executor.exec(`test -w "${currentParentDir}"`);
-        permPassed = true;
+        for (let i = 0; i < sharedPaths.length; i++) {
+          const sharedPath = sharedPaths[i];
+          if (!sharedPath) continue;
+          let pathPassed = false;
+          let pathMsg = "";
+          try {
+            if (options.fsAccess) {
+              await checkAccess(sharedPath);
+              pathPassed = true;
+            } else {
+              await executor.exec(`test -e "${sharedPath}"`);
+              pathPassed = true;
+            }
+            pathMsg = `Shared path '${sharedPath}' exists on host`;
+          } catch (err: unknown) {
+            pathPassed = false;
+            pathMsg = `Shared path '${sharedPath}' not found on host: ${err instanceof Error ? err.message : "Path does not exist"}`;
+          }
+          checks.push({
+            id: `shared_path_${i}`,
+            title: `Shared Path: ${sharedPath}`,
+            passed: pathPassed,
+            message: pathMsg,
+          });
+        }
       }
-      permMsg = `Parent directory '${currentParentDir}' is writable for non-disruptive symlink swap`;
-    } catch (err: unknown) {
-      permPassed = false;
-      permMsg = `Parent directory '${currentParentDir}' is not writable: ${err instanceof Error ? err.message : "Permission denied"}`;
-    }
-    checks.push({
-      id: "rollback_permission",
-      title: "Rollback Permission",
-      passed: permPassed,
-      message: permMsg,
-    });
+
+      // Check 7: Rollback permission check (test -w on the parent directory of current)
+      const currentParentDir = path.dirname(currentSymlink);
+      let permPassed = false;
+      let permMsg = "";
+      try {
+        if (options.fsAccess) {
+          await checkAccess(currentParentDir, fsConstants.W_OK);
+          permPassed = true;
+        } else {
+          await executor.exec(`test -w "${currentParentDir}"`);
+          permPassed = true;
+        }
+        permMsg = `Parent directory '${currentParentDir}' is writable for non-disruptive symlink swap`;
+      } catch (err: unknown) {
+        permPassed = false;
+        permMsg = `Parent directory '${currentParentDir}' is not writable: ${err instanceof Error ? err.message : "Permission denied"}`;
+      }
+      checks.push({
+        id: "rollback_permission",
+        title: "Rollback Permission",
+        passed: permPassed,
+        message: permMsg,
+      });
     }
 
     const verified = checks.every((c) => c.passed);
@@ -516,11 +587,17 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             installationId: String(installationId),
             owner: body.owner,
             repo: body.repo,
+            deploymentIntegration: "github_actions",
+            runtimeAdapter: "pm2",
+            pm2Process: body.target.name,
             verifiedAt: verified ? new Date() : null,
             verificationReport: checks,
             storedConfig: body.target,
           },
           update: {
+            deploymentIntegration: "github_actions",
+            runtimeAdapter: "pm2",
+            pm2Process: body.target.name,
             verifiedAt: verified ? new Date() : null,
             verificationReport: checks,
             ...(verified ? { storedConfig: body.target } : {}),

@@ -247,6 +247,7 @@ model RepoConnection {
   mode                  DeploymentMode @default(standalone)
   deploymentIntegration String?        @default("github_actions")
   runtimeAdapter        String?        @default("none")
+  pm2Process            String?
   verifiedAt            DateTime?
   verificationReport    Json?
   monitoringPaused      Boolean        @default(false)

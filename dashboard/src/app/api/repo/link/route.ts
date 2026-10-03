@@ -44,12 +44,13 @@ export async function POST(request: NextRequest) {
     mode = typeof body.mode === "string" ? body.mode : "";
     deploymentIntegration = typeof body.deploymentIntegration === "string" ? body.deploymentIntegration : undefined;
     runtimeAdapter = typeof body.runtimeAdapter === "string" ? body.runtimeAdapter : undefined;
-    adapterKind = String(body.adapterKind ?? "");
+    adapterKind = String(body.adapterKind ?? (body.runtimeAdapter === "pm2" ? "pm2" : ""));
     adapterTarget = String(body.adapterTarget ?? "");
     integration = String(body.integration ?? "github-actions");
 
     adapterExtras = {
       ...(typeof body.layout === "string" ? { layout: body.layout } : {}),
+      ...(typeof body.adapterLayout === "string" ? { layout: body.adapterLayout } : {}),
       ...(typeof body.cwd === "string" ? { cwd: body.cwd } : {}),
       ...(typeof body.releasesDir === "string" ? { releasesDir: body.releasesDir } : {}),
       ...(typeof body.currentSymlink === "string" ? { currentSymlink: body.currentSymlink } : {}),
@@ -84,12 +85,13 @@ export async function POST(request: NextRequest) {
     deploymentIntegration,
     runtimeAdapter,
     adapter: adapterKind ? { kind: adapterKind } : undefined,
+    repo,
   });
 
   const deploymentMode: DeploymentMode = resolveRepoMode({ mode: resolved.capabilities.rollback ? "standalone" : "augment" });
 
-  if (resolved.runtimeAdapter === "pm2") {
-    adapterKind = adapterKind || "pm2";
+  if (deploymentMode === "standalone" || resolved.capabilities.rollback) {
+    adapterKind = adapterKind || (resolved.runtimeAdapter === "pm2" ? "pm2" : "pm2");
     if (!adapterTarget) {
       return NextResponse.json(
         { error: "adapterKind and adapterTarget are required for standalone mode" },
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
     const existingFile = await getCarfConfigFile(owner, repo, token).catch(() => null);
 
     const adapterConfig =
-      resolved.runtimeAdapter === "pm2"
+      deploymentMode === "standalone" && adapterKind === "pm2"
         ? AdapterConfigSchema.parse({
             kind: adapterKind as AdapterKind,
             target: adapterTarget,
@@ -137,9 +139,9 @@ export async function POST(request: NextRequest) {
     if (deploymentMode === "augment") {
       const storedConfig = {
         mode: "augment" as const,
-        integration,
         deploymentIntegration: resolved.deploymentIntegration,
         runtimeAdapter: resolved.runtimeAdapter,
+        integration,
       };
 
       try {
@@ -158,6 +160,7 @@ export async function POST(request: NextRequest) {
             mode: "augment",
             deploymentIntegration: resolved.deploymentIntegration,
             runtimeAdapter: resolved.runtimeAdapter,
+            pm2Process: null,
             storedConfig,
             verifiedAt: null,
             installTokenHash: null,
@@ -168,6 +171,7 @@ export async function POST(request: NextRequest) {
             mode: "augment",
             deploymentIntegration: resolved.deploymentIntegration,
             runtimeAdapter: resolved.runtimeAdapter,
+            pm2Process: null,
             storedConfig,
             verifiedAt: null,
             installTokenHash: null,
@@ -191,11 +195,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const pm2Process = adapterTarget || null;
     const storedConfig = {
       mode: "standalone" as const,
+      kind: adapterKind,
+      target: adapterTarget,
       deploymentIntegration: resolved.deploymentIntegration,
       runtimeAdapter: resolved.runtimeAdapter,
-      ...adapterConfig,
+      ...adapterExtras,
     };
     const { token: installToken, hash: installTokenHash, prefix: installTokenPrefix } = generateInstallToken();
 
@@ -215,6 +222,7 @@ export async function POST(request: NextRequest) {
           mode: "standalone",
           deploymentIntegration: resolved.deploymentIntegration,
           runtimeAdapter: resolved.runtimeAdapter,
+          pm2Process,
           storedConfig,
           verifiedAt: null,
           installTokenHash,
@@ -225,7 +233,9 @@ export async function POST(request: NextRequest) {
           mode: "standalone",
           deploymentIntegration: resolved.deploymentIntegration,
           runtimeAdapter: resolved.runtimeAdapter,
+          pm2Process,
           storedConfig,
+          verifiedAt: null,
           installTokenHash,
           installTokenPrefix,
           agentRevoked: false,
@@ -245,6 +255,7 @@ export async function POST(request: NextRequest) {
       repo,
       adapterKind,
       adapterTarget,
+      pm2Process,
       installToken,
       installTokenPrefix,
     });

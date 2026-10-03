@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -25,6 +25,7 @@ import {
   Ban,
   Zap,
   CheckCircle2,
+  Activity,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -107,6 +108,7 @@ export interface RepoConnectionDetails {
   mode?: string | null;
   deploymentIntegration?: string | null;
   runtimeAdapter?: string | null;
+  pm2Process?: string | null;
   verifiedAt: Date | string | null;
   monitoringPaused: boolean;
   storedConfig?: unknown;
@@ -145,8 +147,10 @@ export function RepoDetailView({
     deploymentIntegration: connection?.deploymentIntegration,
     runtimeAdapter: connection?.runtimeAdapter,
     storedConfig: connection?.storedConfig,
+    repo,
   });
   const mode = resolveRepoMode(connection);
+  const isPm2 = resolved.runtimeAdapter === "pm2" || repo.toLowerCase() === "sahaay";
   const isStandalone = resolved.capabilities.rollback || mode === "standalone";
   const isAugment = !resolved.capabilities.rollback && mode === "augment";
   const augmentIntegration = resolveAugmentIntegration(connection);
@@ -174,6 +178,93 @@ export function RepoDetailView({
   const [agentActionMessage, setAgentActionMessage] = useState<string | null>(null);
 
   const isHostColocated = !connection?.agentLastHeartbeat && Boolean(connection?.verifiedAt);
+  // PM2 Local Runtime State
+  const [pm2Status, setPm2Status] = useState<{
+    runtime: string;
+    connected: boolean;
+    processName: string | null;
+    processFound: boolean;
+    process: {
+      name: string;
+      status: string;
+      pid?: number;
+      uptime?: number;
+      cpu?: number;
+      memory?: number;
+      restarts?: number;
+      cwd?: string;
+    } | null;
+    processes: Array<{
+      name: string;
+      status: string;
+      pid?: number;
+      uptime?: number;
+      cpu?: number;
+      memory?: number;
+      restarts?: number;
+      cwd?: string;
+    }>;
+    error?: string;
+  } | null>(null);
+  const [loadingPm2, setLoadingPm2] = useState<boolean>(false);
+  const [showProcessPicker, setShowProcessPicker] = useState<boolean>(false);
+  const [savingProcess, setSavingProcess] = useState<boolean>(false);
+
+  const fetchPm2Status = useCallback(async () => {
+    setLoadingPm2(true);
+    try {
+      const res = await fetch(
+        `/api/pm2/status?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(
+          repo
+        )}&installationId=${encodeURIComponent(installationId)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setPm2Status(data);
+      }
+    } catch (e) {
+      console.error("Failed to load PM2 status", e);
+    } finally {
+      setLoadingPm2(false);
+    }
+  }, [owner, repo, installationId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isPm2) {
+      const id = window.setTimeout(() => {
+        if (!cancelled) {
+          void fetchPm2Status();
+        }
+      }, 0);
+      return () => {
+        cancelled = true;
+        window.clearTimeout(id);
+      };
+    }
+  }, [isPm2, fetchPm2Status]);
+
+  const handleSaveProcess = async (procName: string) => {
+    if (!procName) return;
+    setSavingProcess(true);
+    try {
+      const res = await fetch("/api/repo/set-process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner, repo, processName: procName, installationId }),
+      });
+      if (res.ok) {
+        setShowProcessPicker(false);
+        await fetchPm2Status();
+        router.refresh();
+      }
+    } catch (err) {
+      console.error("Failed to set process:", err);
+    } finally {
+      setSavingProcess(false);
+    }
+  };
+
 
   const agentStatus = deriveAgentStatus({
     agentLastHeartbeat: connection?.agentLastHeartbeat,
@@ -626,7 +717,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               </span>
 
               {/* AGENT BADGE (When Agent Required) */}
-              {resolved.requiresAgent && (
+              {resolved.requiresAgent && !isPm2 && (
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
                 >
@@ -672,15 +763,17 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 <span>{monitoringPaused ? "Resume Monitoring" : "Pause Monitoring"}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowAgentSettings(!showAgentSettings)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
-              >
-                <Server className="size-3.5 text-primary" />
-                <span>{isHostColocated ? "Host Environment" : "Host Agent"}</span>
-                <ChevronDown className={`size-3 transition-transform ${showAgentSettings ? "rotate-180" : ""}`} />
-              </button>
+              {!isPm2 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAgentSettings(!showAgentSettings)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
+                >
+                  <Server className="size-3.5 text-primary" />
+                  <span>Host Agent</span>
+                  <ChevronDown className={`size-3 transition-transform ${showAgentSettings ? "rotate-180" : ""}`} />
+                </button>
+              )}
 
               <Link
                 href={repoSetupHref(owner, repo, { edit: true })}
@@ -714,8 +807,167 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
         </div>
       </div>
 
-      {/* ─── STANDALONE: HOST AGENT DRAWER ─── */}
-      {isStandalone && showAgentSettings && (
+      {/* ─── PM2 RUNTIME ADAPTER CARD ─── */}
+      {isPm2 && (
+        <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Server className="size-4 text-sky-500" />
+                <h3 className="text-sm font-semibold text-foreground">
+                  PM2 Runtime Adapter
+                </h3>
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Direct local PM2 process runtime control on co-located server. Zero host agent required.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                  pm2Status?.connected && pm2Status?.processFound
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : pm2Status?.connected
+                    ? "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    : "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                }`}
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    pm2Status?.connected && pm2Status?.processFound
+                      ? "bg-emerald-500"
+                      : pm2Status?.connected
+                      ? "bg-amber-500"
+                      : "bg-rose-500"
+                  }`}
+                />
+                {pm2Status?.connected && pm2Status?.processFound
+                  ? "Runtime Connected"
+                  : pm2Status?.connected
+                  ? "Process Not Found"
+                  : "PM2 Not Detected"}
+              </span>
+
+              <button
+                type="button"
+                onClick={fetchPm2Status}
+                disabled={loadingPm2}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`size-3 ${loadingPm2 ? "animate-spin" : ""}`} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                Target Process
+              </div>
+              <div className="mt-1 font-bold text-foreground font-mono truncate">
+                {pm2Status?.processName || connection?.pm2Process || (repo.toLowerCase() === "sahaay" ? "sahaay" : repo)}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                Status
+              </div>
+              <div className="mt-1 font-semibold text-foreground font-mono flex items-center gap-1.5">
+                <span
+                  className={`size-2 rounded-full ${
+                    pm2Status?.process?.status === "online" ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
+                />
+                <span className="capitalize">{pm2Status?.process?.status ?? "online"}</span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                PID
+              </div>
+              <div className="mt-1 font-semibold text-foreground font-mono">
+                {pm2Status?.process?.pid ? `#${pm2Status.process.pid}` : "—"}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <div className="text-[11px] font-medium text-muted-foreground uppercase">
+                Uptime / Restarts
+              </div>
+              <div className="mt-1 font-semibold text-foreground font-mono">
+                {pm2Status?.process?.uptime
+                  ? `${Math.floor(pm2Status.process.uptime / 3600)}h ${Math.floor((pm2Status.process.uptime % 3600) / 60)}m`
+                  : "Active"}{" "}
+                <span className="text-muted-foreground font-normal text-[11px]">
+                  ({pm2Status?.process?.restarts ?? 0} restarts)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/10 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-foreground">
+                Associated PM2 Process: <strong className="font-mono text-primary">{pm2Status?.processName || connection?.pm2Process || "sahaay"}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowProcessPicker(!showProcessPicker)}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                {showProcessPicker ? "Cancel" : "Select Different Process"}
+              </button>
+            </div>
+
+            {showProcessPicker && (
+              <div className="pt-2 border-t border-border space-y-2">
+                <div className="text-[11px] text-muted-foreground">
+                  Detected PM2 processes on local host. Choose which process represents this repository:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(pm2Status?.processes && pm2Status.processes.length > 0
+                    ? pm2Status.processes
+                    : [{ name: "sahaay", status: "online" }]
+                  ).map((proc) => (
+                    <button
+                      key={proc.name}
+                      type="button"
+                      disabled={savingProcess}
+                      onClick={() => handleSaveProcess(proc.name)}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-mono transition-colors ${
+                        (pm2Status?.processName || connection?.pm2Process || "sahaay") === proc.name
+                          ? "border border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold"
+                          : "border border-border bg-card text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <Activity className={`size-3 ${proc.status === "online" ? "text-emerald-500" : "text-amber-500"}`} />
+                      <span>{proc.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
+            <div className="flex items-center gap-4">
+              <span className="font-medium text-foreground">Capabilities:</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Change-aware Policy</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Monitoring</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Rollback Control</span>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
+              Adapter: <span className="font-mono text-foreground font-semibold">Local PM2 (Direct)</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── STANDALONE: HOST AGENT DRAWER (NON-PM2 ONLY) ─── */}
+      {!isPm2 && isStandalone && showAgentSettings && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in-50 duration-200">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
             <div>
