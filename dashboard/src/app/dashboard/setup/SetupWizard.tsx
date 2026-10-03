@@ -188,24 +188,22 @@ export function SetupWizard({
       )}
 
       {/* STEP 3: CONFIGURE (STANDALONE OR AUGMENT) */}
-      {step === 3 && selectedRepo && (
-        <>
-          {selectedMode === "standalone" ? (
-            <StandaloneSetup
-              repo={selectedRepo}
-              installationId={primaryInstallationId}
-              accountName={accountName}
-              initialPm2={initialPm2}
-              onBackToMode={() => setStep(2)}
-            />
-          ) : (
-            <AugmentSetup
-              repo={selectedRepo}
-              installationId={primaryInstallationId}
-              onBackToMode={() => setStep(2)}
-            />
-          )}
-        </>
+      {step === 3 && selectedRepo && selectedMode === "standalone" && (
+        <StandaloneSetup
+          repo={selectedRepo}
+          installationId={primaryInstallationId}
+          accountName={accountName}
+          initialPm2={initialPm2}
+          onBackToMode={() => setStep(2)}
+        />
+      )}
+
+      {step === 3 && selectedRepo && selectedMode === "augment" && (
+        <AugmentSetup
+          repo={selectedRepo}
+          installationId={primaryInstallationId}
+          onBackToMode={() => setStep(2)}
+        />
       )}
     </div>
   );

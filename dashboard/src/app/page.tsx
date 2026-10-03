@@ -99,9 +99,6 @@ export default async function HomePage() {
               <a href="#install-server" className="transition-colors hover:text-foreground">
                 Host Agent
               </a>
-              <Link href="/dashboard/verify" className="transition-colors hover:text-foreground">
-                Threshold Demo
-              </Link>
               <a
                 href="https://github.com/dineshkorukonda/CARF"
                 target="_blank"
@@ -325,10 +322,7 @@ export default async function HomePage() {
                 Dashboard
               </Link>
               <Link href={account ? "/dashboard/setup" : "/login"} className="transition-colors hover:text-foreground">
-                Setup Agent
-              </Link>
-              <Link href="/dashboard/verify" className="transition-colors hover:text-foreground">
-                Threshold Demo
+                Add Repository
               </Link>
               <a
                 href="https://github.com/dineshkorukonda/CARF"

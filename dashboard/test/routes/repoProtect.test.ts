@@ -11,9 +11,16 @@ const putCarfConfigFile = vi.fn();
 const getRepoFile = vi.fn();
 const putRepoFile = vi.fn();
 const listInstallationRepos = vi.fn();
+const repoConnectionFindMany = vi.fn();
 
 vi.mock("../../src/lib/auth", () => ({ getCurrentAccount: () => getCurrentAccount() }));
-vi.mock("../../src/lib/prisma", () => ({ prisma: {} }));
+vi.mock("../../src/lib/prisma", () => ({
+  prisma: {
+    repoConnection: {
+      findMany: (...args: unknown[]) => repoConnectionFindMany(...args),
+    },
+  },
+}));
 
 vi.mock("../../src/lib/accountService", () => ({
   getInstallationForAccount: (...args: unknown[]) => getInstallationForAccount(...args),
@@ -123,7 +130,7 @@ describe("POST /api/repo/protect", () => {
     expect(putCarfConfigFile).toHaveBeenCalledWith(
       "acme",
       "frontend",
-      expect.stringContaining("mode: balanced"),
+      expect.stringContaining("mode: augment"),
       expect.stringContaining("1-click"),
       "gh-token-abc",
       undefined
@@ -161,7 +168,7 @@ describe("POST /api/repo/protect", () => {
     expect(putCarfConfigFile).toHaveBeenCalledWith(
       "acme",
       "payment-service",
-      expect.stringContaining("mode: conservative"),
+      expect.stringMatching(/mode: augment[\s\S]*baseWindow: 300/),
       expect.any(String),
       "gh-token-abc",
       undefined
@@ -226,6 +233,7 @@ describe("GET /api/repo/status", () => {
       { id: 1, name: "core-api", full_name: "acme/core-api", owner: { login: "acme" } },
       { id: 2, name: "dashboard", full_name: "acme/dashboard", owner: { login: "acme" } },
     ]);
+    repoConnectionFindMany.mockResolvedValue([]);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -236,8 +244,8 @@ describe("GET /api/repo/status", () => {
   });
 
   it("returns protection status for repos in installation", async () => {
-    getCarfConfigFile.mockImplementation((owner: string, repo: string) => {
-      if (repo === "core-api") return Promise.resolve({ content: "mode: balanced\n", sha: "sha-1" });
+    getCarfConfigFile.mockImplementation((_owner: string, repo: string) => {
+      if (repo === "core-api") return Promise.resolve({ content: "mode: standalone\n", sha: "sha-1" });
       return Promise.resolve(null);
     });
     getRepoFile.mockResolvedValue(null);
@@ -252,6 +260,41 @@ describe("GET /api/repo/status", () => {
     const dashboardStatus = body.statuses.find((s: { name: string }) => s.name === "dashboard");
 
     expect(coreApiStatus.isProtected).toBe(true);
+    expect(coreApiStatus.mode).toBe("standalone");
     expect(dashboardStatus.isProtected).toBe(false);
+    expect(dashboardStatus.mode).toBeUndefined();
+  });
+
+  it("never reports legacy balanced/conservative/aggressive as deployment mode", async () => {
+    getCarfConfigFile.mockResolvedValue({ content: "mode: balanced\n", sha: "sha-1" });
+    getRepoFile.mockResolvedValue(null);
+    repoConnectionFindMany.mockResolvedValue([]);
+
+    const req = new NextRequest(`${BASE_URL}/api/repo/status?installationId=99999&repo=acme/core-api`);
+    const res = await getRepoStatus(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.statuses[0].mode).toBeUndefined();
+    expect(body.statuses[0].mode).not.toBe("balanced");
+  });
+
+  it("uses RepoConnection.mode as the authoritative status mode", async () => {
+    getCarfConfigFile.mockResolvedValue({ content: "mode: standalone\n", sha: "sha-1" });
+    getRepoFile.mockResolvedValue(null);
+    repoConnectionFindMany.mockResolvedValue([
+      {
+        owner: "acme",
+        repo: "core-api",
+        mode: "augment",
+        storedConfig: { mode: "augment", integration: "github-actions" },
+        installTokenHash: null,
+      },
+    ]);
+
+    const req = new NextRequest(`${BASE_URL}/api/repo/status?installationId=99999&repo=acme/core-api`);
+    const res = await getRepoStatus(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.statuses[0].mode).toBe("augment");
   });
 });

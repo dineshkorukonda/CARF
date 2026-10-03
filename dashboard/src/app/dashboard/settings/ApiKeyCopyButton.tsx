@@ -3,23 +3,16 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
-function maskKey(apiKey: string): string {
-  if (apiKey.length <= 10) return "••••••••";
-  return `${apiKey.slice(0, 6)}••••••••${apiKey.slice(-4)}`;
-}
-
 export function ApiKeyCopyButton({
-  apiKey,
   installationId,
 }: {
-  apiKey?: string | null;
   installationId?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!apiKey && !installationId) {
+  if (!installationId) {
     return <span className="text-muted-foreground text-xs font-mono">None</span>;
   }
 
@@ -27,20 +20,16 @@ export function ApiKeyCopyButton({
     setBusy(true);
     setError(null);
     try {
-      let value = apiKey ?? "";
-      if (installationId) {
-        const res = await fetch("/api/repo/api-key", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ installationId }),
-        });
-        const data = (await res.json()) as { apiKey?: string; error?: string };
-        if (!res.ok || !data.apiKey) {
-          throw new Error(data.error || "Could not load API key");
-        }
-        value = data.apiKey;
+      const res = await fetch("/api/repo/api-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installationId }),
+      });
+      const data = (await res.json()) as { apiKey?: string; error?: string };
+      if (!res.ok || !data.apiKey) {
+        throw new Error(data.error || "Could not load API key");
       }
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(data.apiKey);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -53,7 +42,7 @@ export function ApiKeyCopyButton({
   return (
     <span className="inline-flex items-center gap-2">
       <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
-        {apiKey ? maskKey(apiKey) : "••••••••••••"}
+        ••••••••••••
       </span>
       <button
         type="button"

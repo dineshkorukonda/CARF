@@ -209,11 +209,9 @@ export function RepoListView({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">{activePendingCount}</span>
-            {augmentRepoCount > 0 ? (
-              <span className="text-xs text-muted-foreground">{augmentRepoCount} augment</span>
-            ) : (
-              <span className="text-xs text-muted-foreground">idle</span>
-            )}
+            <span className="text-xs text-muted-foreground">
+              {activePendingCount > 0 ? "standalone windows" : "idle"}
+            </span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
             {activePendingCount > 0
@@ -240,7 +238,13 @@ export function RepoListView({
       )}
 
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-foreground">Connected repositories ({repos.length})</h2>
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Connected repositories ({repos.length})</h2>
+          <p className="text-[11px] text-muted-foreground">
+            {standaloneKeys.size} standalone
+            {augmentRepoCount > 0 ? ` · ${augmentRepoCount} augment` : ""}
+          </p>
+        </div>
 
         {repos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">

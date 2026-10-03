@@ -18,7 +18,7 @@ export interface RepoConfigLookupInput {
   mode?: string | null;
 }
 
-function parseMode(value: unknown): DeploymentMode | null {
+export function parseDeclaredMode(value: unknown): DeploymentMode | null {
   if (value === "augment" || value === "standalone") return value;
   return null;
 }
@@ -42,12 +42,12 @@ function storedConfigObject(stored: unknown): Record<string, unknown> | null {
 export function resolveRepoMode(input?: RepoConfigLookupInput | null): DeploymentMode {
   if (!input) return "standalone";
 
-  const fromColumn = parseMode(input.mode);
+  const fromColumn = parseDeclaredMode(input.mode);
   if (fromColumn) return fromColumn;
 
   const cfg = storedConfigObject(input.storedConfig);
   if (cfg) {
-    const fromStored = parseMode(cfg.mode);
+    const fromStored = parseDeclaredMode(cfg.mode);
     if (fromStored) return fromStored;
     if (typeof cfg.integration === "string" && cfg.integration.trim()) return "augment";
     if (

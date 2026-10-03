@@ -5,6 +5,7 @@ import {
   isStandaloneRepo,
   isAugmentRepo,
   isAccidentalProductionRepoName,
+  parseDeclaredMode,
 } from "../../src/lib/deploymentMode";
 
 describe("deploymentMode resolution", () => {
@@ -69,6 +70,15 @@ describe("deploymentMode resolution", () => {
     expect(
       resolveAugmentIntegration({ storedConfig: { integration: "generic-http" } })
     ).toBe("generic-http");
+  });
+
+  it("accepts only standalone and augment as declared modes", () => {
+    expect(parseDeclaredMode("standalone")).toBe("standalone");
+    expect(parseDeclaredMode("augment")).toBe("augment");
+    expect(parseDeclaredMode("balanced")).toBeNull();
+    expect(parseDeclaredMode("conservative")).toBeNull();
+    expect(parseDeclaredMode("aggressive")).toBeNull();
+    expect(parseDeclaredMode("production")).toBeNull();
   });
 
   it("does not treat the word production as a special repository", () => {
