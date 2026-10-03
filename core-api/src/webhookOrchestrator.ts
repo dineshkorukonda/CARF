@@ -22,6 +22,7 @@ import { prisma as defaultPrisma } from "./db/client.js";
 import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 import { resolveRepoMode } from "./deploymentMode.js";
+import { resolveFromLegacy } from "./capabilities/resolver.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
 
@@ -189,6 +190,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       }) => Promise<{
         monitoringPaused?: boolean;
         mode?: string | null;
+        deploymentIntegration?: string | null;
+        runtimeAdapter?: string | null;
         storedConfig?: unknown;
         installTokenHash?: string | null;
       } | null>;
@@ -196,6 +199,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   };
 
   let connectionMode: ReturnType<typeof resolveRepoMode> | null = null;
+  let connectionCapabilities: ReturnType<typeof resolveFromLegacy> | null = null;
   let monitoringPaused = false;
   if (repoConnClient.repoConnection?.findUnique) {
     try {
@@ -210,6 +214,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       });
       if (conn) {
         connectionMode = resolveRepoMode(conn);
+        connectionCapabilities = resolveFromLegacy(conn);
         monitoringPaused = Boolean(conn.monitoringPaused);
       }
     } catch (err) {
@@ -217,10 +222,20 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     }
   }
 
+  // Resolve 3-layer capabilities:
+  // Precedence: explicit RepoConnection capabilities if connection exists,
+  // else fallback to .carf.yml configuration.
+  const resolved = connectionCapabilities ?? resolveFromLegacy({
+    mode: carfConfig?.mode,
+    deploymentIntegration: carfConfig?.deploymentIntegration,
+    runtimeAdapter: carfConfig?.runtimeAdapter,
+    adapter: carfConfig?.adapter,
+  });
+
   // RepoConnection.mode is authoritative when a connection exists.
   // Augment repositories must never start a Standalone observation loop.
   const effectiveMode = connectionMode ?? carfConfig?.mode;
-  if (effectiveMode !== "standalone") {
+  if (effectiveMode !== "standalone" || !resolved.capabilities.rollback) {
     deps.logger.info(
       { owner: target.owner, repo: target.repo, mode: effectiveMode ?? "unset" },
       "skipping standalone loop — repository is not configured as standalone"
@@ -345,13 +360,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
             deps.logger.error({ error, key }, "failed to release standalone loop lock");
           });
         });
-    } else {
-      clearInterval(heartbeat);
-      releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
-        deps.logger.error({ error, key }, "failed to release standalone loop lock");
-      });
+      return;
     }
-    return;
   }
 
   const loopRunner = deps.standaloneLoopRunner ?? runStandaloneLoop;

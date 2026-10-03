@@ -93,6 +93,23 @@ export const AdapterConfigSchema = z
   });
 export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
 
+export const DeploymentIntegrationSchema = z.enum([
+  "github_actions",
+  "argo_rollouts",
+  "flagger",
+  "generic_http",
+]);
+export type DeploymentIntegrationConfig = z.infer<typeof DeploymentIntegrationSchema>;
+
+export const RuntimeAdapterSchema = z.enum([
+  "none",
+  "pm2",
+  "kubernetes",
+  "docker",
+  "systemd",
+]);
+export type RuntimeAdapterConfig = z.infer<typeof RuntimeAdapterSchema>;
+
 export const ModeSchema = z.enum(["standalone", "augment"]);
 export type Mode = z.infer<typeof ModeSchema>;
 
@@ -154,3 +171,15 @@ export const ClassificationSchema = z
   })
   .strict();
 export type ClassificationConfig = z.infer<typeof ClassificationSchema>;
+
+export const CarfConfigSchema = z
+  .object({
+    classification: ClassificationSchema.optional(),
+    threshold: ThresholdSchema.optional(),
+    deploymentIntegration: DeploymentIntegrationSchema.optional(),
+    runtimeAdapter: RuntimeAdapterSchema.optional(),
+    mode: ModeSchema.optional(),
+    adapter: AdapterConfigSchema.optional(),
+  })
+  .strict();
+export type CarfConfig = z.infer<typeof CarfConfigSchema>;

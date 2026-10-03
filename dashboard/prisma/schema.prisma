@@ -240,22 +240,24 @@ model RolloutSample {
 // Stores repository connection state, verification report, pause toggle, and fallback config.
 // Rule: .carf.yml in the repository root strictly takes precedence over storedConfig warm present.
 model RepoConnection {
-  id                 String         @id @default(cuid())
-  installationId     String
-  owner              String
-  repo               String
-  mode               DeploymentMode @default(standalone)
-  verifiedAt         DateTime?
-  verificationReport Json?
-  monitoringPaused   Boolean        @default(false)
-  storedConfig       Json?
-  installTokenHash   String?
-  installTokenPrefix String?
-  agentLastHeartbeat DateTime?
-  agentVersion       String?
-  agentRevoked       Boolean?       @default(false)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  id                    String         @id @default(cuid())
+  installationId        String
+  owner                 String
+  repo                  String
+  mode                  DeploymentMode @default(standalone)
+  deploymentIntegration String?        @default("github_actions")
+  runtimeAdapter        String?        @default("none")
+  verifiedAt            DateTime?
+  verificationReport    Json?
+  monitoringPaused      Boolean        @default(false)
+  storedConfig          Json?
+  installTokenHash      String?
+  installTokenPrefix    String?
+  agentLastHeartbeat    DateTime?
+  agentVersion          String?
+  agentRevoked          Boolean?       @default(false)
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   @@unique([installationId, owner, repo])
   @@index([installationId])

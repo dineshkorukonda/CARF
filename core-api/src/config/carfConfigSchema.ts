@@ -78,6 +78,29 @@ export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
 };
 
 /**
+ * Deployment Integrations: Systems CARF integrates with during deployment.
+ */
+export const DeploymentIntegrationSchema = z.enum([
+  "github_actions",
+  "argo_rollouts",
+  "flagger",
+  "generic_http",
+]);
+export type DeploymentIntegrationConfig = z.infer<typeof DeploymentIntegrationSchema>;
+
+/**
+ * Runtime / Control Adapters: Application runtime targets.
+ */
+export const RuntimeAdapterSchema = z.enum([
+  "none",
+  "pm2",
+  "kubernetes",
+  "docker",
+  "systemd",
+]);
+export type RuntimeAdapterConfig = z.infer<typeof RuntimeAdapterSchema>;
+
+/**
  * `mode: "standalone"` with `adapter.kind: "pm2"` is wired to a `runStandaloneLoop()`
  * kickoff by `src/webhookOrchestrator.ts`'s `handleWebhookCommit()`.
  * PM2 is the only supported standalone adapter.
@@ -157,6 +180,10 @@ export const CarfConfigSchema = z
   .object({
     classification: ClassificationSchema.optional(),
     threshold: ThresholdSchema.optional(),
+    // 3-Layer Architecture (new source of truth)
+    deploymentIntegration: DeploymentIntegrationSchema.optional(),
+    runtimeAdapter: RuntimeAdapterSchema.optional(),
+    // Legacy fields preserved for backward compatibility
     mode: z.enum(["standalone", "augment"]).optional(),
     adapter: AdapterSchema.optional(),
   })
