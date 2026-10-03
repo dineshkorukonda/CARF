@@ -4,6 +4,13 @@ import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { generateInstallToken } from "../../../../lib/agentToken";
 
+/**
+ * Generates an installation token for the CARF Host Agent.
+ *
+ * This endpoint is explicitly Standalone-oriented.
+ * It requires an explicit GitHub owner and repository name, and an authorized installation.
+ * It NEVER defaults to or creates an implicit "production" repository.
+ */
 export async function POST(request: NextRequest) {
   const account = await getCurrentAccount();
   if (!account) {
@@ -19,36 +26,30 @@ export async function POST(request: NextRequest) {
 
   const { installationId, owner, repo } = body;
 
-  const defaultOwner = account.name || account.email?.split("@")[0] || "server";
-  const resolvedOwner = (owner && owner.trim()) ? owner.trim() : defaultOwner;
-  const resolvedRepo = (repo && repo.trim()) ? repo.trim() : "production";
+  const resolvedOwner = typeof owner === "string" ? owner.trim() : "";
+  const resolvedRepo = typeof repo === "string" ? repo.trim() : "";
 
-  let installation = null;
-
-  if (installationId) {
-    installation = await getInstallationForAccount(prisma, account.id, installationId);
+  if (!resolvedOwner || !resolvedRepo) {
+    return NextResponse.json(
+      { error: "Missing required fields: owner and repo must be non-empty strings" },
+      { status: 400 }
+    );
   }
 
+  if (!installationId || typeof installationId !== "string" || !installationId.trim()) {
+    return NextResponse.json(
+      { error: "Missing required field: installationId must be specified" },
+      { status: 400 }
+    );
+  }
+
+  const resolvedInstallationId = installationId.trim();
+  const installation = await getInstallationForAccount(prisma, account.id, resolvedInstallationId);
   if (!installation) {
-    const existing = await prisma.installation.findFirst({
-      where: { userId: account.id },
-    });
-    if (existing) {
-      installation = existing;
-    } else {
-      const hostInstId = `host_${account.id}`;
-      installation = await prisma.installation.upsert({
-        where: { installationId: hostInstId },
-        create: {
-          installationId: hostInstId,
-          userId: account.id,
-          targetLogin: resolvedOwner,
-          targetType: "Host",
-          repositorySelection: "all",
-        },
-        update: {},
-      });
-    }
+    return NextResponse.json(
+      { error: "Installation not found or unauthorized for this account" },
+      { status: 404 }
+    );
   }
 
   const { token, hash, prefix } = generateInstallToken();
