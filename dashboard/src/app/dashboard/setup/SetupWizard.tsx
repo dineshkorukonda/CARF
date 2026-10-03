@@ -52,12 +52,15 @@ export function SetupWizard({
   accountName = "server",
 }: SetupWizardProps) {
   // Determine if a GitHub App is attached
-  const githubInstallation = installations.find((i) => !i.installationId.startsWith("host_"));
-  const primaryInstallationId = githubInstallation?.installationId || installations[0]?.installationId || "";
+  const githubInstallation = (installations || []).find(
+    (i) => !String(i?.installationId || "").startsWith("host_")
+  );
+  const primaryInstallationId =
+    githubInstallation?.installationId || installations?.[0]?.installationId || "";
 
   // Pre-seed if initialRepoFullName is provided
   const seedRepo = initialRepoFullName || "";
-  const existingConn = seedRepo ? findRepoConnection(connections, seedRepo) : null;
+  const existingConn = seedRepo ? findRepoConnection(connections || [], seedRepo) : null;
   const initialResolved = existingConn ? resolveFromLegacy(existingConn) : null;
 
   // Global wizard steps: 1 = Select Repo, 2 = Deployment Integration, 3 = Runtime Adapter, 4 = Capabilities Preview
@@ -86,7 +89,7 @@ export function SetupWizard({
 
   // Connected repository names set for fast lookup
   const connectedRepoNames = new Set(
-    connections.map((c) => `${c.owner}/${c.repo}`.toLowerCase())
+    (connections || []).map((c) => `${c.owner}/${c.repo}`.toLowerCase())
   );
 
   const selectedRepo =
