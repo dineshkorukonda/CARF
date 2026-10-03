@@ -302,3 +302,28 @@ model EvaluationLog {
   @@index([commitSha])
   @@index([condition])
 }
+
+// Per-repository Augment integration state (e.g. GitHub Actions auto-integration).
+// Additive: never stores secrets -- only safe metadata about the generated workflow.
+model RepoIntegration {
+  id              String    @id @default(cuid())
+  installationId  String
+  owner           String
+  repo            String
+  integration     String
+  status          String    @default("not_configured")
+  branch          String?
+  workflowPath    String?
+  workflowVersion Int?
+  configuredAt    DateTime?
+  lastVerifiedAt  DateTime?
+  lastSyncAt      DateTime?
+  lastPolicyAt    DateTime?
+  lastCommitSha   String?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([installationId, owner, repo, integration])
+  @@index([installationId])
+}
