@@ -45,6 +45,7 @@ import {
   getAgentBadgeVariant,
 } from "../../../../lib/repoStatusDerivation";
 import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } from "../../../../lib/deploymentMode";
+import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
 import { commitPageHref, repoSetupHref } from "../../../../lib/dashboardNav";
 
@@ -515,24 +516,6 @@ export function RepoDetailView({
   }, [commits, liveRollouts, outcomeFilter]);
 
   // Snippets for Augment view
-  const githubActionsSnippet = `name: CARF Threshold Gate
-on: [push]
-
-jobs:
-  canary-gate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fetch CARF Change-Aware Threshold
-        run: |
-          RESPONSE=$(curl -fsSL "${coreApiOrigin}/v1/threshold?commit=\${{ github.sha }}" \\
-            -H "Authorization: Bearer \${{ secrets.CARF_API_KEY }}")
-          
-          THRESHOLD=$(echo "$RESPONSE" | jq -r '.threshold')
-          WINDOW=$(echo "$RESPONSE" | jq -r '.window')
-          echo "Calibrated error threshold: $THRESHOLD across \${WINDOW}s observation window"
-          echo "CARF_THRESHOLD=$THRESHOLD" >> $GITHUB_ENV
-          echo "CARF_WINDOW=$WINDOW" >> $GITHUB_ENV`;
-
   const argoRolloutsSnippet = `apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -567,9 +550,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
   -H "Authorization: Bearer \${CARF_API_KEY}"`;
 
   const currentSnippet =
-    activeSnippetTab === "github-actions"
-      ? githubActionsSnippet
-      : activeSnippetTab === "argo-rollouts"
+    activeSnippetTab === "argo-rollouts"
       ? argoRolloutsSnippet
       : activeSnippetTab === "flagger"
       ? flaggerSnippet
@@ -857,7 +838,11 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── AUGMENT: POLICY & INTEGRATION CARD ─── */}
-      {isAugment && (
+      {isAugment && augmentIntegration === "github-actions" && connection?.id && (
+        <GitHubActionsIntegrationPanel repositoryId={connection.id} defaultBranch={defaultBranch} />
+      )}
+
+      {isAugment && augmentIntegration !== "github-actions" && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
             <div>
@@ -936,7 +921,6 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1 border-b border-border">
                 {[
-                  { id: "github-actions" as AugmentIntegration, label: "GitHub Actions" },
                   { id: "argo-rollouts" as AugmentIntegration, label: "Argo Rollouts" },
                   { id: "flagger" as AugmentIntegration, label: "Flagger" },
                   { id: "generic-http" as AugmentIntegration, label: "Generic HTTP" },
@@ -966,7 +950,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
               >
                 {copiedSnippet ? <Check className="size-3" /> : <Copy className="size-3" />}
-                <span>{copiedSnippet ? "Copied" : "Copy Snippet"}</span>
+                <span>{copiedSnippet ? "Copied" : "Copy Configuration"}</span>
               </button>
             </div>
 
