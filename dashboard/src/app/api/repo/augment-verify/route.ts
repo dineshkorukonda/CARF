@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify access to Core API threshold engine
-  let policyReady = true;
+  const policyReady = true;
   let testThreshold = 0.05;
   let testWindow = 30;
 

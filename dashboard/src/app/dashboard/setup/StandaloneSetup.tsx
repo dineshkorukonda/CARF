@@ -3,28 +3,17 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  Server,
   RefreshCw,
   Terminal,
   Copy,
   Check,
   CheckCircle2,
   XCircle,
-  AlertCircle,
   ArrowLeft,
   ArrowRight,
-  ExternalLink,
 } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import { projectPageHref } from "../../../lib/dashboardNav";
-
-export interface Pm2App {
-  name: string;
-  pm_id: number;
-  status: string;
-  cwd?: string;
-  instances?: number;
-}
 
 export interface VerificationCheckItem {
   id: string;
@@ -33,25 +22,26 @@ export interface VerificationCheckItem {
   message?: string;
 }
 
+export interface StandalonePm2Seed {
+  layout?: "releases" | "git";
+  cwd?: string;
+  healthUrl?: string;
+  targetName?: string;
+  releasesDir?: string;
+  currentSymlink?: string;
+}
+
 interface StandaloneSetupProps {
   repo: InstallationRepo;
   installationId: string;
-  accountName: string;
-  initialPm2?: {
-    layout?: "releases" | "git";
-    cwd?: string;
-    healthUrl?: string;
-    targetName?: string;
-    releasesDir?: string;
-    currentSymlink?: string;
-  };
+  accountName?: string;
+  initialPm2?: StandalonePm2Seed;
   onBackToMode: () => void;
 }
 
 export function StandaloneSetup({
   repo,
   installationId,
-  accountName,
   initialPm2,
   onBackToMode,
 }: StandaloneSetupProps) {
@@ -71,12 +61,7 @@ export function StandaloneSetup({
   const [currentSymlink, setCurrentSymlink] = useState<string>(
     initialPm2?.currentSymlink || `/var/www/${repo.name}/current`
   );
-  const [startupGraceSeconds, setStartupGraceSeconds] = useState<number>(15);
-
-  // PM2 Discovery
-  const [pm2Apps, setPm2Apps] = useState<Pm2App[]>([]);
-  const [discoveringPm2, setDiscoveringPm2] = useState<boolean>(false);
-  const [pm2DiscoveryError, setPm2DiscoveryError] = useState<string | null>(null);
+  const [startupGraceSeconds] = useState<number>(15);
 
   // Host Agent Token & Status
   const [installToken, setInstallToken] = useState<string>("");
@@ -102,31 +87,6 @@ export function StandaloneSetup({
 
   const centralOrigin =
     typeof window !== "undefined" ? window.location.origin : "https://carf.indevs.in";
-
-  // Discover PM2 apps from host if agent is connected
-  const discoverPm2 = async () => {
-    setDiscoveringPm2(true);
-    setPm2DiscoveryError(null);
-    try {
-      const res = await fetch("/api/pm2/apps");
-      if (!res.ok) {
-        throw new Error(`Failed to query PM2 apps (${res.status})`);
-      }
-      const data = (await res.json()) as { apps?: Pm2App[] };
-      const apps = data.apps || [];
-      setPm2Apps(apps);
-      if (apps.length > 0 && !targetName) {
-        setTargetName(apps[0]!.name);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Could not discover PM2 apps";
-      setPm2DiscoveryError(
-        `${msg}. You can enter the target process name manually below.`
-      );
-    } finally {
-      setDiscoveringPm2(false);
-    }
-  };
 
   // Mint agent token for THIS specific repo
   const generateAgentToken = useCallback(async () => {
@@ -154,12 +114,19 @@ export function StandaloneSetup({
     }
   }, [installationId, repo.owner.login, repo.name]);
 
+  // Deferred token generation when landing on subStep 2 without token
+  useEffect(() => {
+    if (subStep === 2 && !installToken) {
+      const timer = setTimeout(() => {
+        void generateAgentToken();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [subStep, installToken, generateAgentToken]);
+
   // Poll agent heartbeat
   useEffect(() => {
     if (subStep !== 2) return;
-    if (!installToken) {
-      void generateAgentToken();
-    }
 
     let active = true;
     const poll = async () => {
@@ -188,7 +155,7 @@ export function StandaloneSetup({
       active = false;
       clearInterval(interval);
     };
-  }, [subStep, installToken, generateAgentToken, repo.owner.login, repo.name, installationId]);
+  }, [subStep, repo.owner.login, repo.name, installationId]);
 
   // Run PM2 Preflight Check
   const runPreflightCheck = async () => {
@@ -282,7 +249,9 @@ export function StandaloneSetup({
 
   const curlCommand = installToken
     ? `curl -fsSL ${centralOrigin}/install.sh | bash -s -- --token=${installToken}`
-    : "Generating agent installation command...";
+    : generatingToken
+    ? "Generating installation token..."
+    : "Click 'Retry Token' if installation command does not appear.";
 
   return (
     <div className="space-y-6">
@@ -397,7 +366,12 @@ export function StandaloneSetup({
             <button
               type="button"
               disabled={!targetName.trim() || !cwd.trim() || !healthUrl.trim()}
-              onClick={() => setSubStep(2)}
+              onClick={() => {
+                setSubStep(2);
+                if (!installToken) {
+                  void generateAgentToken();
+                }
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 disabled:opacity-50"
             >
               <span>Next: Install Host Agent</span>
@@ -420,18 +394,32 @@ export function StandaloneSetup({
           <div className="rounded-xl border border-border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground">1-Line Installation Command</span>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(curlCommand);
-                  setCopiedInstallCmd(true);
-                  setTimeout(() => setCopiedInstallCmd(false), 2000);
-                }}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
-              >
-                {copiedInstallCmd ? <Check className="size-3" /> : <Copy className="size-3" />}
-                <span>{copiedInstallCmd ? "Copied" : "Copy Command"}</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {!installToken && (
+                  <button
+                    type="button"
+                    onClick={() => void generateAgentToken()}
+                    disabled={generatingToken}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                  >
+                    <RefreshCw className={`size-3 ${generatingToken ? "animate-spin" : ""}`} />
+                    <span>Retry Token</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  disabled={!installToken}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(curlCommand);
+                    setCopiedInstallCmd(true);
+                    setTimeout(() => setCopiedInstallCmd(false), 2000);
+                  }}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline disabled:opacity-50"
+                >
+                  {copiedInstallCmd ? <Check className="size-3" /> : <Copy className="size-3" />}
+                  <span>{copiedInstallCmd ? "Copied" : "Copy Command"}</span>
+                </button>
+              </div>
             </div>
 
             <div className="rounded-lg bg-slate-950 p-3 font-mono text-xs text-emerald-400 overflow-x-auto select-all">
@@ -459,7 +447,11 @@ export function StandaloneSetup({
                   }`}
                 />
                 {agentStatus === "online"
-                  ? `Online (v${agentVersion ?? "latest"})`
+                  ? `Online (v${agentVersion ?? "latest"})${
+                      agentLastHeartbeat
+                        ? ` • Heartbeat: ${new Date(agentLastHeartbeat).toLocaleTimeString()}`
+                        : ""
+                    }`
                   : agentStatus === "offline"
                   ? "Offline"
                   : "Waiting for agent connection..."}

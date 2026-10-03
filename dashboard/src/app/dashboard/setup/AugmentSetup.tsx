@@ -9,7 +9,6 @@ import {
   Check,
   ArrowLeft,
   ArrowRight,
-  ExternalLink,
   Code2,
   RefreshCw,
   Play,
@@ -35,7 +34,6 @@ export function AugmentSetup({
 
   // Commit state
   const [committing, setCommitting] = useState<boolean>(false);
-  const [commitSuccess, setCommitSuccess] = useState<boolean>(false);
   const [commitError, setCommitError] = useState<string | null>(null);
 
   // Active snippet tab
@@ -78,7 +76,6 @@ export function AugmentSetup({
       if (!res.ok) {
         throw new Error(data.error || "Failed to commit .carf.yml");
       }
-      setCommitSuccess(true);
       setSubStep(3);
     } catch (err: unknown) {
       setCommitError(err instanceof Error ? err.message : "Failed to link repository");
@@ -396,7 +393,7 @@ mode: augment
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(currentSnippet);
+                  void navigator.clipboard.writeText(currentSnippet);
                   setCopiedSnippet(true);
                   setTimeout(() => setCopiedSnippet(false), 2000);
                 }}
@@ -519,17 +516,6 @@ mode: augment
                 <ArrowRight className="size-3.5" />
               </Link>
             </div>
-          </div>
-
-          <div className="flex items-center justify-start pt-2">
-            <button
-              type="button"
-              onClick={() => setSubStep(3)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
-            >
-              <ArrowLeft className="size-3.5" />
-              <span>Back to Snippets</span>
-            </button>
           </div>
         </div>
       )}

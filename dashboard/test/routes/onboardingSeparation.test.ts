@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NextRequest } from "next/server";
 import { POST as linkPost } from "../../src/app/api/repo/link/route";
 import { POST as generateTokenPost } from "../../src/app/api/repo/generate-token/route";
 import { POST as augmentVerifyPost } from "../../src/app/api/repo/augment-verify/route";
@@ -97,7 +98,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
 
   describe("Standalone Onboarding", () => {
     it("persists PM2 adapter config and generates a host install token", async () => {
-      const req = new Request("http://localhost/api/repo/link", {
+      const req = new NextRequest("http://localhost/api/repo/link", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -146,7 +147,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
     });
 
     it("rejects standalone setup if adapterTarget is missing", async () => {
-      const req = new Request("http://localhost/api/repo/link", {
+      const req = new NextRequest("http://localhost/api/repo/link", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -167,7 +168,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
 
   describe("Augment Onboarding", () => {
     it("persists mode: augment without generating install token or PM2 config", async () => {
-      const req = new Request("http://localhost/api/repo/link", {
+      const req = new NextRequest("http://localhost/api/repo/link", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -212,7 +213,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
 
   describe("Preventing 'production' Fallback", () => {
     it("rejects generate-token if repo or owner is missing", async () => {
-      const req = new Request("http://localhost/api/repo/generate-token", {
+      const req = new NextRequest("http://localhost/api/repo/generate-token", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -231,7 +232,7 @@ describe("Onboarding Separation: Standalone vs Augment", () => {
   describe("Augment Policy Verification", () => {
     it("verifies policy readiness without host agent", async () => {
       mockCommitFindMany.mockResolvedValue([]);
-      const req = new Request("http://localhost/api/repo/augment-verify", {
+      const req = new NextRequest("http://localhost/api/repo/augment-verify", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
