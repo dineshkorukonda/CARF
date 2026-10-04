@@ -3,6 +3,16 @@
 # on the Capistrano verify path (releases/ + current), which is why Sahaay stayed unverified.
 set -euo pipefail
 
+# Non-interactive SSH sessions do not load Bun's shell-profile PATH setup.
+if ! command -v bun >/dev/null 2>&1; then
+  if [[ -x "$HOME/.bun/bin/bun" ]]; then
+    export PATH="$HOME/.bun/bin:$PATH"
+  else
+    echo "ERROR: Bun was not found. Install it or add it to PATH before deploying." >&2
+    exit 1
+  fi
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
@@ -20,12 +30,16 @@ echo "==> HEAD is $(git log -1 --oneline)"
 echo "==> Installing core-api dependencies..."
 cd "$ROOT/core-api"
 bun install
+echo "==> Regenerating core-api Prisma client..."
+bunx prisma generate
 echo "==> Building core-api..."
 bun run build
 
 echo "==> Installing dashboard dependencies..."
 cd "$ROOT/dashboard"
 bun install
+echo "==> Regenerating dashboard Prisma client..."
+bunx prisma generate
 echo "==> Building dashboard..."
 bun run build
 
