@@ -79,11 +79,11 @@ describe("Centralized Capability Resolver (core-api)", () => {
       expect(res.requiresAgent).toBe(false);
     });
 
-    it("maps sahaay repo to github_actions + pm2", () => {
+    it("does not infer runtime capabilities from repository names", () => {
       const res = resolveFromLegacy({ repo: "sahaay" });
       expect(res.deploymentIntegration).toBe("github_actions");
-      expect(res.runtimeAdapter).toBe("pm2");
-      expect(res.capabilities.rollback).toBe(true);
+      expect(res.runtimeAdapter).toBe("none");
+      expect(res.capabilities.rollback).toBe(false);
       expect(res.requiresAgent).toBe(false);
     });
 

@@ -81,7 +81,7 @@ export function SetupWizard({
     healthUrl: string;
     layout: "releases" | "git";
   }>({
-    targetName: initialPm2.targetName || (seedRepo ? seedRepo.split("/")[1] || seedRepo : ""),
+    targetName: initialPm2.targetName || "",
     cwd: initialPm2.cwd || `/opt/${seedRepo ? seedRepo.split("/")[1] || "app" : "app"}`,
     healthUrl: initialPm2.healthUrl || "http://127.0.0.1:3000/healthz",
     layout: initialPm2.layout || "git",
@@ -245,6 +245,7 @@ export function SetupWizard({
       {/* STEP 3: CHOOSE RUNTIME ADAPTER */}
       {step === 3 && (
         <RuntimeAdapterStep
+          installationId={primaryInstallationId}
           selectedRepo={selectedRepo}
           selectedAdapter={runtimeAdapter}
           onSelectAdapter={(adapter) => setRuntimeAdapter(adapter)}

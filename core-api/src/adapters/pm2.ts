@@ -1,5 +1,6 @@
 import { defaultExec, assertSafeTarget, LocalCommandExecutor, type ExecFn, type CommandExecutor } from "./execFn.js";
 import type { RollbackAdapter } from "./rollbackAdapter.js";
+import { findPm2Process } from "./pm2Process.js";
 
 const DEFAULT_RELEASES_ROOT = "/var/www/releases";
 const DEFAULT_CURRENT_SYMLINK = "/var/www/current";
@@ -236,7 +237,7 @@ export class PM2Adapter implements RollbackAdapter {
     assertSafeTarget(name, "processName");
     const discovery = await this.discover();
     if (!discovery.connected) return null;
-    return discovery.processes.find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
+    return findPm2Process(discovery.processes, name) ?? null;
   }
 
   /**
@@ -251,7 +252,7 @@ export class PM2Adapter implements RollbackAdapter {
    */
   async restart(name: string): Promise<void> {
     assertSafeTarget(name, "processName");
-    await this.executor.exec(`pm2 restart ${name}`);
+    await this.runProcessCommand("restart", "", name);
   }
 
   /**
@@ -259,14 +260,21 @@ export class PM2Adapter implements RollbackAdapter {
    */
   async reload(name: string): Promise<void> {
     assertSafeTarget(name, "processName");
+    await this.runProcessCommand("reload", "", name);
+  }
+
+  private async runProcessCommand(action: "reload" | "restart", cwdPrefix: string, targetArgs: string): Promise<void> {
     try {
-      await this.executor.exec(`pm2 reload ${name}`);
+      await this.executor.exec(`${cwdPrefix}pm2 ${action} ${targetArgs}`);
     } catch (err) {
-      if (name.toLowerCase() !== name) {
-        await this.executor.exec(`pm2 reload ${name.toLowerCase()}`);
-      } else {
-        throw err;
-      }
+      if (!(err instanceof Error) || !/Process or Namespace .*not found/i.test(err.message)) throw err;
+      const discovery = await this.discover();
+      const names = targetArgs.split(" ").map((name) => findPm2Process(discovery.processes, name)?.name);
+      if (!discovery.connected || names.some((name) => !name)) throw err;
+      const canonical = names.join(" ");
+      if (canonical === targetArgs) throw err;
+      for (const name of names) assertSafeTarget(name!, "processName");
+      await this.executor.exec(`${cwdPrefix}pm2 ${action} ${canonical}`);
     }
   }
 
@@ -285,17 +293,7 @@ export class PM2Adapter implements RollbackAdapter {
    * Reloads target processes, with case-insensitive fallback if exact name fails.
    */
   private async safeReload(cwdPrefix: string, targetArgs: string): Promise<void> {
-    const cmd = `${cwdPrefix}pm2 reload ${targetArgs}`;
-    try {
-      await this.executor.exec(cmd);
-    } catch (err) {
-      const lower = targetArgs.toLowerCase();
-      if (lower !== targetArgs) {
-        await this.executor.exec(`${cwdPrefix}pm2 reload ${lower}`);
-      } else {
-        throw err;
-      }
-    }
+    await this.runProcessCommand("reload", cwdPrefix, targetArgs);
   }
 
   async checkHealth(target?: string): Promise<PM2HealthResult> {
@@ -309,6 +307,7 @@ export class PM2Adapter implements RollbackAdapter {
     let processes: Pm2ProcessDescription[] = [];
     try {
       processes = JSON.parse(stdout);
+      if (!Array.isArray(processes)) throw new Error("Invalid PM2 process list");
     } catch {
       return { errorRate: 1, healthy: false, processErrorRate: 1, httpErrorRate: 0 };
     }
@@ -316,9 +315,8 @@ export class PM2Adapter implements RollbackAdapter {
     const targetErrorRates: number[] = [];
 
     for (const targetName of targets) {
-      const matching = processes.filter(
-        (p) => typeof p.name === "string" && (p.name === targetName || p.name.toLowerCase() === targetName.toLowerCase())
-      );
+      const canonicalName = findPm2Process(processes, targetName)?.name;
+      const matching = canonicalName ? processes.filter((p) => p.name === canonicalName) : [];
       if (matching.length === 0) {
         targetErrorRates.push(1);
         continue;

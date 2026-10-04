@@ -25,7 +25,7 @@ export interface RefreshCommitsResult {
 export async function refreshRepoCommits(
   baseUrl: string,
   apiKey: string,
-  body: { owner: string; repo: string; branch: string },
+  body: { owner: string; repo: string; branch: string; observeLive?: boolean },
   fetchFn: FetchFn = fetch
 ): Promise<RefreshCommitsResult> {
   const response = await fetchFn(`${baseUrl}/v1/commits/refresh`, {
@@ -103,4 +103,3 @@ export async function fetchCoreApiVersion(
   }
   return (await response.json()) as CoreApiVersionInfo;
 }
-

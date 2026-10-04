@@ -6,6 +6,7 @@ import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { RuntimeAdapter } from "../../../lib/capabilities";
 
 interface RuntimeAdapterStepProps {
+  installationId: string;
   selectedRepo: InstallationRepo | null;
   selectedAdapter: RuntimeAdapter;
   onSelectAdapter: (adapter: RuntimeAdapter) => void;
@@ -113,6 +114,7 @@ const ADAPTER_OPTIONS: AdapterOption[] = [
 ];
 
 export function RuntimeAdapterStep({
+  installationId,
   selectedRepo,
   selectedAdapter,
   onSelectAdapter,
@@ -133,13 +135,13 @@ export function RuntimeAdapterStep({
       setLoadingProcesses(true);
       setPm2Error(null);
       try {
-        const res = await fetch("/api/pm2/apps");
+        const res = await fetch(`/api/pm2/apps?installationId=${encodeURIComponent(installationId)}`);
         if (!res.ok) {
           throw new Error(`Failed to load PM2 processes: ${res.statusText}`);
         }
         const data = await res.json();
         if (active) {
-          const procs = data.processes || data.apps || [];
+          const procs = Array.isArray(data) ? data : data.processes || data.apps || [];
           setDiscoveredProcesses(procs);
         }
       } catch (err: unknown) {
@@ -155,7 +157,7 @@ export function RuntimeAdapterStep({
     return () => {
       active = false;
     };
-  }, [selectedAdapter]);
+  }, [selectedAdapter, installationId]);
 
   useEffect(() => {
     if (selectedAdapter !== "pm2" || pm2Config.targetName || discoveredProcesses.length === 0) {
