@@ -22,6 +22,7 @@ export interface StoredPm2Setup {
   layout?: "git" | "releases";
   cwd?: string;
   healthUrl?: string;
+  buildCommand?: string;
   targetName?: string;
   releasesDir?: string;
   currentSymlink?: string;
@@ -34,6 +35,7 @@ export function pm2FieldsFromStoredConfig(stored: unknown): StoredPm2Setup {
   const layout = o.layout === "git" || o.layout === "releases" ? o.layout : undefined;
   const cwd = typeof o.cwd === "string" ? o.cwd : undefined;
   const healthUrl = typeof o.healthUrl === "string" ? o.healthUrl : undefined;
+  const buildCommand = typeof o.buildCommand === "string" ? o.buildCommand : undefined;
   const targetName =
     typeof o.name === "string"
       ? o.name
@@ -47,7 +49,7 @@ export function pm2FieldsFromStoredConfig(stored: unknown): StoredPm2Setup {
         ? o.releasesRoot
         : undefined;
   const currentSymlink = typeof o.currentSymlink === "string" ? o.currentSymlink : undefined;
-  return { layout, cwd, healthUrl, targetName, releasesDir, currentSymlink };
+  return { layout, cwd, healthUrl, buildCommand, targetName, releasesDir, currentSymlink };
 }
 
 export function isCarfHostProcess(name: string): boolean {

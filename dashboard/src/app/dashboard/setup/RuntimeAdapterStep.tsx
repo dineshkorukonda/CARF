@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Shield, Server, Box, Layers, Cpu, RefreshCw, Activity } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { RuntimeAdapter } from "../../../lib/capabilities";
+import { Input } from "../../../components/ui/input";
 
 interface RuntimeAdapterStepProps {
   installationId: string;
@@ -14,12 +15,14 @@ interface RuntimeAdapterStepProps {
     targetName: string;
     cwd: string;
     healthUrl: string;
+    buildCommand: string;
     layout: "releases" | "git";
   };
   onChangePm2Config: (config: {
     targetName: string;
     cwd: string;
     healthUrl: string;
+    buildCommand: string;
     layout: "releases" | "git";
   }) => void;
   onBack: () => void;
@@ -366,6 +369,11 @@ export function RuntimeAdapterStep({
               </select>
               <p className="mt-1 text-[11px] text-muted-foreground">How releases are deployed on server</p>
             </div>
+            {pm2Config.layout === "git" && <div className="md:col-span-2">
+              <label htmlFor="pm2-build-command" className="text-xs font-medium text-foreground">Build command after checkout</label>
+              <Input id="pm2-build-command" type="text" value={pm2Config.buildCommand} onChange={(event) => onChangePm2Config({ ...pm2Config, buildCommand: event.target.value })} placeholder="npm ci && npm run build" className="mt-1 font-mono text-xs" />
+              <p className="mt-1 text-[11px] text-muted-foreground">Runs from the working directory for deployment and rollback. Use npm ci &amp;&amp; npm run build for Next.js, or true for apps without a build step.</p>
+            </div>}
           </div>
         </div>
       )}

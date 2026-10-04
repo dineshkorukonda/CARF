@@ -1,6 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 import { PM2Adapter } from "../../src/adapters/pm2.js";
 
+describe("PM2 deployed revision", () => {
+  it("rolls back to the captured deployed revision rather than an undeployed Git parent", async () => {
+    const live = "a".repeat(40);
+    const exec = vi.fn(async (command: string) => ({ stdout: command.includes("rev-parse") ? live : "", stderr: "" }));
+    const adapter = new PM2Adapter("b".repeat(40), { exec, layout: "git", cwd: "/opt/app", target: "app", buildCommand: "npm ci && npm run build" });
+    expect(await adapter.getCurrentRevision()).toBe(live);
+    await adapter.applyRelease("c".repeat(40));
+    await adapter.rollback();
+    expect(exec).toHaveBeenCalledWith(`cd /opt/app && git checkout ${live}`);
+    expect(exec.mock.calls.filter(([cmd]) => cmd.includes("npm ci")).length).toBe(2);
+  });
+  it("refuses an unidentifiable rollback baseline", async () => {
+    const adapter = new PM2Adapter("parent", { exec: async () => ({ stdout: "unknown", stderr: "" }), layout: "git" });
+    await expect(adapter.getCurrentRevision()).rejects.toThrow("deployment skipped");
+  });
+});
+
 describe("PM2Adapter.checkHealth", () => {
   it("reports healthy with errorRate 0 when all matching processes are online", async () => {
     const exec = vi.fn().mockResolvedValue({

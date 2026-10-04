@@ -61,6 +61,8 @@ export interface WebhookOrchestratorDeps {
    * Defaults to true (webhook delivery starts the standalone loop).
    */
   observeLive?: boolean;
+  /** GitHub Actions owns the deploy trigger after its CI workflow succeeds. */
+  deferGithubActionsDeployment?: boolean;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -169,6 +171,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         { sha: target.headSha, fileCount: changedFiles.length },
         "no classification signal, skipping threshold"
       );
+      if (deps.observeLive === true) throw new Error("Commit has no classification signal; deployment skipped");
       return;
     }
     throw error;
@@ -230,7 +233,10 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     }
   }
 
-  if (connectionConfigFailed) return;
+  if (connectionConfigFailed) {
+    if (deps.observeLive === true) throw new Error("Cannot load deployment configuration; deployment skipped");
+    return;
+  }
 
   // Resolve 3-layer capabilities:
   // Precedence: explicit RepoConnection capabilities if connection exists,
@@ -245,7 +251,12 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   // RepoConnection.mode is authoritative when a connection exists.
   // Augment repositories must never start a Standalone observation loop.
   const effectiveMode = connectionMode ?? carfConfig?.mode;
+  if (deps.deferGithubActionsDeployment && effectiveMode === "standalone" && resolved.runtimeAdapter === "pm2" && resolved.deploymentIntegration === "github_actions") {
+    deps.logger.info({ owner: target.owner, repo: target.repo, sha: target.headSha }, "waiting for GitHub Actions CI before deployment");
+    return;
+  }
   if (effectiveMode !== "standalone" || !resolved.capabilities.rollback) {
+    if (deps.observeLive === true) throw new Error("Repository is not configured for managed standalone deployment");
     deps.logger.info(
       { owner: target.owner, repo: target.repo, mode: effectiveMode ?? "unset" },
       "skipping standalone loop — repository is not configured as standalone"
@@ -254,6 +265,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   if (monitoringPaused) {
+    if (deps.observeLive === true) throw new Error("Repository monitoring is paused; deployment skipped");
     deps.logger.info(
       { owner: target.owner, repo: target.repo },
       "monitoring is paused for this repository, skipping standalone monitor loop"
@@ -262,7 +274,11 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   const adapterConfig = connectionAdapter;
+  if (deps.observeLive === true && adapterConfig?.kind === "pm2" && adapterConfig.layout === "git" && !adapterConfig.buildCommand?.trim()) {
+    throw new Error("Git PM2 deployment requires an explicit buildCommand (use true for apps without a build step)");
+  }
   if (!adapterConfig) {
+    if (deps.observeLive === true) throw new Error("No runtime adapter configured; deployment skipped");
     deps.logger.error(
       { adapter: adapterConfig },
       "standalone mode configured but no adapter specified"
@@ -319,19 +335,49 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     adapterConfig.startupGraceSeconds ??
     60;
 
+  // Builds can outlast the lock TTL; keep the lease alive during deployment too.
+  const heartbeat = setInterval(() => {
+    renewLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+      deps.logger.error({ error, key }, "failed to renew standalone loop lock heartbeat");
+    });
+  }, heartbeatIntervalMs);
+
   if (typeof adapter.applyRelease === "function") {
+    let capturedRevision = false;
     try {
+      if (adapter.getCurrentRevision) {
+        const previousSha = await adapter.getCurrentRevision();
+        if (!pendingOutcome) throw new Error("Cannot persist rollback baseline; deployment skipped");
+        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { previousSha } });
+        capturedRevision = true;
+      }
       await adapter.applyRelease(target.headSha, targetName);
+      if (pendingOutcome) {
+        // Compilation/install time must not consume startup grace or observation time.
+        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: new Date() } });
+      }
     } catch (error) {
       deps.logger.error({ error, key, sha: target.headSha }, "failed to apply commit on the host before soak");
+      let rollbackVerified: boolean | undefined;
+      let recoveryReason = "";
+      if (capturedRevision && adapter.rollbackWithVerification) {
+        try {
+          rollbackVerified = (await adapter.rollbackWithVerification(targetName, startupGraceSeconds)).rollbackVerified;
+          recoveryReason = rollbackVerified ? "; previous deployment restored and verified" : "; recovery health verification failed";
+        } catch (recoveryError) {
+          recoveryReason = `; recovery failed: ${recoveryError instanceof Error ? recoveryError.message : String(recoveryError)}`;
+          rollbackVerified = false;
+        }
+      }
       if (pendingOutcome) {
         try {
           const { finalizeRolloutOutcome } = await import("./adapters/rolloutOutcome.js");
           await finalizeRolloutOutcome(rolloutOutcomeClient, {
             id: pendingOutcome.id,
             status: "FAILED",
-            rolledBack: false,
-            reason: error instanceof Error ? error.message : String(error),
+            rolledBack: rollbackVerified === true,
+            rollbackVerified,
+            reason: (error instanceof Error ? error.message : String(error)) + recoveryReason,
           });
         } catch (finalizeError) {
           deps.logger.error({ error: finalizeError, key }, "failed to record applyRelease failure");
@@ -340,6 +386,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       await releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((releaseError: unknown) => {
         deps.logger.error({ error: releaseError, key }, "failed to release standalone loop lock");
       });
+      clearInterval(heartbeat);
+      if (deps.observeLive === true) throw error;
       return;
     }
   }
@@ -347,15 +395,6 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   // Renewed on an interval for as long as the loop runs, so a live loop's lock never goes
   // stale and gets reclaimed out from under it -- only a holder that stops renewing
   // (crashed, or the process died) leaves a lock that eventually becomes reclaimable.
-  const heartbeat = setInterval(() => {
-    renewLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
-      // Not fatal to the loop itself -- a missed heartbeat just brings the lock closer to
-      // TTL expiry. Logged so a persistently-failing DB is visible, not silently swallowed
-      // (and, critically, not left as an unhandled rejection that would crash the process).
-      deps.logger.error({ error, key }, "failed to renew standalone loop lock heartbeat");
-    });
-  }, heartbeatIntervalMs);
-
   // If a background monitor worker is attached and pendingOutcome exists, delegate monitoring to it
   if (deps.rolloutMonitor && pendingOutcome) {
     const monitorPromise = deps.rolloutMonitor.enqueue(pendingOutcome, adapter, targetName, startupGraceSeconds);

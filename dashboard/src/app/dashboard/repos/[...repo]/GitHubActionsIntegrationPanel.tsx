@@ -18,6 +18,7 @@ interface IntegrationState {
   installationId: string;
   branch: string | null;
   workflowPath: string;
+  workflowVersion: number | null;
   lastVerifiedAt: string | null;
   lastSyncAt: string | null;
   lastPolicyAt: string | null;
@@ -126,8 +127,9 @@ export function GitHubActionsIntegrationPanel({
             <h2 className="text-sm font-semibold text-foreground">GitHub Actions Integration</h2>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            CARF configures this repository automatically through its GitHub App. Your pipeline gets the threshold, observation window and
-            change vector directly during CI/CD.
+            {state?.workflowVersion === 2
+              ? "After the CI workflow passes, CARF deploys that exact commit, rebuilds the PM2 app, and monitors health. GitHub Actions reports the final deployment or rollback result."
+              : "This workflow supplies change-aware policy to your pipeline. Standalone PM2 projects need Reconfigure to enable deployment after the CI workflow passes."}
           </p>
         </div>
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[status]}`}>
