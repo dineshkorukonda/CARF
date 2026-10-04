@@ -7,7 +7,11 @@ import {
   renderCarfWorkflow,
   workflowsEqual,
   InvalidWorkflowInputError,
+  isPrivateHostUrl,
 } from "./githubActionsWorkflow";
+
+const PRIVATE_URL_MESSAGE = (url: string) =>
+  `The CARF API URL "${url}" is a local/private address that GitHub-hosted runners cannot reach. Set CORE_API_PUBLIC_URL on the dashboard to the public HTTPS URL of the CARF API, restart it, then run Fully Integrate again.`;
 import { resolveAugmentIntegration, type RepoConfigLookupInput } from "./deploymentMode";
 import { GitHubApiError } from "../adapters/github/repoContentsClient";
 import type * as GitHubClient from "../adapters/github/repoContentsClient";
@@ -308,6 +312,9 @@ export class GitHubActionsIntegrationService {
     await this.deps.store.upsert(key, { status: "configuring", lastError: null });
 
     try {
+      if (isPrivateHostUrl(this.deps.coreApiUrl)) {
+        throw new IntegrationError("invalid_configuration", PRIVATE_URL_MESSAGE(this.deps.coreApiUrl));
+      }
       await this.assertAppPermissions(ctx);
       const token = await this.deps.mintInstallationToken(ctx.installationId);
       const gh = this.deps.github;
@@ -392,6 +399,15 @@ export class GitHubActionsIntegrationService {
           ok: c.usesAugmentEndpoint && c.referencesCarfApi,
         });
         checks.push({ id: "workflow-secret", label: "Workflow references the CARF secret", ok: c.referencesSecret });
+        const urlMatch = file.content.match(/CARF_API_URL:\s*(\S+)/);
+        const workflowUrl = urlMatch?.[1] ?? "";
+        const reachable = Boolean(workflowUrl) && !isPrivateHostUrl(workflowUrl);
+        checks.push({
+          id: "workflow-reachable",
+          label: "Workflow CARF API URL is reachable from GitHub runners",
+          ok: reachable,
+          ...(reachable ? {} : { detail: workflowUrl ? `${workflowUrl} is a local/private address; set CARF_API_URL to the public CARF API URL (run Reconfigure)` : "CARF_API_URL not found in workflow" }),
+        });
       }
 
       let secretOk = false;
