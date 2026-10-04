@@ -72,6 +72,7 @@ const app = buildApp({
         carfConfig,
         logger: app.log,
         rolloutMonitor,
+        deferGithubActionsDeployment: true,
       }),
   },
   refreshCommits: {
@@ -98,7 +99,8 @@ rolloutMonitor = new RolloutMonitor({
       prisma.repoConnection.findUnique({ where: { installationId_owner_repo: { installationId: outcome.installationId, owner: outcome.owner, repo: outcome.repo } } }),
       prisma.commit.findFirst({ where: { installationId: outcome.installationId, owner: outcome.owner, repo: outcome.repo, sha: outcome.commitSha } }),
     ]);
-    if (!commit?.baseSha || /^0+$/.test(commit.baseSha)) return undefined;
+    const previousSha = outcome.previousSha ?? commit?.baseSha;
+    if (!previousSha || /^0+$/.test(previousSha)) return undefined;
     const adapterConfig = resolveRepoAdapterConfig(connection?.storedConfig, connection?.pm2Process, carfConfig?.adapter);
     if (!adapterConfig) return undefined;
     const firstTarget = adapterConfig.targets?.[0];
@@ -106,7 +108,7 @@ rolloutMonitor = new RolloutMonitor({
       adapterConfig.target ??
       (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
       "";
-    return new PM2Adapter(commit.baseSha, {
+    return new PM2Adapter(previousSha, {
       target: targetName,
       releasesRoot: adapterConfig.releasesRoot,
       currentSymlink: adapterConfig.currentSymlink,

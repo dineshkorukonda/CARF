@@ -296,6 +296,21 @@ describe("handleWebhookCommit", () => {
     expect(call[3]).toBe("web"); // target string
   });
 
+  it("classifies a GitHub Actions PM2 push without deploying before CI succeeds", async () => {
+    const standaloneLoopRunner = vi.fn();
+    const rollbackAdapterFactory = vi.fn();
+    const deps = baseDeps({
+      carfConfig: { mode: "standalone", deploymentIntegration: "github_actions", runtimeAdapter: "pm2", adapter: { kind: "pm2", target: "sahaay" } },
+      deferGithubActionsDeployment: true,
+      standaloneLoopRunner,
+      rollbackAdapterFactory,
+    });
+    await handleWebhookCommit(target, deps);
+    expect((deps.prismaClient as FakePrismaClient).commit.upsert).toHaveBeenCalled();
+    expect(rollbackAdapterFactory).not.toHaveBeenCalled();
+    expect(standaloneLoopRunner).not.toHaveBeenCalled();
+  });
+
   it("applies the head SHA on the host before the soak loop so health is the new commit", async () => {
     const standaloneLoopRunner = vi.fn().mockResolvedValue({ rolledBack: true, finalErrorRate: 1, durationMs: 0 });
     const applyRelease = vi.fn().mockResolvedValue(undefined);
@@ -313,6 +328,19 @@ describe("handleWebhookCommit", () => {
     expect(applyRelease).toHaveBeenCalledWith("head456", "sahaay");
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
     expect(applyRelease.mock.invocationCallOrder[0]).toBeLessThan(standaloneLoopRunner.mock.invocationCallOrder[0]!);
+  });
+
+  it("persists the live rollback baseline before deployment and recovers a failed build", async () => {
+    const applyRelease = vi.fn().mockRejectedValue(new Error("build failed"));
+    const rollbackWithVerification = vi.fn().mockResolvedValue({ rollbackVerified: true });
+    const getCurrentRevision = vi.fn().mockResolvedValue("a".repeat(40));
+    const deps = baseDeps({ observeLive: true, carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "app" } }, rollbackAdapterFactory: () => ({ checkHealth: vi.fn(), rollback: vi.fn(), getCurrentRevision, applyRelease, rollbackWithVerification }) });
+    await expect(handleWebhookCommit(target, deps)).rejects.toThrow("build failed");
+    const update = (deps.rolloutOutcomePrismaClient as FakeRolloutOutcomePrismaClient).rolloutOutcome.update;
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: { previousSha: "a".repeat(40) } }));
+    expect(update.mock.invocationCallOrder[0]).toBeLessThan(applyRelease.mock.invocationCallOrder[0]!);
+    expect(rollbackWithVerification).toHaveBeenCalledWith("app", 60);
+    expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED", rolledBack: true, rollbackVerified: true }) }));
   });
 
   it("Standalone + pm2 adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback release there)", async () => {
