@@ -53,6 +53,14 @@ export function projectPageHref(owner: string, repo: string): string {
   return `/dashboard/repos/${owner}/${repo}`;
 }
 
+export const PROJECT_SECTIONS = ["overview", "commits", "rollouts", "metrics", "activity", "settings"] as const;
+export type ProjectSection = (typeof PROJECT_SECTIONS)[number];
+
+export function projectSectionHref(owner: string, repo: string, section: ProjectSection): string {
+  const base = projectPageHref(owner, repo);
+  return section === "overview" ? base : `${base}?view=${section}`;
+}
+
 export function commitPageHref(owner: string, repo: string, sha: string): string {
   return `/dashboard/commits/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(sha)}`;
 }

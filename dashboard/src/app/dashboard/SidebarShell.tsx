@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type ComponentType } from "react";
+import { Suspense, useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   FolderGit2,
@@ -12,10 +12,16 @@ import {
   ChevronsRight,
   LogOut,
   UserRound,
+  LayoutDashboard,
+  GitCommitHorizontal,
+  RotateCcw,
+  Activity,
+  History,
+  Settings2,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
-import { DASHBOARD_NAV_GROUPS } from "../../lib/dashboardNav";
+import { DASHBOARD_NAV_GROUPS, PROJECT_SECTIONS, projectSectionHref, type ProjectSection } from "../../lib/dashboardNav";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
@@ -23,6 +29,52 @@ const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/dashboard": FolderGit2,
   "/dashboard/settings": Sliders,
 };
+
+const PROJECT_ICONS = {
+  overview: LayoutDashboard,
+  commits: GitCommitHorizontal,
+  rollouts: RotateCcw,
+  metrics: Activity,
+  activity: History,
+  settings: Settings2,
+} satisfies Record<ProjectSection, ComponentType<{ className?: string }>>;
+
+function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const segments = pathname.split("/").filter(Boolean);
+  const isProject = segments[0] === "dashboard" && (segments[1] === "repos" || segments[1] === "commits");
+  if (!isProject || segments.length < 4) return null;
+  const owner = decodeURIComponent(segments[2]!);
+  const repo = decodeURIComponent(segments[3]!);
+  const selected = segments[1] === "commits" ? "commits" : searchParams.get("view") ?? "overview";
+
+  return (
+    <div className="border-t border-sidebar-foreground/10 pt-4">
+      {!collapsed && (
+        <div className="px-4 pb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">Project</p>
+          <p className="mt-1 truncate text-xs font-semibold text-sidebar-foreground" title={`${owner}/${repo}`}>{repo}</p>
+        </div>
+      )}
+      <nav aria-label="Project" className="flex flex-col gap-0.5 px-3">
+        {PROJECT_SECTIONS.map((section) => {
+          const Icon = PROJECT_ICONS[section];
+          const active = selected === section;
+          return (
+            <Link key={section} href={projectSectionHref(owner, repo, section)} title={collapsed ? section : undefined}
+              aria-current={active ? "page" : undefined}
+              className={"flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium capitalize transition-colors " +
+                (active ? "bg-sidebar-foreground text-sidebar" : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")}>
+              <Icon className="size-4 shrink-0" />
+              {!collapsed && <span>{section}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+    </div>
+  );
+}
 
 function NavLink({
   href,
@@ -147,6 +199,8 @@ export function SidebarShell({
             </div>
           ))}
         </div>
+
+        <Suspense fallback={null}><ProjectNavigation collapsed={collapsed} /></Suspense>
 
         {primary && (
           <div className="mt-2 border-t border-sidebar-foreground/10 pt-4">
