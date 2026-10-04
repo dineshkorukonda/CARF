@@ -13,6 +13,9 @@ import {
 const PRIVATE_URL_MESSAGE = (url: string) =>
   `The CARF API URL "${url}" is a local/private address that GitHub-hosted runners cannot reach. Set CORE_API_PUBLIC_URL on the dashboard to the public HTTPS URL of the CARF API, restart it, then run Fully Integrate again.`;
 import { resolveAugmentIntegration, type RepoConfigLookupInput } from "./deploymentMode";
+import { resolveRepoMode } from "./deploymentMode";
+import { resolveFromLegacy } from "./capabilities";
+import { pm2FieldsFromStoredConfig } from "./connectionLookup";
 import { GitHubApiError } from "../adapters/github/repoContentsClient";
 import type * as GitHubClient from "../adapters/github/repoContentsClient";
 
@@ -257,6 +260,10 @@ export class GitHubActionsIntegrationService {
     }
   }
 
+  private managesPm2(ctx: IntegrationContext): boolean {
+    return resolveRepoMode(ctx.connection) === "standalone" && resolveFromLegacy(ctx.connection).runtimeAdapter === "pm2";
+  }
+
   private toResult(
     ctx: IntegrationContext,
     record: IntegrationRecord | null,
@@ -323,7 +330,15 @@ export class GitHubActionsIntegrationService {
       const repoInfo = await gh.getRepository(token, ctx.owner, ctx.repo);
       const branch = repoInfo.defaultBranch;
 
-      const desired = renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch });
+      const managedPm2 = this.managesPm2(ctx);
+      const pm2Setup = pm2FieldsFromStoredConfig(ctx.connection.storedConfig);
+      if (managedPm2 && pm2Setup.layout === "git" && !pm2Setup.buildCommand?.trim()) {
+        throw new IntegrationError("invalid_configuration", "Set the PM2 build command before integrating. For Sahaay use npm ci && npm run build in /opt/sahaay/my-app; it runs during deployment and rollback. Apps without a build step can use true.");
+      }
+      if (managedPm2 && !await gh.hasDeploymentCi(token, ctx.owner, ctx.repo)) {
+        throw new IntegrationError("invalid_configuration", "Automatic PM2 deployment requires an active GitHub Actions workflow named CI that runs on pushes to the deployment branch. Add it before integrating.");
+      }
+      const desired = renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch, managedPm2 });
       const existing = await gh.getFile(token, ctx.owner, ctx.repo, CARF_WORKFLOW_PATH, branch);
       const ownership = inspectExistingWorkflow(existing?.content ?? null);
 
@@ -338,7 +353,7 @@ export class GitHubActionsIntegrationService {
         await gh.putFile(token, ctx.owner, ctx.repo, {
           path: CARF_WORKFLOW_PATH,
           content: desired,
-          message: existing ? "chore(carf): update CARF Augment workflow" : "chore(carf): add CARF Augment workflow",
+          message: existing ? "chore(carf): update CARF Actions workflow" : "chore(carf): add CARF Actions workflow",
           branch,
           ...(existing ? { sha: existing.sha } : {}),
         });
@@ -360,7 +375,7 @@ export class GitHubActionsIntegrationService {
         status: "configuring",
         branch,
         workflowPath: CARF_WORKFLOW_PATH,
-        workflowVersion: CARF_WORKFLOW_VERSION,
+        workflowVersion: managedPm2 ? CARF_WORKFLOW_VERSION : 1,
         configuredAt: (await this.deps.store.find(key))?.configuredAt ?? now,
         lastSyncAt: now,
         lastError: null,
@@ -389,6 +404,11 @@ export class GitHubActionsIntegrationService {
         { id: "repository-access", label: "GitHub App can access the repository", ok: true },
         { id: "deployment-integration", label: "Repository deployment integration is GitHub Actions", ok: true },
       ];
+      if (this.managesPm2(ctx)) {
+        const setup = pm2FieldsFromStoredConfig(ctx.connection.storedConfig);
+        checks.push({ id: "pm2-build", label: "PM2 deployment and rollback build command is configured", ok: setup.layout !== "git" || Boolean(setup.buildCommand?.trim()) });
+        checks.push({ id: "ci-workflow", label: "Active CI workflow is available for deployment", ok: await gh.hasDeploymentCi(token, ctx.owner, ctx.repo), detail: "PM2 deploys only after the CI workflow succeeds for a push to the deployment branch." });
+      }
 
       const file = await gh.getFile(token, ctx.owner, ctx.repo, CARF_WORKFLOW_PATH, branch);
       checks.push({ id: "workflow-exists", label: "Workflow file exists", ok: Boolean(file), ...(file ? {} : { detail: `${CARF_WORKFLOW_PATH} not found on ${branch}` }) });
@@ -401,6 +421,10 @@ export class GitHubActionsIntegrationService {
           ok: c.usesAugmentEndpoint && c.referencesCarfApi,
         });
         checks.push({ id: "workflow-secret", label: "Workflow references the CARF secret", ok: c.referencesSecret });
+        if (this.managesPm2(ctx)) {
+          checks.push({ id: "ci-gate", label: "Workflow waits for successful CI", ok: c.waitsForCi });
+          checks.push({ id: "deployment", label: "Workflow triggers CARF PM2 deployment", ok: c.triggersDeployment });
+        }
         const urlMatch = file.content.match(/CARF_API_URL:\s*(\S+)/);
         const workflowUrl = urlMatch?.[1] ?? "";
         const reachable = Boolean(workflowUrl) && !isPrivateHostUrl(workflowUrl);
@@ -545,15 +569,18 @@ export class GitHubActionsIntegrationService {
   async manualWorkflow(ctx: IntegrationContext): Promise<string> {
     try {
       const record = await this.deps.store.find(this.key(ctx));
-      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: record?.branch ?? "main" });
+      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: record?.branch ?? "main", managedPm2: this.managesPm2(ctx) });
     } catch {
-      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: "main" });
+      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: "main", managedPm2: this.managesPm2(ctx) });
     }
   }
 
   private async assertAppPermissions(ctx: IntegrationContext): Promise<void> {
     const permissions = await this.deps.github.getInstallationPermissions(this.deps.signAppJwt(), ctx.installationId);
     const missing = REQUIRED_PERMISSIONS.filter((p) => permissions[p.name] !== "write").map((p) => p.label);
+    if (this.managesPm2(ctx) && !["read", "write"].includes(permissions.actions ?? "")) {
+      throw new IntegrationError("insufficient_permission", "CI-gated PM2 deployment requires Actions: Read access for the CARF GitHub App. Update the app and accept the permissions on its installation.");
+    }
     if (missing.length > 0) {
       throw new IntegrationError(
         "insufficient_permission",

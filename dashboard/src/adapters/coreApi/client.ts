@@ -19,6 +19,7 @@ export interface RefreshCommitsResult {
   alreadyKnown: number;
   failed: Array<{ sha: string; error: string }>;
   soakSha?: string | null;
+  skipped?: Array<{ sha: string; reason: string }>;
 }
 
 /** `POST {baseUrl}/v1/commits/refresh` — classify branch commits the webhook tip skipped. */
@@ -34,7 +35,7 @@ export async function refreshRepoCommits(
       Authorization: `Bearer ${apiKey}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ ...body, observeLive: false }),
   });
   if (!response.ok) {
     const detail = await response.text();

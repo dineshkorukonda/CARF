@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { load } from "js-yaml";
 import {
   CARF_SECRET_NAME,
   CARF_WORKFLOW_MARKER,
@@ -12,6 +13,7 @@ import {
   IntegrationError,
   createPrismaIntegrationStore,
   type IntegrationRecord,
+  type IntegrationContext,
   type IntegrationStore,
   type ServiceDeps,
 } from "../../src/lib/githubActionsIntegrationService";
@@ -46,6 +48,19 @@ describe("renderCarfWorkflow", () => {
     expect(yaml.toLowerCase()).not.toMatch(/pm2|host.?agent|rollback|rollout|standalone/);
   });
 
+  it("gates PM2 deployment on a successful CI run and reports the terminal rollout", () => {
+    const managed = renderCarfWorkflow({ coreApiUrl: CORE, branch: "main", managedPm2: true });
+    const parsed = load(managed) as { on: { workflow_run: { workflows: string[] } }; jobs: { "carf-deploy": { if: string } } };
+    expect(parsed.on.workflow_run.workflows).toEqual(["CI"]);
+    expect(parsed.jobs["carf-deploy"].if).toContain("conclusion == 'success'");
+    expect(managed).toContain("github.event.workflow_run.head_sha");
+    expect(managed).toContain("expectedSha:$sha,ciRunId:$ciRunId,observeLive:true");
+    expect(managed).toContain("/v1/rollouts/status");
+    expect(managed).toContain("ROLLED_BACK|FAILED");
+    expect(managed).not.toContain("github.sha");
+    expect(inspectExistingWorkflow(managed)).toEqual({ kind: "managed", version: 2 });
+  });
+
   it("rejects values that could break out of the YAML", () => {
     expect(() => renderCarfWorkflow({ coreApiUrl: CORE, branch: "main\n  evil: 1" })).toThrow();
     expect(() => renderCarfWorkflow({ coreApiUrl: "https://x.com\nevil", branch: "main" })).toThrow();
@@ -58,7 +73,9 @@ describe("renderCarfWorkflow", () => {
   });
 
   it("passes its own static checks", () => {
-    expect(Object.values(checkWorkflowContent(yaml, CORE)).every(Boolean)).toBe(true);
+    const checks = checkWorkflowContent(yaml, CORE);
+    expect(checks.hasMarker && checks.usesAugmentEndpoint && checks.referencesSecret && checks.referencesCarfApi).toBe(true);
+    expect(checks.triggersDeployment).toBe(false);
   });
 });
 
@@ -95,7 +112,8 @@ function setup(overrides: { file?: string | null; permissions?: Record<string, s
   let secretSet = false;
   const probes = [...(overrides.probe ?? [200])];
   const github = {
-    getInstallationPermissions: vi.fn(async () => overrides.permissions ?? { contents: "write", workflows: "write", secrets: "write" }),
+    getInstallationPermissions: vi.fn(async () => overrides.permissions ?? { contents: "write", workflows: "write", secrets: "write", actions: "read" }),
+    hasDeploymentCi: vi.fn(async () => true),
     getRepository: vi.fn(async () => ({ defaultBranch: "main", fullName: "o/r" })),
     getFile: vi.fn(async () => file),
     putFile: vi.fn(async (_t: string, _o: string, _r: string, args: { content: string }) => {
@@ -132,7 +150,7 @@ function setup(overrides: { file?: string | null; permissions?: Record<string, s
     now: () => new Date("2026-10-03T07:00:00Z"),
     logError,
   };
-  const ctx = {
+  const ctx: IntegrationContext = {
     installationId: "42",
     owner: "o",
     repo: "r",
@@ -142,6 +160,27 @@ function setup(overrides: { file?: string | null; permissions?: Record<string, s
 }
 
 describe("GitHubActionsIntegrationService", () => {
+  it("installs deployment and verifies CI for standalone PM2", async () => {
+    const t = setup();
+    t.ctx.connection = { mode: "standalone", storedConfig: { mode: "standalone", deploymentIntegration: "github_actions", runtimeAdapter: "pm2", target: "app", layout: "git", buildCommand: "npm ci && npm run build" } };
+    const result = await t.service.install(t.ctx);
+    expect(result.status).toBe("ready");
+    expect(result.workflowVersion).toBe(2);
+    expect(t.getFile()?.content).toContain("name: CARF PM2 Deployment");
+    expect(result.checks?.find((check) => check.id === "ci-gate")?.ok).toBe(true);
+  });
+  it("refuses to install PM2 deployment without Actions read permission", async () => {
+    const t = setup({ permissions: { contents: "write", workflows: "write", secrets: "write" } });
+    t.ctx.connection = { mode: "standalone", storedConfig: { mode: "standalone", runtimeAdapter: "pm2", target: "app" } };
+    await expect(t.service.install(t.ctx)).rejects.toThrow("Actions: Read");
+    expect(t.github.putFile).not.toHaveBeenCalled();
+  });
+  it("requires a build command for git deployment before writing a workflow", async () => {
+    const t = setup();
+    t.ctx.connection = { mode: "standalone", storedConfig: { mode: "standalone", runtimeAdapter: "pm2", target: "app", layout: "git" } };
+    await expect(t.service.install(t.ctx)).rejects.toThrow("build command");
+    expect(t.github.putFile).not.toHaveBeenCalled();
+  });
   it("installs end-to-end and ends Ready without leaking secrets", async () => {
     const t = setup();
     const result = await t.service.install(t.ctx);

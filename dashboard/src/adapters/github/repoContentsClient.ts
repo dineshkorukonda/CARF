@@ -96,6 +96,18 @@ export interface RepoInfo {
   fullName: string;
 }
 
+/** CI-gated PM2 deployment currently requires an active workflow named CI. */
+export async function hasDeploymentCi(token: string, owner: string, repo: string, fetchFn: FetchFn = fetch): Promise<boolean> {
+  for (let page = 1; page <= 10; page++) {
+    const res = await call(fetchFn, `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows?per_page=100&page=${page}`, { headers: headers(token) });
+    if (!res.ok) throw await failure(res, "read CI workflows (Actions: Read)");
+    const body = await res.json() as { workflows: Array<{ name: string; state: string }> };
+    if (body.workflows.some((workflow) => workflow.name === "CI" && workflow.state === "active")) return true;
+    if (body.workflows.length < 100) return false;
+  }
+  return false;
+}
+
 export async function getRepository(token: string, owner: string, repo: string, fetchFn: FetchFn = fetch): Promise<RepoInfo> {
   const res = await call(fetchFn, `${GITHUB_API_BASE}/repos/${owner}/${repo}`, { headers: headers(token) });
   if (!res.ok) throw await failure(res, "read the repository");

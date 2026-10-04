@@ -21,6 +21,7 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
       status: string;
       threshold: number;
       window: number;
+      previousSha?: string | null;
       commit?: { baseSha: string; changeVector?: { data?: number } | null } | null;
     } | null>;
     update(args: {
@@ -203,7 +204,7 @@ export async function registerRolloutRollbackRoute(
         if (repoConn) adapterConfig = resolveRepoAdapterConfig(repoConn.storedConfig, undefined, adapterConfig);
       }
 
-      const previousSha = rollout.commit?.baseSha;
+      const previousSha = rollout.previousSha ?? rollout.commit?.baseSha;
       if (!previousSha || previousSha === "0000000000000000000000000000000000000000") {
         return reply.code(400).send({ error: "Cannot rollback: no valid previous commit SHA available" });
       }

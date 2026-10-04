@@ -28,6 +28,7 @@ interface CapabilitiesPreviewStepProps {
     targetName: string;
     cwd: string;
     healthUrl: string;
+    buildCommand: string;
     layout: "releases" | "git";
   };
   onBack: () => void;
@@ -62,7 +63,8 @@ ${
   target: "${pm2Config.targetName || repo.name}"
   cwd: "${pm2Config.cwd}"
   healthUrl: "${pm2Config.healthUrl}"
-  layout: "${pm2Config.layout}"`
+  layout: "${pm2Config.layout}"${pm2Config.buildCommand.trim() ? `
+  buildCommand: ${JSON.stringify(pm2Config.buildCommand.trim())}` : ""}`
     : ""
 }`.trim();
 
@@ -84,6 +86,7 @@ ${
               adapterTarget: pm2Config.targetName || repo.name,
               cwd: pm2Config.cwd,
               healthUrl: pm2Config.healthUrl,
+              ...(pm2Config.buildCommand.trim() ? { buildCommand: pm2Config.buildCommand.trim() } : {}),
               layout: pm2Config.layout,
             }
           : {}),
@@ -296,7 +299,7 @@ ${
           </div>
           <p className="text-xs text-muted-foreground">
             {isPm2
-              ? "The configuration was committed to .carf.yml. Local PM2 runtime adapter is connected with automated health monitoring and rollback control."
+              ? "PM2 configuration is saved. Open project Settings to verify the runtime and configure GitHub Actions. Automatic deployment starts after the CI-gated workflow is installed."
               : resolved.requiresAgent
               ? "The configuration was committed to .carf.yml. Now install the CARF Host Agent on your target server to begin live observability."
               : "The configuration was committed to .carf.yml. Policy-only integration is active with zero server agent footprint required."}
