@@ -24,7 +24,7 @@ interface PersistedThreshold {
 export interface AugmentThresholdPrismaClient extends InstallationAuthPrismaClient {
   commit: {
     findFirst(args: {
-      where: { owner: string; repo: string; sha: string; installationId: string | null };
+      where: { owner: { equals: string; mode: "insensitive" }; repo: { equals: string; mode: "insensitive" }; sha: string; installationId: string | null };
       include: { threshold: true; changeVector: true };
     }): Promise<{
       threshold: PersistedThreshold | null;
@@ -35,6 +35,8 @@ export interface AugmentThresholdPrismaClient extends InstallationAuthPrismaClie
 
 export interface AugmentThresholdRouteOptions {
   prismaClient?: AugmentThresholdPrismaClient;
+  /** Classifies the exact SHA without starting deployment or live rollback monitoring. */
+  classifyMissingCommit?: (args: { owner: string; repo: string; sha: string; installationId: string }) => Promise<void>;
   /**
    * Optional on-demand classify path when the SHA is not yet persisted.
    * Production can wire GitHub diff acquisition here; tests inject fixtures.
@@ -145,10 +147,21 @@ export async function registerAugmentThresholdRoute(
         }
       }
 
-      const commit = await prismaClient.commit.findFirst({
-        where: { owner, repo, sha, installationId },
-        include: { threshold: true, changeVector: true },
-      });
+      const query = {
+        where: { owner: { equals: owner, mode: "insensitive" as const }, repo: { equals: repo, mode: "insensitive" as const }, sha, installationId },
+        include: { threshold: true as const, changeVector: true as const },
+      };
+      let commit = await prismaClient.commit.findFirst(query);
+
+      if ((!commit?.threshold || !commit.changeVector) && installationId && options.classifyMissingCommit) {
+        try {
+          await options.classifyMissingCommit({ owner, repo, sha, installationId });
+          commit = await prismaClient.commit.findFirst(query);
+        } catch (error) {
+          request.log.error({ error, owner, repo, sha }, "on-demand policy classification failed");
+          return reply.code(502).send({ error: "failed to classify commit from GitHub" });
+        }
+      }
 
       if (commit?.threshold && commit.changeVector) {
         return reply.code(200).send(toResponse(commit.threshold, commit.changeVector));

@@ -64,9 +64,26 @@ jobs:
       - run: npx prisma migrate deploy
       - run: npm test
 
+  pm2-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: core-api/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm install --global pm2@6
+      - name: Verify real PM2 discovery, failed health, and Git rollback
+        run: npm test -- test/integration/pm2Live.test.ts
+        env:
+          CARF_TEST_REAL_PM2: "1"
+
   build:
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test]
+    needs: [lint-and-typecheck, test, pm2-runtime]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

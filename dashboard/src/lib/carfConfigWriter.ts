@@ -1,4 +1,5 @@
 import { dump, load } from "js-yaml";
+import { isDeepStrictEqual } from "node:util";
 import {
   AdapterConfigSchema,
   ClassificationSchema,
@@ -15,6 +16,11 @@ import {
 } from "./carfConfigSchema";
 
 export class InvalidCarfConfigError extends Error {}
+
+/** Compare parsed values so comments, key order and formatting do not cause commits. */
+export function carfConfigsEqual(existingYaml: string | null, nextYaml: string): boolean {
+  return existingYaml !== null && isDeepStrictEqual(load(existingYaml), load(nextYaml));
+}
 
 /**
  * Parses `.carf.yml`'s existing text (or null, for a repo with none yet) into a mutable
@@ -75,7 +81,10 @@ export function applyModeAdapterPatch(existingYaml: string | null, patch: ModeAd
     if (!patch.adapter) {
       throw new InvalidCarfConfigError("adapter is required when mode is standalone");
     }
-    next.adapter = AdapterConfigSchema.parse(patch.adapter);
+    const existingAdapter = next.adapter && typeof next.adapter === "object" && !Array.isArray(next.adapter)
+      ? next.adapter as Record<string, unknown>
+      : {};
+    next.adapter = AdapterConfigSchema.parse({ ...existingAdapter, ...patch.adapter });
   } else {
     // Augment / none mode never reads `adapter` -- drop a stale value rather than carry dead
     // config forward (matches issue #50's "avoid a silently-inert selection" ethos).

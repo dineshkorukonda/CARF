@@ -16,11 +16,16 @@ export async function GET(request: NextRequest) {
   const repo = searchParams.get("repo");
   const installationId = searchParams.get("installationId");
 
+  const installation = installationId
+    ? await getInstallationForAccount(prisma, account.id, installationId)
+    : (await listInstallationsForAccount(prisma, account.id))[0] ?? null;
+
   // Determine repository's configured PM2 process name
   let targetProcess: string | null = null;
-  if (owner && repo) {
+  if (owner && repo && installation) {
     const connection = await prisma.repoConnection.findFirst({
       where: {
+        installationId: installation.installationId,
         owner: { equals: owner, mode: "insensitive" },
         repo: { equals: repo, mode: "insensitive" },
       },
@@ -31,16 +36,7 @@ export async function GET(request: NextRequest) {
       connection?.pm2Process ??
       (typeof storedConfig.target === "string" ? storedConfig.target : null) ??
       (typeof storedConfig.name === "string" ? storedConfig.name : null) ??
-      (repo?.toLowerCase() === "sahaay" ? "sahaay" : null);
-  }
-
-  // Find user's installation if not specified
-  let installation = null;
-  if (installationId) {
-    installation = await getInstallationForAccount(prisma, account.id, installationId);
-  } else {
-    const installations = await listInstallationsForAccount(prisma, account.id);
-    installation = installations[0] ?? null;
+      null;
   }
 
   if (!installation) {
@@ -93,16 +89,15 @@ export async function GET(request: NextRequest) {
       }>;
     };
 
-    const process = targetProcess
-      ? data.processes.find(
-          (p) => p.name.toLowerCase() === targetProcess!.toLowerCase()
-        ) ?? null
-      : null;
+    const matches = targetProcess ? data.processes.filter((p) => p.name.toLowerCase() === targetProcess.toLowerCase()) : [];
+    const process = data.processes.find((p) => p.name === targetProcess)
+      ?? (new Set(matches.map((p) => p.name)).size === 1 ? matches[0] : null)
+      ?? null;
 
     return NextResponse.json({
       runtime: "pm2",
       connected: data.connected,
-      processName: targetProcess,
+      processName: process?.name ?? targetProcess,
       processFound: Boolean(process),
       process,
       processes: data.processes,

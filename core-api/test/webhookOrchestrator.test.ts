@@ -80,6 +80,7 @@ class FakeRolloutOutcomePrismaClient implements RolloutOutcomePrismaClient {
   created: unknown[] = [];
   connection: {
     mode?: string;
+    pm2Process?: string;
     storedConfig?: unknown;
     monitoringPaused?: boolean;
   } | null = null;
@@ -183,6 +184,16 @@ function flushMicrotasks(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe("handleWebhookCommit", () => {
+  it("uses the process chosen in the dashboard rather than the stale YAML target", async () => {
+    const outcomes = new FakeRolloutOutcomePrismaClient();
+    outcomes.connection = { mode: "standalone", pm2Process: "selected-app", storedConfig: { target: "old-app", layout: "git", cwd: "/opt/selected", buildCommand: "npm run build" } };
+    const adapterFactory = vi.fn().mockReturnValue({ checkHealth: vi.fn(), rollback: vi.fn() });
+    const loop = vi.fn().mockResolvedValue({ rolledBack: false, finalErrorRate: 0 });
+    await handleWebhookCommit(target, baseDeps({ carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "yaml-app" } }, rolloutOutcomePrismaClient: outcomes, rollbackAdapterFactory: adapterFactory, standaloneLoopRunner: loop }));
+    await flushMicrotasks();
+    expect(adapterFactory).toHaveBeenCalledWith(expect.objectContaining({ target: "selected-app", cwd: "/opt/selected", buildCommand: "npm run build" }), target.baseSha);
+    expect(loop).toHaveBeenCalledWith(target.headSha, expect.anything(), expect.anything(), "selected-app");
+  });
   it("classifies and persists via processCommit even with no .carf.yml (carfConfig undefined)", async () => {
     const deps = baseDeps({ carfConfig: undefined });
     await handleWebhookCommit(target, deps);

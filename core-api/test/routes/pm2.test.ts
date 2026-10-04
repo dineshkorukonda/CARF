@@ -259,6 +259,7 @@ describe("POST /v1/pm2/verify", () => {
       ...createMockPrisma(),
       repoConnection: {
         upsert: upsertFn,
+        findUnique: vi.fn().mockResolvedValue({ storedConfig: { buildCommand: "npm run build", probeCount: 3 } }),
       },
     };
 
@@ -301,6 +302,7 @@ describe("POST /v1/pm2/verify", () => {
       "rollback_permission",
     ]);
     expect(body.checks.every((c: any) => c.passed)).toBe(true);
+    expect(upsertFn.mock.calls[0]?.[0].update.storedConfig).toMatchObject({ buildCommand: "npm run build", probeCount: 3 });
 
     expect(upsertFn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -629,7 +631,7 @@ describe("POST /v1/pm2/verify", () => {
     expect(body.verified).toBe(true);
   });
 
-  it("does not fail git layout verify when cwd exists but has no .git", async () => {
+  it("fails git layout verify when cwd exists but has no .git", async () => {
     const app = Fastify();
     const rawPm2Output = JSON.stringify([{ name: "sahaay", pm_id: 0, pm2_env: { status: "online" } }]);
     const mockExecutor = {
@@ -669,7 +671,7 @@ describe("POST /v1/pm2/verify", () => {
 
     expect(response.statusCode).toBe(200);
     const body = response.json();
-    expect(body.checks.find((c: { id: string }) => c.id === "git_metadata")?.passed).toBe(true);
-    expect(body.verified).toBe(true);
+    expect(body.checks.find((c: { id: string }) => c.id === "git_metadata")?.passed).toBe(false);
+    expect(body.verified).toBe(false);
   });
 });

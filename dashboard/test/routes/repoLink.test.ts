@@ -82,6 +82,21 @@ describe("POST /api/repo/link", () => {
     expect(res.status).toBe(401);
   });
 
+  it("persists the connection without another commit when setup values are unchanged", async () => {
+    getCarfConfigFile.mockResolvedValue({ sha: "existing", content: "# keep comment\nmode: augment\ndeploymentIntegration: github_actions\nruntimeAdapter: none\n" });
+    const response = await linkRepo(new NextRequest(`${BASE_URL}/api/repo/link`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installationId: INSTALLATION.installationId, owner: "acme", repo: "widgets", mode: "augment" }) }));
+    expect(response.status).toBe(200);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+    expect(repoConnectionUpsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not overwrite repository config after a GitHub read failure", async () => {
+    getCarfConfigFile.mockRejectedValue(new Error("network unavailable"));
+    const response = await linkRepo(new NextRequest(`${BASE_URL}/api/repo/link`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installationId: INSTALLATION.installationId, owner: "acme", repo: "widgets", mode: "augment" }) }));
+    expect(response.status).toBe(502);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
+
   it("commits standalone PM2 git layout fields and returns JSON with installToken", async () => {
     const res = await linkRepo(
       new NextRequest(`${BASE_URL}/api/repo/link`, {

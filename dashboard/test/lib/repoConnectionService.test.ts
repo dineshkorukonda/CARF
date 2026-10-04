@@ -30,7 +30,7 @@ describe("repoConnectionService", () => {
       expect(mapped.verifiedAt).toEqual(new Date("2026-03-01T00:00:00Z"));
     });
 
-    it("defaults runtimeAdapter to pm2 and pm2Process to sahaay for Sahaay repository", () => {
+    it("does not infer runtime configuration from a repository name", () => {
       const rawRow = {
         id: "conn-sahaay",
         installationId: "163039391",
@@ -42,8 +42,8 @@ describe("repoConnectionService", () => {
 
       expect(mapped.owner).toBe("dineshkorukonda");
       expect(mapped.repo).toBe("sahaay");
-      expect(mapped.runtimeAdapter).toBe("pm2");
-      expect(mapped.pm2Process).toBe("sahaay");
+      expect(mapped.runtimeAdapter).toBe("none");
+      expect(mapped.pm2Process).toBeNull();
       expect(mapped.deploymentIntegration).toBe("github_actions");
     });
 

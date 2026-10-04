@@ -3,6 +3,7 @@ import { access, constants as fsConstants, lstat } from "node:fs/promises";
 import type { FastifyInstance, FastifySchema } from "fastify";
 import { defaultExec, type CommandExecutor, LocalCommandExecutor, type ExecFn } from "../adapters/execFn.js";
 import { PM2Adapter } from "../adapters/pm2.js";
+import { findPm2Process } from "../adapters/pm2Process.js";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
 import { prisma as defaultPrisma } from "../db/client.js";
 
@@ -264,6 +265,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     try {
       const { stdout } = await executor.exec("pm2 jlist");
       pm2List = JSON.parse(stdout);
+      if (!Array.isArray(pm2List)) throw new Error("Invalid PM2 process list format");
       checks.push({
         id: "pm2_daemon",
         title: "PM2 Daemon Reachability",
@@ -271,6 +273,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
         message: "PM2 daemon is reachable and responding",
       });
     } catch (err: unknown) {
+      pm2List = [];
       checks.push({
         id: "pm2_daemon",
         title: "PM2 Daemon Reachability",
@@ -281,7 +284,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
 
     // Check 2: Target app in process table
     const targetName = body.target.name;
-    const foundProc = pm2List.find((p) => p.name === targetName);
+    const foundProc = findPm2Process(pm2List, targetName);
     if (foundProc) {
       checks.push({
         id: "target_app",
@@ -413,8 +416,8 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             checks.push({
               id: "git_metadata",
               title: "Git Checkout",
-              passed: true,
-              message: `'${workDir}' has no .git metadata (${err instanceof Error ? err.message : "not a git repo"}). Connection verify still passes; git checkout rollback needs a clone.`,
+              passed: false,
+              message: `'${workDir}' has no .git metadata (${err instanceof Error ? err.message : "not a git repo"}). Git checkout rollback requires a clone.`,
             });
           }
         }
@@ -571,10 +574,17 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     const repoConn = (prismaClient as unknown as {
       repoConnection?: {
         upsert: (args: unknown) => Promise<unknown>;
+        findUnique?: (args: unknown) => Promise<{ storedConfig?: unknown } | null>;
       };
     }).repoConnection;
     if (repoConn && typeof repoConn.upsert === "function") {
       try {
+        const where = { installationId_owner_repo: { installationId: String(installationId), owner: body.owner, repo: body.repo } };
+        const existing = await repoConn.findUnique?.({ where });
+        const previousConfig = existing?.storedConfig && typeof existing.storedConfig === "object" && !Array.isArray(existing.storedConfig)
+          ? existing.storedConfig as Record<string, unknown>
+          : {};
+        const storedConfig = { ...previousConfig, ...body.target, name: foundProc?.name ?? body.target.name };
         await repoConn.upsert({
           where: {
             installationId_owner_repo: {
@@ -589,18 +599,18 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
             repo: body.repo,
             deploymentIntegration: "github_actions",
             runtimeAdapter: "pm2",
-            pm2Process: body.target.name,
+            pm2Process: foundProc?.name ?? body.target.name,
             verifiedAt: verified ? new Date() : null,
             verificationReport: checks,
-            storedConfig: body.target,
+            storedConfig,
           },
           update: {
             deploymentIntegration: "github_actions",
             runtimeAdapter: "pm2",
-            pm2Process: body.target.name,
+            pm2Process: foundProc?.name ?? body.target.name,
             verifiedAt: verified ? new Date() : null,
             verificationReport: checks,
-            ...(verified ? { storedConfig: body.target } : {}),
+            ...(verified ? { storedConfig } : {}),
           },
         });
       } catch (dbErr) {

@@ -6,14 +6,13 @@ import type { RepoConnection, Prisma } from "@prisma/client";
  * into a typed, schema-complete RepoConnection object with sensible defaults.
  */
 export function mapRawRepoConnection(row: Record<string, unknown>): RepoConnection {
-  const isSahaay = String(row.repo || "").toLowerCase() === "sahaay";
   const storedCfg =
     row.storedConfig && typeof row.storedConfig === "object"
       ? (row.storedConfig as Record<string, unknown>)
       : {};
 
   const defaultAdapter =
-    row.mode === "standalone" || isSahaay || storedCfg.target || storedCfg.kind === "pm2"
+    row.mode === "standalone" || storedCfg.target || storedCfg.kind === "pm2"
       ? "pm2"
       : "none";
 
@@ -21,14 +20,14 @@ export function mapRawRepoConnection(row: Record<string, unknown>): RepoConnecti
     (storedCfg.target as string) ||
     (storedCfg.name as string) ||
     (storedCfg.targetName as string) ||
-    (isSahaay ? "sahaay" : null);
+    null;
 
   return {
     id: String(row.id ?? `conn-${row.owner}-${row.repo}`),
     installationId: String(row.installationId ?? ""),
     owner: String(row.owner ?? ""),
     repo: String(row.repo ?? ""),
-    mode: (row.mode as RepoConnection["mode"]) ?? "standalone",
+    mode: (row.mode as RepoConnection["mode"]) ?? (defaultAdapter === "pm2" ? "standalone" : "augment"),
     deploymentIntegration: (row.deploymentIntegration as string) ?? "github_actions",
     runtimeAdapter: (row.runtimeAdapter as string) ?? defaultAdapter,
     pm2Process: (row.pm2Process as string) ?? defaultProcess,

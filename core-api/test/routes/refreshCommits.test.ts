@@ -34,6 +34,32 @@ describe("POST /v1/commits/refresh", () => {
     await app.close();
   });
 
+  it("classifies a missing tip without deploying when requested by integration verification", async () => {
+    const prisma = new FakePrisma();
+    const key = generateApiKey();
+    prisma.apiKeys.set(key.hash, "inst-1");
+    const classifyCommit = vi.fn().mockResolvedValue(undefined);
+    app = Fastify();
+    await registerRefreshCommitsRoute(app, { prismaClient: prisma, getInstallationToken: async () => "token", classifyCommit, listCommits: async () => [{ sha: "tip", parentSha: "base" }] });
+    const response = await app.inject({ method: "POST", url: "/v1/commits/refresh", headers: { authorization: `Bearer ${key.plaintext}` }, payload: { owner: "acme", repo: "widgets", observeLive: false } });
+    expect(response.statusCode).toBe(200);
+    expect(classifyCommit).toHaveBeenCalledWith(expect.objectContaining({ headSha: "tip" }), { observeLive: false });
+    expect(response.json().soakSha).toBeNull();
+  });
+
+  it("does not restart a known tip's monitor during policy verification", async () => {
+    const prisma = new FakePrisma();
+    prisma.known.add("tip");
+    const key = generateApiKey();
+    prisma.apiKeys.set(key.hash, "inst-1");
+    const classifyCommit = vi.fn();
+    app = Fastify();
+    await registerRefreshCommitsRoute(app, { prismaClient: prisma, getInstallationToken: async () => "token", classifyCommit, listCommits: async () => [{ sha: "tip", parentSha: "base" }] });
+    const response = await app.inject({ method: "POST", url: "/v1/commits/refresh", headers: { authorization: `Bearer ${key.plaintext}` }, payload: { owner: "acme", repo: "widgets", observeLive: false } });
+    expect(response.statusCode).toBe(200);
+    expect(classifyCommit).not.toHaveBeenCalled();
+  });
+
   it("returns 401 without an installation API key", async () => {
     app = Fastify();
     await registerRefreshCommitsRoute(app, {

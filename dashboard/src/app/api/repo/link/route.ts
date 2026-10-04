@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { load } from "js-yaml";
 import { env } from "../../../../config/env";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
@@ -10,7 +11,7 @@ import {
   putCarfConfigFile,
   GitHubContentsError,
 } from "../../../../adapters/github/contentsClient";
-import { applyModeAdapterPatch } from "../../../../lib/carfConfigWriter";
+import { applyModeAdapterPatch, carfConfigsEqual } from "../../../../lib/carfConfigWriter";
 import {
   AdapterConfigSchema,
   type AdapterKind,
@@ -52,12 +53,16 @@ export async function POST(request: NextRequest) {
       ...(typeof body.layout === "string" ? { layout: body.layout } : {}),
       ...(typeof body.adapterLayout === "string" ? { layout: body.adapterLayout } : {}),
       ...(typeof body.cwd === "string" ? { cwd: body.cwd } : {}),
-      ...(typeof body.releasesDir === "string" ? { releasesDir: body.releasesDir } : {}),
+      ...(typeof body.releasesDir === "string" ? { releasesRoot: body.releasesDir } : {}),
+      ...(typeof body.releasesRoot === "string" ? { releasesRoot: body.releasesRoot } : {}),
       ...(typeof body.currentSymlink === "string" ? { currentSymlink: body.currentSymlink } : {}),
       ...(typeof body.healthUrl === "string" ? { healthUrl: body.healthUrl } : {}),
       ...(Array.isArray(body.sharedDirs)
-        ? { sharedDirs: body.sharedDirs.map(String) }
+        ? { sharedPaths: body.sharedDirs.map(String) }
         : {}),
+      ...(Array.isArray(body.sharedPaths) ? { sharedPaths: body.sharedPaths.map(String) } : {}),
+      ...(typeof body.buildCommand === "string" ? { buildCommand: body.buildCommand } : {}),
+      ...(typeof body.probeCount === "number" ? { probeCount: body.probeCount } : {}),
       ...(typeof body.startupGraceSeconds === "number"
         ? { startupGraceSeconds: body.startupGraceSeconds }
         : {}),
@@ -109,7 +114,7 @@ export async function POST(request: NextRequest) {
     const appJwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
     const { token } = await createInstallationToken(installationId, appJwt);
 
-    const existingFile = await getCarfConfigFile(owner, repo, token).catch(() => null);
+    const existingFile = await getCarfConfigFile(owner, repo, token);
 
     const adapterConfig =
       deploymentMode === "standalone" && adapterKind === "pm2"
@@ -127,7 +132,7 @@ export async function POST(request: NextRequest) {
       adapter: adapterConfig,
     });
 
-    await putCarfConfigFile(
+    if (!carfConfigsEqual(existingFile?.content ?? null, nextYaml)) await putCarfConfigFile(
       owner,
       repo,
       nextYaml,
@@ -198,11 +203,9 @@ export async function POST(request: NextRequest) {
     const pm2Process = adapterTarget || null;
     const storedConfig = {
       mode: "standalone" as const,
-      kind: adapterKind,
-      target: adapterTarget,
+      ...AdapterConfigSchema.parse((load(nextYaml) as Record<string, unknown>).adapter),
       deploymentIntegration: resolved.deploymentIntegration,
       runtimeAdapter: resolved.runtimeAdapter,
-      ...adapterExtras,
     };
     const { token: installToken, hash: installTokenHash, prefix: installTokenPrefix } = generateInstallToken();
 

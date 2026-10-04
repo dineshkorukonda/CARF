@@ -4,6 +4,7 @@ import { prisma as defaultPrisma } from "../db/client.js";
 import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
 import { PM2Adapter } from "../adapters/pm2.js";
 import { loadCarfConfig } from "../config/carfConfig.js";
+import { resolveRepoAdapterConfig } from "../config/repoAdapterConfig.js";
 import { dispatchRollbackAlert } from "../alerts/dispatch.js";
 
 export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClient {
@@ -190,6 +191,7 @@ export async function registerRolloutRollbackRoute(
       const repo = rollout.repo ?? "";
       const actor = request.body?.actor || "session_user";
 
+      let adapterConfig = loadCarfConfig()?.adapter;
       // Verify repository connection has been verified
       if (prismaClient.repoConnection?.findUnique) {
         const repoConn = await prismaClient.repoConnection.findUnique({
@@ -198,6 +200,7 @@ export async function registerRolloutRollbackRoute(
         if (repoConn && !repoConn.verifiedAt) {
           return reply.code(403).send({ error: "Cannot trigger rollback: repository connection is not verified" });
         }
+        if (repoConn) adapterConfig = resolveRepoAdapterConfig(repoConn.storedConfig, undefined, adapterConfig);
       }
 
       const previousSha = rollout.commit?.baseSha;
@@ -205,7 +208,7 @@ export async function registerRolloutRollbackRoute(
         return reply.code(400).send({ error: "Cannot rollback: no valid previous commit SHA available" });
       }
 
-      const carfConfig = loadCarfConfig();
+      const carfConfig = { adapter: adapterConfig };
       const firstTarget = carfConfig?.adapter?.targets?.[0];
       const targetName =
         carfConfig?.adapter?.target ??

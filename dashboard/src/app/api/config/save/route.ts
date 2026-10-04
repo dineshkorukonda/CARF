@@ -6,7 +6,7 @@ import { prisma } from "../../../../lib/prisma";
 import { signGithubAppJwt } from "../../../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../../../adapters/github/installationTokenClient";
 import { getCarfConfigFile, putCarfConfigFile, GitHubContentsError } from "../../../../adapters/github/contentsClient";
-import { applyModeAdapterPatch } from "../../../../lib/carfConfigWriter";
+import { applyModeAdapterPatch, carfConfigsEqual } from "../../../../lib/carfConfigWriter";
 import type { AdapterKind } from "../../../../lib/carfConfigSchema";
 
 /**
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
         mode === "standalone" ? { kind: adapterKind as AdapterKind, target: adapterTarget } : undefined,
     });
 
-    await putCarfConfigFile(
+    if (!carfConfigsEqual(existingFile?.content ?? null, nextYaml)) await putCarfConfigFile(
       owner,
       repo,
       nextYaml,
