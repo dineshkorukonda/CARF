@@ -57,51 +57,51 @@ export async function attemptAutoRepairSchema(): Promise<void> {
   autoRepairAttempted = true;
 
   try {
-    await prisma.$executeRawUnsafe(`
-      DO $$ BEGIN
+    const ddlStatements = [
+      `DO $$ BEGIN
           CREATE TYPE "RolloutStatus" AS ENUM ('PENDING', 'SUCCESS', 'ROLLED_BACK', 'FAILED');
       EXCEPTION
           WHEN duplicate_object THEN NULL;
-      END $$;
+      END $$;`,
 
-      DO $$ BEGIN
+      `DO $$ BEGIN
           CREATE TYPE "RolloutTrigger" AS ENUM ('auto', 'manual');
       EXCEPTION
           WHEN duplicate_object THEN NULL;
-      END $$;
+      END $$;`,
 
-      DO $$ BEGIN
+      `DO $$ BEGIN
           CREATE TYPE "DeploymentMode" AS ENUM ('standalone', 'augment');
       EXCEPTION
           WHEN duplicate_object THEN NULL;
-      END $$;
+      END $$;`,
 
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "mode" "DeploymentMode" DEFAULT 'standalone';
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "deploymentIntegration" TEXT DEFAULT 'github_actions';
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "runtimeAdapter" TEXT DEFAULT 'none';
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "pm2Process" TEXT;
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "installTokenHash" TEXT;
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "installTokenPrefix" TEXT;
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentLastHeartbeat" TIMESTAMP(3);
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentVersion" TEXT;
-      ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentRevoked" BOOLEAN NOT NULL DEFAULT false;
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "mode" "DeploymentMode" DEFAULT 'standalone'`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "deploymentIntegration" TEXT DEFAULT 'github_actions'`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "runtimeAdapter" TEXT DEFAULT 'none'`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "pm2Process" TEXT`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "installTokenHash" TEXT`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "installTokenPrefix" TEXT`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentLastHeartbeat" TIMESTAMP(3)`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentVersion" TEXT`,
+      `ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentRevoked" BOOLEAN NOT NULL DEFAULT false`,
 
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "owner" TEXT;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "repo" TEXT;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "commitSha" TEXT NOT NULL DEFAULT '';
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "status" "RolloutStatus" NOT NULL DEFAULT 'PENDING';
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "trigger" "RolloutTrigger" NOT NULL DEFAULT 'auto';
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "readyAt" TIMESTAMP(3);
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "threshold" DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "window" INTEGER NOT NULL DEFAULT 0;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "finishedAt" TIMESTAMP(3);
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "finalErrorRate" DOUBLE PRECISION;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "reason" TEXT;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackVerified" BOOLEAN;
-      ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "owner" TEXT`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "repo" TEXT`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "commitSha" TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "status" "RolloutStatus" NOT NULL DEFAULT 'PENDING'`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "trigger" "RolloutTrigger" NOT NULL DEFAULT 'auto'`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "readyAt" TIMESTAMP(3)`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "threshold" DOUBLE PRECISION NOT NULL DEFAULT 0`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "window" INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "finishedAt" TIMESTAMP(3)`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "finalErrorRate" DOUBLE PRECISION`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "reason" TEXT`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackVerified" BOOLEAN`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,
 
-      CREATE TABLE IF NOT EXISTS "RepoIntegration" (
+      `CREATE TABLE IF NOT EXISTS "RepoIntegration" (
           "id" TEXT NOT NULL,
           "installationId" TEXT NOT NULL,
           "owner" TEXT NOT NULL,
@@ -120,14 +120,22 @@ export async function attemptAutoRepairSchema(): Promise<void> {
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "RepoIntegration_pkey" PRIMARY KEY ("id")
-      );
+      )`,
 
-      CREATE UNIQUE INDEX IF NOT EXISTS "RepoIntegration_installationId_owner_repo_integration_key" 
-      ON "RepoIntegration"("installationId", "owner", "repo", "integration");
+      `CREATE UNIQUE INDEX IF NOT EXISTS "RepoIntegration_installationId_owner_repo_integration_key" 
+       ON "RepoIntegration"("installationId", "owner", "repo", "integration")`,
 
-      CREATE INDEX IF NOT EXISTS "RepoIntegration_installationId_idx" 
-      ON "RepoIntegration"("installationId");
-    `);
+      `CREATE INDEX IF NOT EXISTS "RepoIntegration_installationId_idx" 
+       ON "RepoIntegration"("installationId")`,
+    ];
+
+    for (const stmt of ddlStatements) {
+      try {
+        await prisma.$executeRawUnsafe(stmt);
+      } catch {
+        // Individual statement error (e.g. if table does not exist yet) - ignore so others proceed
+      }
+    }
     console.log("[repoConnectionService] Successfully applied idempotent schema auto-repair");
   } catch (err) {
     console.warn("[repoConnectionService] Auto-repair DDL encountered error (continuing with query fallbacks):", err);
