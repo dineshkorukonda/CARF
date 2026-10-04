@@ -175,6 +175,32 @@ CREATE TABLE IF NOT EXISTS "EvalRun" (
     CONSTRAINT "EvalRun_pkey" PRIMARY KEY ("id")
 );
 
+-- Per-repository integration state (GitHub Actions, etc.)
+CREATE TABLE IF NOT EXISTS "RepoIntegration" (
+    "id" TEXT NOT NULL,
+    "installationId" TEXT NOT NULL,
+    "owner" TEXT NOT NULL,
+    "repo" TEXT NOT NULL,
+    "integration" TEXT NOT NULL DEFAULT 'github-actions',
+    "status" TEXT NOT NULL DEFAULT 'not_configured',
+    "branch" TEXT,
+    "workflowPath" TEXT,
+    "workflowVersion" INTEGER,
+    "configuredAt" TIMESTAMP(3),
+    "lastVerifiedAt" TIMESTAMP(3),
+    "lastSyncAt" TIMESTAMP(3),
+    "lastPolicyAt" TIMESTAMP(3),
+    "lastCommitSha" TEXT,
+    "lastError" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RepoIntegration_pkey" PRIMARY KEY ("id")
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "RepoIntegration_installationId_owner_repo_integration_key" ON "RepoIntegration"("installationId", "owner", "repo", "integration");
+CREATE INDEX IF NOT EXISTS "RepoIntegration_installationId_idx" ON "RepoIntegration"("installationId");
+CREATE INDEX IF NOT EXISTS "RepoIntegration_owner_repo_idx" ON "RepoIntegration"("owner", "repo");
+
 CREATE INDEX IF NOT EXISTS "Commit_installationId_createdAt_idx" ON "Commit"("installationId", "createdAt");
 
 CREATE INDEX IF NOT EXISTS "RolloutOutcome_status_idx" ON "RolloutOutcome"("status");

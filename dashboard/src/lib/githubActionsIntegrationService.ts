@@ -94,7 +94,7 @@ export interface IntegrationStore {
 
 /** Narrow Prisma surface used by `createPrismaIntegrationStore` -- keeps tests free of a real DB. */
 export interface RepoIntegrationPrismaClient {
-  repoIntegration: {
+  repoIntegration?: {
     findUnique(args: {
       where: { installationId_owner_repo_integration: IntegrationKey & { integration: string } };
     }): Promise<IntegrationRecord | null>;
@@ -106,18 +106,54 @@ export interface RepoIntegrationPrismaClient {
   };
 }
 
-export function createPrismaIntegrationStore(prisma: RepoIntegrationPrismaClient): IntegrationStore {
+export function createPrismaIntegrationStore(
+  prisma: RepoIntegrationPrismaClient,
+  onSchemaError?: () => Promise<void>
+): IntegrationStore {
   const where = (key: IntegrationKey) => ({
     installationId_owner_repo_integration: { ...key, integration: GITHUB_ACTIONS_INTEGRATION },
   });
   return {
-    find: (key) => prisma.repoIntegration.findUnique({ where: where(key) }),
-    upsert: (key, data) =>
-      prisma.repoIntegration.upsert({
-        where: where(key),
-        create: { ...key, integration: GITHUB_ACTIONS_INTEGRATION, ...data },
-        update: data,
-      }),
+    find: async (key) => {
+      try {
+        if (!prisma?.repoIntegration?.findUnique) return null;
+        return await prisma.repoIntegration.findUnique({ where: where(key) });
+      } catch {
+        if (onSchemaError) {
+          try {
+            await onSchemaError();
+            if (prisma?.repoIntegration?.findUnique) {
+              return await prisma.repoIntegration.findUnique({ where: where(key) });
+            }
+          } catch {
+            // fall through to null
+          }
+        }
+        return null;
+      }
+    },
+    upsert: async (key, data) => {
+      try {
+        if (!prisma?.repoIntegration?.upsert) {
+          if (onSchemaError) await onSchemaError();
+        }
+        return await prisma.repoIntegration!.upsert({
+          where: where(key),
+          create: { ...key, integration: GITHUB_ACTIONS_INTEGRATION, ...data },
+          update: data,
+        });
+      } catch (err) {
+        if (onSchemaError) {
+          await onSchemaError();
+          return await prisma.repoIntegration!.upsert({
+            where: where(key),
+            create: { ...key, integration: GITHUB_ACTIONS_INTEGRATION, ...data },
+            update: data,
+          });
+        }
+        throw err;
+      }
+    },
   };
 }
 
@@ -461,8 +497,12 @@ export class GitHubActionsIntegrationService {
 
   /** Canonical template for the "Advanced / Manual configuration" view. Contains no secret values. */
   async manualWorkflow(ctx: IntegrationContext): Promise<string> {
-    const record = await this.deps.store.find(this.key(ctx));
-    return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: record?.branch ?? "main" });
+    try {
+      const record = await this.deps.store.find(this.key(ctx));
+      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: record?.branch ?? "main" });
+    } catch {
+      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: "main" });
+    }
   }
 
   private async assertAppPermissions(ctx: IntegrationContext): Promise<void> {
