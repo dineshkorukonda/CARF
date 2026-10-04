@@ -8,6 +8,7 @@ import { getInstallationForAccount } from "./accountService";
 import { ensureCoreApiKey } from "./coreApiAccess";
 import { mintInstallationToken } from "./installationAccess";
 import { prisma } from "./prisma";
+import { attemptAutoRepairSchema } from "./repoConnectionService";
 import {
   GitHubActionsIntegrationService,
   IntegrationError,
@@ -28,6 +29,8 @@ export async function handleGithubActionsIntegration(repositoryId: string, actio
   const account = await getCurrentAccount();
   if (!account) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  await attemptAutoRepairSchema();
+
   const connection = await prisma.repoConnection.findUnique({ where: { id: repositoryId } });
   if (!connection) return NextResponse.json({ error: "Repository not found" }, { status: 404 });
 
@@ -42,7 +45,7 @@ export async function handleGithubActionsIntegration(repositoryId: string, actio
   };
 
   const service = new GitHubActionsIntegrationService({
-    store: createPrismaIntegrationStore(prisma as unknown as RepoIntegrationPrismaClient),
+    store: createPrismaIntegrationStore(prisma as unknown as RepoIntegrationPrismaClient, attemptAutoRepairSchema),
     github: githubClient,
     mintInstallationToken,
     signAppJwt: () => signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey()),
@@ -84,6 +87,7 @@ export async function handleGithubActionsIntegration(repositoryId: string, actio
       return NextResponse.json({ error: error.message, code: error.code }, { status: error.httpStatus });
     }
     console.error("[github-actions-integration] unhandled error", error);
-    return NextResponse.json({ error: "The integration request failed. Check the CARF server logs." }, { status: 500 });
+    const detail = error instanceof Error ? error.message : "The integration request failed.";
+    return NextResponse.json({ error: `The integration request failed: ${detail}` }, { status: 500 });
   }
 }

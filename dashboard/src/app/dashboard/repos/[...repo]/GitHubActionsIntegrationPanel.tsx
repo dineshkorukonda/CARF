@@ -150,7 +150,7 @@ export function GitHubActionsIntegrationPanel({
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
               <dt className="text-[11px] font-medium text-muted-foreground uppercase">{label}</dt>
-              <dd className="font-mono text-[11px] text-foreground truncate">{value ?? "—"}</dd>
+              <dd className="font-mono text-[11px] text-foreground truncate" suppressHydrationWarning>{value ?? "—"}</dd>
             </div>
           ))}
         </dl>
@@ -240,13 +240,15 @@ export function GitHubActionsIntegrationPanel({
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
-              className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted/50 disabled:opacity-50"
             >
-              {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-              <span>{copied ? "Copied" : "Copy Configuration"}</span>
+              {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+              {copied ? "Copied" : "Copy YAML"}
             </button>
           </div>
-          <pre className="rounded-lg bg-slate-950 p-4 font-mono text-xs text-emerald-400 overflow-x-auto">{manualWorkflow || "Loading…"}</pre>
+          <pre className="overflow-x-auto rounded-lg bg-muted/40 p-3 font-mono text-[11px] text-foreground">
+            {manualWorkflow || "Loading…"}
+          </pre>
         </div>
       </details>
     </div>
