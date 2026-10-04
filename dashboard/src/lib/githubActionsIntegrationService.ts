@@ -8,7 +8,7 @@ import {
   workflowsEqual,
   InvalidWorkflowInputError,
 } from "./githubActionsWorkflow";
-import { resolveAugmentIntegration, resolveRepoMode, type RepoConfigLookupInput } from "./deploymentMode";
+import { resolveAugmentIntegration, type RepoConfigLookupInput } from "./deploymentMode";
 import { GitHubApiError } from "../adapters/github/repoContentsClient";
 import type * as GitHubClient from "../adapters/github/repoContentsClient";
 
