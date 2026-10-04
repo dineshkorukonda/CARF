@@ -51,4 +51,11 @@ export const env = {
   githubAppPrivateKey: () => normalizePrivateKey(requireEnv("GITHUB_APP_PRIVATE_KEY")),
   /** Base URL of the core-api instance this dashboard reads status data from (issue #64). */
   coreApiBaseUrl: () => normalizeCoreApiUrl(requireEnv("CORE_API_BASE_URL")),
+  /**
+   * Internet-reachable origin of core-api, written into GitHub Actions workflows. GitHub-hosted
+   * runners cannot reach the server-side CORE_API_BASE_URL when it is loopback/private
+   * (e.g. http://127.0.0.1:14101), so set CORE_API_PUBLIC_URL (e.g. https://api.carf.example).
+   * Falls back to CORE_API_BASE_URL.
+   */
+  coreApiPublicUrl: () => normalizeCoreApiUrl(process.env.CORE_API_PUBLIC_URL || requireEnv("CORE_API_BASE_URL")),
 };

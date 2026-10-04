@@ -35,6 +35,22 @@ function assertSafeInput(input: WorkflowTemplateInput): void {
   }
 }
 
+/** True when the host is loopback/private/link-local, i.e. unreachable from GitHub-hosted runners. */
+export function isPrivateHostUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return true;
+  }
+  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host === "[::1]" || host === "::1") return true;
+  const m = host.match(/^(\d+)\.(\d+)\.\d+\.\d+$/);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
+
 /** Renders the canonical workflow. Values are validated first so nothing can break out of the YAML. */
 export function renderCarfWorkflow(input: WorkflowTemplateInput): string {
   assertSafeInput(input);

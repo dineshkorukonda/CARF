@@ -50,7 +50,7 @@ export async function handleGithubActionsIntegration(repositoryId: string, actio
     mintInstallationToken,
     signAppJwt: () => signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey()),
     getApiKey: () => ensureCoreApiKey(prisma, installation),
-    coreApiUrl: env.coreApiBaseUrl(),
+    coreApiUrl: env.coreApiPublicUrl(),
     probePolicy: async ({ owner, repo, sha, apiKey }) => {
       const url = new URL(`${env.coreApiBaseUrl()}/v1/augment/threshold`);
       url.searchParams.set("owner", owner);
