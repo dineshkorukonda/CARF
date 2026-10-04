@@ -1,4 +1,5 @@
 import type { GithubInstallation } from "../adapters/github/appInstallClient";
+import { pruneStaleInstallations, type PrunePrismaClient } from "./installationPruning";
 
 export interface AccountRow {
   id: string;
@@ -98,7 +99,10 @@ export async function listInstallationsForAccount(
   prisma: DashboardPrismaClient,
   userId: string
 ): Promise<InstallationRow[]> {
-  return prisma.installation.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+  const rows = await prisma.installation.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+  const prunable = prisma as unknown as Partial<PrunePrismaClient>;
+  if (typeof prunable.installation?.delete !== "function") return rows;
+  return pruneStaleInstallations(prunable as PrunePrismaClient, userId, rows);
 }
 
 /** Caches core-api's per-installation API key once fetched. */
