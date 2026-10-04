@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: carf-test
+  labels:
+    app.kubernetes.io/part-of: carf
+    environment: testing

@@ -8,4 +8,4 @@ build/
 coverage/
 carf-e2e-test/
 jean.json
-
+environments/pm2/current/
