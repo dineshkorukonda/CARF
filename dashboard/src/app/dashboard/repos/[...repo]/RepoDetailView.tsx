@@ -1095,11 +1095,11 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── AUGMENT: POLICY & INTEGRATION CARD ─── */}
-      {isAugment && augmentIntegration === "github-actions" && connection?.id && (
+      {resolved.deploymentIntegration === "github_actions" && connection?.id && (
         <GitHubActionsIntegrationPanel repositoryId={connection.id} defaultBranch={defaultBranch} />
       )}
 
-      {isAugment && augmentIntegration !== "github-actions" && (
+      {resolved.deploymentIntegration !== "github_actions" && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
             <div>

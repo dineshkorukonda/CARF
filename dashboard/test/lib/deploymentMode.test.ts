@@ -70,6 +70,18 @@ describe("deploymentMode resolution", () => {
     expect(
       resolveAugmentIntegration({ storedConfig: { integration: "generic-http" } })
     ).toBe("generic-http");
+    expect(
+      resolveAugmentIntegration({ deploymentIntegration: "github_actions" })
+    ).toBe("github-actions");
+    expect(
+      resolveAugmentIntegration({ deploymentIntegration: "argo_rollouts" })
+    ).toBe("argo-rollouts");
+    expect(
+      resolveAugmentIntegration({ deploymentIntegration: "flagger" })
+    ).toBe("flagger");
+    expect(
+      resolveAugmentIntegration({ deploymentIntegration: "generic_http" })
+    ).toBe("generic-http");
   });
 
   it("accepts only standalone and augment as declared modes", () => {

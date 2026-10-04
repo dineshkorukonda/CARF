@@ -8,6 +8,8 @@
  * predate the column or have not been regenerated yet.
  */
 
+import { normalizeDeploymentIntegration } from "./capabilities";
+
 export type DeploymentMode = "standalone" | "augment";
 
 export type AugmentIntegration = "github-actions" | "argo-rollouts" | "flagger" | "generic-http";
@@ -16,6 +18,8 @@ export interface RepoConfigLookupInput {
   storedConfig?: unknown;
   installTokenHash?: string | null;
   mode?: string | null;
+  deploymentIntegration?: string | null;
+  runtimeAdapter?: string | null;
 }
 
 export function parseDeclaredMode(value: unknown): DeploymentMode | null {
@@ -66,6 +70,13 @@ export function resolveRepoMode(input?: RepoConfigLookupInput | null): Deploymen
 }
 
 export function resolveAugmentIntegration(input?: RepoConfigLookupInput | null): AugmentIntegration {
+  if (input?.deploymentIntegration) {
+    const norm = normalizeDeploymentIntegration(input.deploymentIntegration);
+    if (norm === "argo_rollouts") return "argo-rollouts";
+    if (norm === "flagger") return "flagger";
+    if (norm === "generic_http") return "generic-http";
+    return "github-actions";
+  }
   const cfg = storedConfigObject(input?.storedConfig);
   const integration = typeof cfg?.integration === "string" ? cfg.integration.toLowerCase() : "";
   if (integration === "argo-rollouts" || integration === "argo") return "argo-rollouts";
