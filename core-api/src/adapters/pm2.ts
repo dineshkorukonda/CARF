@@ -40,10 +40,17 @@ export interface PM2AdapterOptions {
 interface Pm2ProcessDescription {
   name: string;
   pm_id?: number;
+  pid?: number;
+  monit?: {
+    cpu?: number;
+    memory?: number;
+  };
   pm2_env?: {
     status?: string;
     restart_time?: number;
     unstable_restarts?: number;
+    pm_uptime?: number;
+    pm_cwd?: string;
   };
 }
 
@@ -54,12 +61,31 @@ export interface PM2HealthResult {
   httpErrorRate: number;
 }
 
+export interface PM2DiscoveredProcess {
+  name: string;
+  status: string;
+  pid?: number | undefined;
+  uptime: number; // in seconds
+  cpu: number; // percentage
+  memory: number; // in bytes
+  restarts: number;
+  cwd?: string | undefined;
+}
+
+export interface PM2DiscoveryResult {
+  runtime: "pm2";
+  connected: boolean;
+  processes: PM2DiscoveredProcess[];
+  error?: string;
+}
+
 /**
  * `RollbackAdapter` backed by PM2, supporting:
  * - Single or multiple named processes (`target` / `targets`).
  * - Dual health metrics: `pm2 jlist` process state + restart deltas + HTTP `healthUrl` probes.
  * - Dual deployment layouts: Capistrano-style symlink swap (`releases`) or in-place `git checkout` (`git`).
  * - Post-rollback verification via `rollbackWithVerification`.
+ * - Local process discovery and inspection via `discover()` and `getProcess()`.
  */
 export class PM2Adapter implements RollbackAdapter {
   private readonly executor: CommandExecutor;
@@ -79,10 +105,12 @@ export class PM2Adapter implements RollbackAdapter {
   private readonly baselineRestarts = new Map<string | number, number>();
 
   constructor(
-    private readonly previousSha: string,
+    private readonly previousSha: string = "",
     options: PM2AdapterOptions = {}
   ) {
-    assertSafeTarget(previousSha, "previousSha");
+    if (previousSha && previousSha.trim().length > 0) {
+      assertSafeTarget(previousSha, "previousSha");
+    }
 
     if (options.exec) {
       if (typeof options.exec === "function") {
@@ -132,6 +160,106 @@ export class PM2Adapter implements RollbackAdapter {
       }
     }
     this.defaultTargets = targets;
+  }
+
+  /**
+   * Static utility to quickly check if PM2 is reachable locally.
+   */
+  static async isAvailable(executor: CommandExecutor = new LocalCommandExecutor(defaultExec)): Promise<boolean> {
+    try {
+      const { stdout } = await executor.exec("pm2 jlist");
+      return Array.isArray(JSON.parse(stdout));
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Discovers and parses local PM2 processes via safe `pm2 jlist`.
+   * Returns structured runtime and process details.
+   */
+  async discover(): Promise<PM2DiscoveryResult> {
+    try {
+      const { stdout } = await this.executor.exec("pm2 jlist");
+      const rawProcesses: Array<Record<string, unknown>> = JSON.parse(stdout);
+      if (!Array.isArray(rawProcesses)) {
+        return {
+          runtime: "pm2",
+          connected: false,
+          processes: [],
+          error: "Invalid PM2 process list format",
+        };
+      }
+
+      const nowMs = this.now();
+      const processes: PM2DiscoveredProcess[] = rawProcesses
+        .filter((p) => typeof p.name === "string" && p.name.trim().length > 0)
+        .map((p) => {
+          const pm2Env = (p.pm2_env && typeof p.pm2_env === "object" ? p.pm2_env : {}) as Record<string, unknown>;
+          const monit = (p.monit && typeof p.monit === "object" ? p.monit : {}) as Record<string, unknown>;
+          const uptimeMs =
+            typeof pm2Env.pm_uptime === "number" && pm2Env.pm_uptime > 0
+              ? Math.max(0, nowMs - pm2Env.pm_uptime)
+              : 0;
+
+          return {
+            name: typeof p.name === "string" ? p.name : "unknown",
+            status: typeof pm2Env.status === "string" ? pm2Env.status : "unknown",
+            pid: typeof p.pid === "number" && p.pid > 0 ? p.pid : undefined,
+            uptime: Math.floor(uptimeMs / 1000),
+            cpu: typeof monit.cpu === "number" ? Math.round(monit.cpu * 10) / 10 : 0,
+            memory: typeof monit.memory === "number" ? monit.memory : 0,
+            restarts: typeof pm2Env.restart_time === "number" ? pm2Env.restart_time : 0,
+            cwd: typeof pm2Env.pm_cwd === "string" ? pm2Env.pm_cwd : undefined,
+          };
+        });
+
+      return {
+        runtime: "pm2",
+        connected: true,
+        processes,
+      };
+    } catch (err: unknown) {
+      return {
+        runtime: "pm2",
+        connected: false,
+        processes: [],
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  }
+
+  /**
+   * Retrieves a specific process by name.
+   */
+  async getProcess(name: string): Promise<PM2DiscoveredProcess | null> {
+    assertSafeTarget(name, "processName");
+    const discovery = await this.discover();
+    if (!discovery.connected) return null;
+    return discovery.processes.find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
+  }
+
+  /**
+   * Returns current PM2 discovery status.
+   */
+  async getStatus(): Promise<PM2DiscoveryResult> {
+    return this.discover();
+  }
+
+  /**
+   * Restarts a PM2 process by name.
+   */
+  async restart(name: string): Promise<void> {
+    assertSafeTarget(name, "processName");
+    await this.executor.exec(`pm2 restart ${name}`);
+  }
+
+  /**
+   * Reloads a PM2 process by name.
+   */
+  async reload(name: string): Promise<void> {
+    assertSafeTarget(name, "processName");
+    await this.executor.exec(`pm2 reload ${name}`);
   }
 
   private resolveTargets(target?: string): string[] {
@@ -243,6 +371,10 @@ export class PM2Adapter implements RollbackAdapter {
   }
 
   async rollback(target?: string): Promise<void> {
+    if (!this.previousSha || this.previousSha.trim().length === 0) {
+      throw new Error("Cannot rollback: previousSha was not specified.");
+    }
+
     const targets = this.resolveTargets(target);
     if (targets.length === 0) {
       throw new Error("No target specified for PM2 rollback");

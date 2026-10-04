@@ -49,6 +49,7 @@ export function CapabilitiesPreviewStep({
   const [copiedSnippet, setCopiedSnippet] = useState(false);
 
   const resolved = resolveCapabilities(deploymentIntegration, runtimeAdapter);
+  const isPm2 = runtimeAdapter === "pm2";
 
   const carfYamlPreview = `# .carf.yml — CARF 3-Layer Architecture Configuration
 deploymentIntegration: "${deploymentIntegration}"
@@ -100,7 +101,7 @@ ${
       }
 
       setConnected(true);
-      if (data.installToken) {
+      if (data.installToken && !isPm2) {
         setInstallToken(data.installToken);
       }
     } catch (err: unknown) {
@@ -192,7 +193,11 @@ ${
               <span>{resolved.runtimeLabel}</span>
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {resolved.requiresAgent ? "Host agent with live rollback." : "Zero host agent required."}
+              {isPm2
+                ? "Direct local PM2 adapter with live rollback."
+                : resolved.requiresAgent
+                ? "Host agent with live rollback."
+                : "Zero host agent required."}
             </p>
           </div>
         </div>
@@ -256,7 +261,7 @@ ${
               <span className="text-muted-foreground">
                 Agent:{" "}
                 <strong className="text-foreground">
-                  {resolved.requiresAgent ? "Required (PM2 Host Agent)" : "Zero Agent Required"}
+                  {resolved.requiresAgent ? "Required (Host Agent)" : "Zero Agent Required"}
                 </strong>
               </span>
             </div>
@@ -290,12 +295,14 @@ ${
             <h3 className="font-bold text-sm">Repository Connected Successfully!</h3>
           </div>
           <p className="text-xs text-muted-foreground">
-            {resolved.requiresAgent
-              ? "The configuration was committed to .carf.yml. Now install the CARF Host Agent on your target PM2 server to begin live observability."
+            {isPm2
+              ? "The configuration was committed to .carf.yml. Local PM2 runtime adapter is connected with automated health monitoring and rollback control."
+              : resolved.requiresAgent
+              ? "The configuration was committed to .carf.yml. Now install the CARF Host Agent on your target server to begin live observability."
               : "The configuration was committed to .carf.yml. Policy-only integration is active with zero server agent footprint required."}
           </p>
 
-          {installToken && (
+          {installToken && !isPm2 && (
             <div className="space-y-2 rounded-lg border border-border bg-card p-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-foreground">Host Agent One-Line Installer</span>
@@ -340,9 +347,9 @@ ${
             type="button"
             onClick={handleConnect}
             disabled={linking}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {linking ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+            {linking ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
             <span>{linking ? "Connecting..." : "Commit & Connect Repository"}</span>
           </button>
         </div>

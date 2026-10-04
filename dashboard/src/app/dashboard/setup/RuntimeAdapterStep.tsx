@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, Shield, Server, Box, Layers, Cpu } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Shield, Server, Box, Layers, Cpu, RefreshCw, Activity } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { RuntimeAdapter } from "../../../lib/capabilities";
 
@@ -35,6 +35,15 @@ interface AdapterOption {
   features: string[];
 }
 
+interface DiscoveredApp {
+  name: string;
+  status: string;
+  restarts?: number;
+  uptime?: number;
+  cwd?: string;
+  pid?: number;
+}
+
 const ADAPTER_OPTIONS: AdapterOption[] = [
   {
     id: "none",
@@ -57,9 +66,9 @@ const ADAPTER_OPTIONS: AdapterOption[] = [
     icon: Server,
     description: "Active health monitoring and automated instant rollback on target servers running PM2.",
     features: [
+      "Direct local PM2 adapter (zero host agent required)",
       "Continuous health URL probing during observation window",
       "Automated symlink / git rollback on threshold breach",
-      "Lightweight CARF Host Agent on target server",
     ],
   },
   {
@@ -112,6 +121,57 @@ export function RuntimeAdapterStep({
   onBack,
   onContinue,
 }: RuntimeAdapterStepProps) {
+  const [discoveredProcesses, setDiscoveredProcesses] = useState<DiscoveredApp[]>([]);
+  const [loadingProcesses, setLoadingProcesses] = useState(false);
+  const [pm2Error, setPm2Error] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedAdapter !== "pm2") return;
+    let active = true;
+
+    async function fetchPm2Processes() {
+      setLoadingProcesses(true);
+      setPm2Error(null);
+      try {
+        const res = await fetch("/api/pm2/apps");
+        if (!res.ok) {
+          throw new Error(`Failed to load PM2 processes: ${res.statusText}`);
+        }
+        const data = await res.json();
+        if (active) {
+          const procs = data.processes || data.apps || [];
+          setDiscoveredProcesses(procs);
+        }
+      } catch (err: unknown) {
+        if (active) {
+          setPm2Error(err instanceof Error ? err.message : "Could not reach local PM2");
+        }
+      } finally {
+        if (active) setLoadingProcesses(false);
+      }
+    }
+
+    void fetchPm2Processes();
+    return () => {
+      active = false;
+    };
+  }, [selectedAdapter]);
+
+  useEffect(() => {
+    if (selectedAdapter !== "pm2" || pm2Config.targetName || discoveredProcesses.length === 0) {
+      return;
+    }
+    const repoLower = selectedRepo?.name?.toLowerCase();
+    const matched = discoveredProcesses.find((p: DiscoveredApp) => p.name.toLowerCase() === repoLower);
+    if (matched) {
+      onChangePm2Config({
+        ...pm2Config,
+        targetName: matched.name,
+        cwd: matched.cwd || pm2Config.cwd,
+      });
+    }
+  }, [selectedAdapter, pm2Config, discoveredProcesses, selectedRepo?.name, onChangePm2Config]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -197,13 +257,63 @@ export function RuntimeAdapterStep({
       {/* Inline PM2 Configuration when PM2 is selected */}
       {selectedAdapter === "pm2" && (
         <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.03] p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <Server className="size-4 text-sky-500" />
-            <h3 className="text-sm font-semibold text-foreground">PM2 Process Details</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Server className="size-4 text-sky-500" />
+              <h3 className="text-sm font-semibold text-foreground">PM2 Process Details</h3>
+            </div>
+            {loadingProcesses && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <RefreshCw className="size-3 animate-spin" />
+                <span>Scanning PM2 processes...</span>
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Configure how the CARF Host Agent targets and verifies your PM2 application on the production server.
+            Configure how CARF Core interacts with the local PM2 runtime on this server. Select from detected processes or specify custom details.
           </p>
+          {pm2Error && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              {pm2Error} (You can still enter process details manually below)
+            </p>
+          )}
+
+          {/* Detected Processes Picker */}
+          {discoveredProcesses.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs font-medium text-foreground">
+                <span>Detected PM2 Processes on Host:</span>
+                <span className="text-[11px] text-muted-foreground">Click to select</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {discoveredProcesses.map((proc) => {
+                  const isTarget = pm2Config.targetName === proc.name;
+                  return (
+                    <button
+                      key={proc.name}
+                      type="button"
+                      onClick={() =>
+                        onChangePm2Config({
+                          ...pm2Config,
+                          targetName: proc.name,
+                          cwd: proc.cwd || pm2Config.cwd,
+                        })
+                      }
+                      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium font-mono transition-colors ${
+                        isTarget
+                          ? "border border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold"
+                          : "border border-border bg-muted/30 text-foreground hover:bg-muted"
+                      }`}
+                    >
+                      <Activity className={`size-3 ${proc.status === "online" ? "text-emerald-500" : "text-amber-500"}`} />
+                      <span>{proc.name}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">({proc.status})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -213,9 +323,9 @@ export function RuntimeAdapterStep({
                 value={pm2Config.targetName}
                 onChange={(e) => onChangePm2Config({ ...pm2Config, targetName: e.target.value })}
                 placeholder={selectedRepo?.name ?? "my-app"}
-                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Name in `pm2 status`</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">Process name in `pm2 jlist`</p>
             </div>
 
             <div>
@@ -225,7 +335,7 @@ export function RuntimeAdapterStep({
                 value={pm2Config.cwd}
                 onChange={(e) => onChangePm2Config({ ...pm2Config, cwd: e.target.value })}
                 placeholder={`/opt/${selectedRepo?.name ?? "app"}`}
-                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
               <p className="mt-1 text-[11px] text-muted-foreground">Absolute path to application root</p>
             </div>
@@ -236,8 +346,8 @@ export function RuntimeAdapterStep({
                 type="text"
                 value={pm2Config.healthUrl}
                 onChange={(e) => onChangePm2Config({ ...pm2Config, healthUrl: e.target.value })}
-                placeholder="http://127.0.0.1:3000/healthz"
-                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="http://127.0.0.1:3000/"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
               <p className="mt-1 text-[11px] text-muted-foreground">Endpoint polled during soak window</p>
             </div>
@@ -247,17 +357,18 @@ export function RuntimeAdapterStep({
               <select
                 value={pm2Config.layout}
                 onChange={(e) => onChangePm2Config({ ...pm2Config, layout: e.target.value as "releases" | "git" })}
-                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               >
-                <option value="git">Git In-Place (git checkout & pull)</option>
-                <option value="releases">Symlinked Releases (/releases/ + current)</option>
+                <option value="git">git (in-place repo checkout)</option>
+                <option value="releases">releases (Capistrano-style current/ symlink)</option>
               </select>
-              <p className="mt-1 text-[11px] text-muted-foreground">How releases are organized on disk</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">How releases are deployed on server</p>
             </div>
           </div>
         </div>
       )}
 
+      {/* Navigation Footer */}
       <div className="flex items-center justify-between border-t border-border pt-4">
         <button
           type="button"
@@ -271,9 +382,9 @@ export function RuntimeAdapterStep({
         <button
           type="button"
           onClick={onContinue}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
         >
-          <span>Next: Live Capabilities</span>
+          <span>Continue to Preview</span>
           <ArrowRight className="size-3.5" />
         </button>
       </div>
