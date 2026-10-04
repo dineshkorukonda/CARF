@@ -435,8 +435,11 @@ export class GitHubActionsIntegrationService {
           } else if (res.status >= 500) {
             publicDetail = `${this.deps.coreApiUrl} answered HTTP ${res.status}`;
           }
-        } catch {
-          publicDetail = `${this.deps.coreApiUrl} is not reachable from the internet`;
+        } catch (error) {
+          const cause = (error as { cause?: { code?: string; message?: string } })?.cause;
+          const reason = cause?.code ?? cause?.message ?? (error instanceof Error ? error.message : "unknown error");
+          this.deps.logError?.(`[github-actions-integration] public probe failed for ${ctx.owner}/${ctx.repo}`, error);
+          publicDetail = `Could not call ${this.deps.coreApiUrl} from the CARF server (${reason}). If this host resolves only externally, the server may be unable to reach its own public address (DNS/hairpin NAT); test with curl from the server.`;
         }
         checks.push({
           id: "public-api-reachable",
