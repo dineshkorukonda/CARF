@@ -255,11 +255,19 @@ export class PM2Adapter implements RollbackAdapter {
   }
 
   /**
-   * Reloads a PM2 process by name.
+   * Reloads a PM2 process by name, with case-insensitive fallback if process name is capitalized.
    */
   async reload(name: string): Promise<void> {
     assertSafeTarget(name, "processName");
-    await this.executor.exec(`pm2 reload ${name}`);
+    try {
+      await this.executor.exec(`pm2 reload ${name}`);
+    } catch (err) {
+      if (name.toLowerCase() !== name) {
+        await this.executor.exec(`pm2 reload ${name.toLowerCase()}`);
+      } else {
+        throw err;
+      }
+    }
   }
 
   private resolveTargets(target?: string): string[] {
@@ -271,6 +279,23 @@ export class PM2Adapter implements RollbackAdapter {
       return parsed;
     }
     return this.defaultTargets;
+  }
+
+  /**
+   * Reloads target processes, with case-insensitive fallback if exact name fails.
+   */
+  private async safeReload(cwdPrefix: string, targetArgs: string): Promise<void> {
+    const cmd = `${cwdPrefix}pm2 reload ${targetArgs}`;
+    try {
+      await this.executor.exec(cmd);
+    } catch (err) {
+      const lower = targetArgs.toLowerCase();
+      if (lower !== targetArgs) {
+        await this.executor.exec(`${cwdPrefix}pm2 reload ${lower}`);
+      } else {
+        throw err;
+      }
+    }
   }
 
   async checkHealth(target?: string): Promise<PM2HealthResult> {
@@ -291,7 +316,9 @@ export class PM2Adapter implements RollbackAdapter {
     const targetErrorRates: number[] = [];
 
     for (const targetName of targets) {
-      const matching = processes.filter((p) => p.name === targetName);
+      const matching = processes.filter(
+        (p) => typeof p.name === "string" && (p.name === targetName || p.name.toLowerCase() === targetName.toLowerCase())
+      );
       if (matching.length === 0) {
         targetErrorRates.push(1);
         continue;
@@ -362,11 +389,11 @@ export class PM2Adapter implements RollbackAdapter {
       if (this.buildCommand) {
         await this.executor.exec(`${cwdPrefix}${this.buildCommand}`);
       }
-      await this.executor.exec(`${cwdPrefix}pm2 reload ${targetArgs}`);
+      await this.safeReload(cwdPrefix, targetArgs);
     } else {
       const releaseDir = `${this.releasesRoot}/${sha}`;
       await this.executor.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
-      await this.executor.exec(`pm2 reload ${targetArgs}`);
+      await this.safeReload("", targetArgs);
     }
   }
 
@@ -388,11 +415,11 @@ export class PM2Adapter implements RollbackAdapter {
       if (this.buildCommand) {
         await this.executor.exec(`${cwdPrefix}${this.buildCommand}`);
       }
-      await this.executor.exec(`${cwdPrefix}pm2 reload ${targetArgs}`);
+      await this.safeReload(cwdPrefix, targetArgs);
     } else {
       const releaseDir = `${this.releasesRoot}/${this.previousSha}`;
       await this.executor.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
-      await this.executor.exec(`pm2 reload ${targetArgs}`);
+      await this.safeReload("", targetArgs);
     }
 
     // Intentional reload always increments PM2 restart_time. Drop soak-window
