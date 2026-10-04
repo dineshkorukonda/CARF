@@ -28,12 +28,12 @@ class FakePrismaClient implements AugmentThresholdPrismaClient {
 
   commit = {
     findFirst: async (args: {
-      where: { owner: string; repo: string; sha: string; installationId: string | null };
+      where: { owner: { equals: string; mode: "insensitive" }; repo: { equals: string; mode: "insensitive" }; sha: string; installationId: string | null };
     }) => {
       const row = this.rows.find(
         (r) =>
-          r.owner === args.where.owner &&
-          r.repo === args.where.repo &&
+          r.owner.toLowerCase() === args.where.owner.equals.toLowerCase() &&
+          r.repo.toLowerCase() === args.where.repo.equals.toLowerCase() &&
           r.sha === args.where.sha &&
           r.installationId === args.where.installationId
       );
@@ -76,6 +76,35 @@ describe("GET /v1/augment/threshold", () => {
     const response = await app.inject({ method: "GET", url: "/v1/augment/threshold?owner=acme" });
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({ error: "missing owner, repo, or sha query param" });
+  });
+
+  it("matches GitHub repository names regardless of casing", async () => {
+    const response = await app.inject({ url: "/v1/augment/threshold?owner=ACME&repo=Widgets&sha=abc123" });
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("classifies a missing exact SHA for an authenticated installation then serves the persisted policy", async () => {
+    await app.close();
+    const key = generateApiKey();
+    fake.apiKeys.set(key.hash, "inst-1");
+    const calls: unknown[] = [];
+    app = Fastify();
+    await registerAugmentThresholdRoute(app, { prismaClient: fake, classifyMissingCommit: async (args) => {
+      calls.push(args);
+      fake.rows.push({ ...fake.rows[0]!, sha: args.sha, installationId: args.installationId });
+    } });
+    const response = await app.inject({ url: "/v1/augment/threshold?owner=acme&repo=widgets&sha=missed", headers: { authorization: `Bearer ${key.plaintext}` } });
+    expect(response.statusCode).toBe(200);
+    expect(calls).toEqual([{ owner: "acme", repo: "widgets", sha: "missed", installationId: "inst-1" }]);
+  });
+
+  it("does not use GitHub App credentials for unauthenticated policy requests", async () => {
+    await app.close();
+    app = Fastify();
+    let called = false;
+    await registerAugmentThresholdRoute(app, { prismaClient: fake, classifyMissingCommit: async () => { called = true; } });
+    expect((await app.inject({ url: "/v1/augment/threshold?owner=acme&repo=widgets&sha=missing" })).statusCode).toBe(404);
+    expect(called).toBe(false);
   });
 
   it("returns a persisted recommendation for a local unauthenticated commit", async () => {

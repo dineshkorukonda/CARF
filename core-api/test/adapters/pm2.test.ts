@@ -446,12 +446,14 @@ describe("PM2Adapter discovery and process management", () => {
     const exec = vi
       .fn()
       .mockRejectedValueOnce(new Error("Process or Namespace Sahaay not found"))
+      .mockResolvedValueOnce({ stdout: JSON.stringify([{ name: "sahaay" }]), stderr: "" })
       .mockResolvedValueOnce({ stdout: "", stderr: "" });
     const adapter = new PM2Adapter("", { exec });
 
     await adapter.reload("Sahaay");
     expect(exec).toHaveBeenNthCalledWith(1, "pm2 reload Sahaay");
-    expect(exec).toHaveBeenNthCalledWith(2, "pm2 reload sahaay");
+    expect(exec).toHaveBeenNthCalledWith(2, "pm2 jlist");
+    expect(exec).toHaveBeenNthCalledWith(3, "pm2 reload sahaay");
   });
 
   it("checkHealth matches processes case-insensitively", async () => {

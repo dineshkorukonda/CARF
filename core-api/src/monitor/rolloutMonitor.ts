@@ -24,7 +24,7 @@ export interface RolloutMonitorOptions {
   /** Clock provider for testing. */
   now?: () => Date;
   /** Factory to reconstruct adapters during crash recovery. */
-  adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
+  adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined | Promise<RollbackAdapter | undefined>) | undefined;
   /** Optional rollback alert hook (Slack/email webhook). Failures must not block rollback. */
   onRollbackAlert?: ((event: {
     owner?: string | null | undefined;
@@ -46,7 +46,7 @@ export class RolloutMonitor {
   private readonly pollIntervalMs: number;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly now: () => Date;
-  private readonly adapterFactory?: ((outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined) | undefined;
+  private readonly adapterFactory?: RolloutMonitorOptions["adapterFactory"];
   private readonly onRollbackAlert?: RolloutMonitorOptions["onRollbackAlert"];
 
   private runningJobs = new Map<string, Promise<void>>();
@@ -94,7 +94,7 @@ export class RolloutMonitor {
    * Scans for any PENDING RolloutOutcome rows in the database upon startup.
    * Finalizes expired ones and resumes monitoring for still-active ones.
    */
-  async recoverPending(adapterFactory?: (outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined): Promise<number> {
+  async recoverPending(adapterFactory?: (outcome: RolloutOutcomeRecord) => RollbackAdapter | undefined | Promise<RollbackAdapter | undefined>): Promise<number> {
     const factory = adapterFactory ?? this.adapterFactory;
     const pendingOutcomes = await getPendingRolloutOutcomes(this.prisma);
     const currentTime = this.now().getTime();
@@ -105,7 +105,7 @@ export class RolloutMonitor {
       const elapsedSeconds = Math.max(0, Math.floor((currentTime - startTime) / 1000));
       const remainingSeconds = outcome.window - elapsedSeconds;
 
-      const adapter = factory ? factory(outcome) : undefined;
+      const adapter = factory ? await factory(outcome) : undefined;
 
       if (!adapter) {
         if (remainingSeconds <= 0) {

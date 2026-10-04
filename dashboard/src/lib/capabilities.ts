@@ -206,7 +206,6 @@ export function resolveCapabilities(
  * Resolves 3-layer architecture from either explicit columns or legacy configs.
  * Backward compatibility:
  * - mode === "standalone" or storedConfig.mode === "standalone" or adapter.kind === "pm2" -> github_actions + pm2
- * - repo === "sahaay" -> github_actions + pm2
  * - mode === "augment" or storedConfig.mode === "augment" -> github_actions + none
  */
 export function resolveFromLegacy(input?: LegacyConfigInput | null): ResolvedCapabilities {
@@ -233,9 +232,8 @@ export function resolveFromLegacy(input?: LegacyConfigInput | null): ResolvedCap
   const mode = input.mode ?? (typeof stored.mode === "string" ? stored.mode : null);
   const adapterKind = input.adapter?.kind ?? (typeof stored.kind === "string" ? stored.kind : null);
   const hasTarget = typeof stored.target === "string" && stored.target.length > 0;
-  const isSahaay = input.repo?.toLowerCase() === "sahaay" || (typeof stored.name === "string" && stored.name.toLowerCase() === "sahaay");
 
-  if (mode === "standalone" || adapterKind === "pm2" || hasTarget || isSahaay) {
+  if (mode === "standalone" || adapterKind === "pm2" || hasTarget) {
     return resolveCapabilities("github_actions", "pm2");
   }
 

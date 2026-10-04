@@ -150,7 +150,7 @@ export function RepoDetailView({
     repo,
   });
   const mode = resolveRepoMode(connection);
-  const isPm2 = resolved.runtimeAdapter === "pm2" || repo.toLowerCase() === "sahaay";
+  const isPm2 = resolved.runtimeAdapter === "pm2";
   const isStandalone = resolved.capabilities.rollback || mode === "standalone";
   const isAugment = !resolved.capabilities.rollback && mode === "augment";
   const augmentIntegration = resolveAugmentIntegration(connection);
@@ -872,7 +872,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 Target Process
               </div>
               <div className="mt-1 font-bold text-foreground font-mono truncate">
-                {pm2Status?.processName || connection?.pm2Process || (repo.toLowerCase() === "sahaay" ? "sahaay" : repo)}
+                {pm2Status?.processName || connection?.pm2Process || "Unconfigured"}
               </div>
             </div>
 
@@ -886,7 +886,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                     pm2Status?.process?.status === "online" ? "bg-emerald-500" : "bg-amber-500"
                   }`}
                 />
-                <span className="capitalize">{pm2Status?.process?.status ?? "online"}</span>
+                <span className="capitalize">{pm2Status?.process?.status ?? "unknown"}</span>
               </div>
             </div>
 
@@ -917,7 +917,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="rounded-lg border border-border bg-muted/10 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-foreground">
-                Associated PM2 Process: <strong className="font-mono text-primary">{pm2Status?.processName || connection?.pm2Process || "sahaay"}</strong>
+                Associated PM2 Process: <strong className="font-mono text-primary">{pm2Status?.processName || connection?.pm2Process || "Unconfigured"}</strong>
               </span>
               <button
                 type="button"
@@ -936,7 +936,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 <div className="flex flex-wrap gap-2">
                   {(pm2Status?.processes && pm2Status.processes.length > 0
                     ? pm2Status.processes
-                    : [{ name: "sahaay", status: "online" }]
+                    : []
                   ).map((proc) => (
                     <button
                       key={proc.name}
@@ -944,7 +944,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                       disabled={savingProcess}
                       onClick={() => handleSaveProcess(proc.name)}
                       className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-mono transition-colors ${
-                        (pm2Status?.processName || connection?.pm2Process || "sahaay") === proc.name
+                        (pm2Status?.processName || connection?.pm2Process || "Unconfigured") === proc.name
                           ? "border border-sky-500 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-bold"
                           : "border border-border bg-card text-foreground hover:bg-muted"
                       }`}
