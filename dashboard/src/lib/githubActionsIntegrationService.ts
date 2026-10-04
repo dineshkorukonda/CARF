@@ -427,24 +427,28 @@ export class GitHubActionsIntegrationService {
 
       if (this.deps.probePublicPolicy) {
         let publicDetail: string | undefined;
+        let isError = false;
         try {
           const apiKey = await this.deps.getApiKey();
           const res = await this.deps.probePublicPolicy({ owner: ctx.owner, repo: ctx.repo, sha: head, apiKey });
           if (res.status >= 300 && res.status < 400) {
             publicDetail = `${this.deps.coreApiUrl} answered HTTP ${res.status} (a redirect, usually to the dashboard login). Route /v1/* on that host to core-api, or point CORE_API_PUBLIC_URL at a host that does.`;
+            isError = true;
           } else if (res.status >= 500) {
             publicDetail = `${this.deps.coreApiUrl} answered HTTP ${res.status}`;
+            isError = true;
           }
         } catch (error) {
           const cause = (error as { cause?: { code?: string; message?: string } })?.cause;
           const reason = cause?.code ?? cause?.message ?? (error instanceof Error ? error.message : "unknown error");
           this.deps.logError?.(`[github-actions-integration] public probe failed for ${ctx.owner}/${ctx.repo}`, error);
-          publicDetail = `Could not call ${this.deps.coreApiUrl} from the CARF server (${reason}). If this host resolves only externally, the server may be unable to reach its own public address (DNS/hairpin NAT); test with curl from the server.`;
+          publicDetail = `Notice: Server could not self-connect to ${this.deps.coreApiUrl} (${reason}). This usually indicates hairpin NAT / cloud loopback is not enabled on this host, but external GitHub runners may still connect fine.`;
+          isError = false;
         }
         checks.push({
           id: "public-api-reachable",
           label: "CARF API is reachable at its public URL (as GitHub runners call it)",
-          ok: !publicDetail,
+          ok: !isError,
           ...(publicDetail ? { detail: publicDetail } : {}),
         });
       }
