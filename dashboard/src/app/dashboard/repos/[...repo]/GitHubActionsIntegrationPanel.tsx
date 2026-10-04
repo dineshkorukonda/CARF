@@ -52,7 +52,7 @@ function formatTime(value: string | null): string {
 type Action = "install" | "verify" | "reconfigure" | "disable";
 
 /**
- * GitHub Actions is the one Augment integration CARF can configure automatically through its
+ * GitHub Actions is the deployment integration CARF can configure automatically through its
  * GitHub App. All GitHub work happens server-side; this component only calls the integration
  * API and renders safe metadata -- it never holds a token, API key, or secret value.
  */
@@ -127,7 +127,7 @@ export function GitHubActionsIntegrationPanel({
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             CARF configures this repository automatically through its GitHub App. Your pipeline gets the threshold, observation window and
-            change vector; deployment and rollback stay with GitHub Actions.
+            change vector directly during CI/CD.
           </p>
         </div>
         <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[status]}`}>

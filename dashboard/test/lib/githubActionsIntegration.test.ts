@@ -200,11 +200,24 @@ describe("GitHubActionsIntegrationService", () => {
     expect(err.message).not.toContain("boom");
   });
 
-  it("refuses standalone repositories and other integrations", async () => {
+  it("allows standalone repositories configured with GitHub Actions deployment integration", async () => {
     const t = setup();
-    await expect(t.service.install({ ...t.ctx, connection: { mode: "standalone" } })).rejects.toMatchObject({ code: "not_augment" });
+    const result = await t.service.install({
+      ...t.ctx,
+      connection: { mode: "standalone", deploymentIntegration: "github_actions" },
+    });
+    expect(result.status).toBe("ready");
+    expect(result.workflowPath).toBe(CARF_WORKFLOW_PATH);
+    expect(result.checks?.find((c) => c.id === "deployment-integration")?.ok).toBe(true);
+  });
+
+  it("refuses repositories with other deployment integrations", async () => {
+    const t = setup();
     await expect(
       t.service.install({ ...t.ctx, connection: { mode: "augment", storedConfig: { integration: "flagger" } } })
+    ).rejects.toMatchObject({ code: "wrong_integration" });
+    await expect(
+      t.service.install({ ...t.ctx, connection: { deploymentIntegration: "argo_rollouts" } })
     ).rejects.toMatchObject({ code: "wrong_integration" });
     expect(t.github.getRepository).not.toHaveBeenCalled();
   });
