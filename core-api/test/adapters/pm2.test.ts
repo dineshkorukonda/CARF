@@ -441,4 +441,28 @@ describe("PM2Adapter discovery and process management", () => {
     await expect(adapter.restart("sahaay; rm -rf /")).rejects.toThrow(/contains illegal shell characters/);
     await expect(adapter.getProcess("app`id`")).rejects.toThrow(/contains illegal shell characters/);
   });
+
+  it("falls back to lowercase process name if capitalized reload fails", async () => {
+    const exec = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Process or Namespace Sahaay not found"))
+      .mockResolvedValueOnce({ stdout: "", stderr: "" });
+    const adapter = new PM2Adapter("", { exec });
+
+    await adapter.reload("Sahaay");
+    expect(exec).toHaveBeenNthCalledWith(1, "pm2 reload Sahaay");
+    expect(exec).toHaveBeenNthCalledWith(2, "pm2 reload sahaay");
+  });
+
+  it("checkHealth matches processes case-insensitively", async () => {
+    const exec = vi.fn().mockResolvedValue({
+      stdout: JSON.stringify([{ name: "sahaay", pm2_env: { status: "online", restart_time: 0 } }]),
+      stderr: "",
+    });
+    const adapter = new PM2Adapter("", { exec, target: "Sahaay" });
+
+    const result = await adapter.checkHealth();
+    expect(result.healthy).toBe(true);
+    expect(result.processErrorRate).toBe(0);
+  });
 });
