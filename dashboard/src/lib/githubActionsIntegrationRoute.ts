@@ -63,6 +63,18 @@ export async function handleGithubActionsIntegration(repositoryId: string, actio
     refreshCommits: async ({ owner, repo, branch, apiKey }) => {
       await refreshRepoCommits(env.coreApiBaseUrl(), apiKey, { owner, repo, branch });
     },
+    probePublicPolicy: async ({ owner, repo, sha, apiKey }) => {
+      const url = new URL(`${env.coreApiPublicUrl()}/v1/augment/threshold`);
+      url.searchParams.set("owner", owner);
+      url.searchParams.set("repo", repo);
+      url.searchParams.set("sha", sha);
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        redirect: "manual",
+        signal: AbortSignal.timeout(10_000),
+      });
+      return { status: res.status };
+    },
     // Detail is logged server-side only; callers never see it. Authorization headers are never passed here.
     logError: (message, detail) => console.error(message, detail),
   });

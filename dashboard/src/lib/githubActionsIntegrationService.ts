@@ -184,6 +184,8 @@ export interface ServiceDeps {
   probePolicy(args: { owner: string; repo: string; sha: string; apiKey: string }): Promise<PolicyProbeResult>;
   /** Asks CARF to classify recent commits on the branch (policy test only; no rollout side effects). */
   refreshCommits(args: { owner: string; repo: string; branch: string; apiKey: string }): Promise<void>;
+  /** Calls the policy endpoint through the public URL without following redirects, as a GitHub runner would. */
+  probePublicPolicy?(args: { owner: string; repo: string; sha: string; apiKey: string }): Promise<{ status: number }>;
   now?(): Date;
   logError?(message: string, detail: unknown): void;
 }
@@ -422,6 +424,27 @@ export class GitHubActionsIntegrationService {
       const head = await gh.getHeadSha(token, ctx.owner, ctx.repo, branch);
       const { policy, detail } = await this.testPolicy(ctx, head, branch);
       checks.push({ id: "policy", label: "CARF can analyze the current commit", ok: Boolean(policy), ...(detail ? { detail } : {}) });
+
+      if (this.deps.probePublicPolicy) {
+        let publicDetail: string | undefined;
+        try {
+          const apiKey = await this.deps.getApiKey();
+          const res = await this.deps.probePublicPolicy({ owner: ctx.owner, repo: ctx.repo, sha: head, apiKey });
+          if (res.status >= 300 && res.status < 400) {
+            publicDetail = `${this.deps.coreApiUrl} answered HTTP ${res.status} (a redirect, usually to the dashboard login). Route /v1/* on that host to core-api, or point CORE_API_PUBLIC_URL at a host that does.`;
+          } else if (res.status >= 500) {
+            publicDetail = `${this.deps.coreApiUrl} answered HTTP ${res.status}`;
+          }
+        } catch {
+          publicDetail = `${this.deps.coreApiUrl} is not reachable from the internet`;
+        }
+        checks.push({
+          id: "public-api-reachable",
+          label: "CARF API is reachable at its public URL (as GitHub runners call it)",
+          ok: !publicDetail,
+          ...(publicDetail ? { detail: publicDetail } : {}),
+        });
+      }
 
       const failed = checks.find((c) => !c.ok);
       const now = this.now();
