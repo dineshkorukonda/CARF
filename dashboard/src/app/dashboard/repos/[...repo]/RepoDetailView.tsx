@@ -727,7 +727,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               )}
             </div>
 
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground" suppressHydrationWarning>
               {isStandalone ? (
                 connection?.verifiedAt
                   ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
@@ -1011,7 +1011,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <div className="text-[11px] font-medium text-muted-foreground uppercase">
                 {isHostColocated ? "Host Status" : "Last Heartbeat"}
               </div>
-              <div className="mt-1 font-semibold text-foreground font-mono">
+              <div className="mt-1 font-semibold text-foreground font-mono" suppressHydrationWarning>
                 {connection?.agentLastHeartbeat
                   ? new Date(connection.agentLastHeartbeat).toLocaleString()
                   : connection?.verifiedAt
@@ -1560,7 +1560,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                           <span>{c.author}</span>
                           <span>•</span>
-                          <span>{new Date(c.createdAt).toLocaleString()}</span>
+                          <span suppressHydrationWarning>{new Date(c.createdAt).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -1697,7 +1697,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                     Result: <span className="font-mono text-foreground">{log.result}</span>
                   </div>
                 </div>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-muted-foreground" suppressHydrationWarning>
                   {new Date(log.ts).toLocaleString()}
                 </span>
               </div>

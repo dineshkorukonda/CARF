@@ -10,6 +10,7 @@ import {
 import {
   GitHubActionsIntegrationService,
   IntegrationError,
+  createPrismaIntegrationStore,
   type IntegrationRecord,
   type IntegrationStore,
   type ServiceDeps,
@@ -250,5 +251,86 @@ describe("GitHubActionsIntegrationService", () => {
     const t = setup({ file: "name: mine\n" });
     await t.service.disable(t.ctx);
     expect(t.github.deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("manualWorkflow falls back cleanly to main branch when store.find throws", async () => {
+    const t = setup();
+    t.store.find = vi.fn().mockRejectedValue(new Error("DB error"));
+    const yaml = await t.service.manualWorkflow(t.ctx);
+    expect(yaml).toContain("CARF Augment Policy");
+    expect(yaml).toContain("main");
+  });
+});
+
+describe("createPrismaIntegrationStore", () => {
+  const key = { installationId: "inst_123", owner: "dineshkorukonda", repo: "Sahaay" };
+
+  it("returns null on find when repoIntegration client is missing", async () => {
+    const store = createPrismaIntegrationStore({});
+    const res = await store.find(key);
+    expect(res).toBeNull();
+  });
+
+  it("calls onSchemaError and retries on find when findUnique throws", async () => {
+    let callCount = 0;
+    const onSchemaError = vi.fn().mockImplementation(async () => {});
+    const mockPrisma = {
+      repoIntegration: {
+        findUnique: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            const err = new Error("The table public.RepoIntegration does not exist in the current database");
+            (err as unknown as { code: string }).code = "P2021";
+            throw err;
+          }
+          return { status: "ready", branch: "main" };
+        }),
+        upsert: vi.fn(),
+      },
+    };
+
+    const store = createPrismaIntegrationStore(mockPrisma as any, onSchemaError);
+    const res = await store.find(key);
+    expect(onSchemaError).toHaveBeenCalledTimes(1);
+    expect(res).toEqual({ status: "ready", branch: "main" });
+  });
+
+  it("falls back to null on find if retry still throws", async () => {
+    const onSchemaError = vi.fn().mockImplementation(async () => {
+      throw new Error("DDL repair failed");
+    });
+    const mockPrisma = {
+      repoIntegration: {
+        findUnique: vi.fn().mockRejectedValue(new Error("P2021")),
+        upsert: vi.fn(),
+      },
+    };
+
+    const store = createPrismaIntegrationStore(mockPrisma as any, onSchemaError);
+    const res = await store.find(key);
+    expect(onSchemaError).toHaveBeenCalledTimes(1);
+    expect(res).toBeNull();
+  });
+
+  it("calls onSchemaError and retries upsert when table is missing", async () => {
+    let callCount = 0;
+    const onSchemaError = vi.fn().mockImplementation(async () => {});
+    const mockPrisma = {
+      repoIntegration: {
+        findUnique: vi.fn(),
+        upsert: vi.fn().mockImplementation(async () => {
+          callCount++;
+          if (callCount === 1) {
+            throw new Error("P2021 table missing");
+          }
+          return { status: "configuring", branch: "main" };
+        }),
+      },
+    };
+
+    const store = createPrismaIntegrationStore(mockPrisma as any, onSchemaError);
+    const res = await store.upsert(key, { status: "configuring" });
+    expect(onSchemaError).toHaveBeenCalledTimes(1);
+    expect(res).toEqual({ status: "configuring", branch: "main" });
   });
 });
