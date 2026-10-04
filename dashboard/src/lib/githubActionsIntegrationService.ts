@@ -210,11 +210,8 @@ export class GitHubActionsIntegrationService {
   }
 
   private assertEligible(ctx: IntegrationContext): void {
-    if (resolveRepoMode(ctx.connection) !== "augment") {
-      throw new IntegrationError("not_augment", "GitHub Actions integration is only available for repositories in Augment mode.");
-    }
     if (resolveAugmentIntegration(ctx.connection) !== "github-actions") {
-      throw new IntegrationError("wrong_integration", "This repository's Augment integration is not GitHub Actions.");
+      throw new IntegrationError("wrong_integration", "This repository's deployment integration is not GitHub Actions.");
     }
   }
 
@@ -345,7 +342,7 @@ export class GitHubActionsIntegrationService {
       const branch = record?.branch ?? repoInfo.defaultBranch;
       const checks: VerificationCheck[] = [
         { id: "repository-access", label: "GitHub App can access the repository", ok: true },
-        { id: "augment-mode", label: "Repository is configured as Augment", ok: true },
+        { id: "deployment-integration", label: "Repository deployment integration is GitHub Actions", ok: true },
       ];
 
       const file = await gh.getFile(token, ctx.owner, ctx.repo, CARF_WORKFLOW_PATH, branch);
