@@ -49,7 +49,7 @@ import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } f
 import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
-import { commitPageHref, repoSetupHref } from "../../../../lib/dashboardNav";
+import { commitPageHref, projectSectionHref, repoSetupHref, type ProjectSection } from "../../../../lib/dashboardNav";
 
 interface SampleItem {
   id: string;
@@ -87,8 +87,8 @@ export interface ThresholdItem {
 export interface CommitWithDetails {
   id: string;
   sha: string;
-  message: string;
-  author: string;
+  message?: string;
+  author?: string;
   createdAt: Date | string;
   changeVector?: ChangeVectorItem | null;
   threshold?: ThresholdItem | null;
@@ -120,6 +120,7 @@ export interface RepoConnectionDetails {
 }
 
 interface RepoDetailViewProps {
+  view: ProjectSection;
   owner: string;
   repo: string;
   defaultBranch: string;
@@ -132,6 +133,7 @@ interface RepoDetailViewProps {
 }
 
 export function RepoDetailView({
+  view,
   owner,
   repo,
   defaultBranch,
@@ -288,6 +290,8 @@ export function RepoDetailView({
 
   // Filters
   const [outcomeFilter, setOutcomeFilter] = useState<string>("ALL");
+  const [commitSearch, setCommitSearch] = useState("");
+  const [changeTypeFilter, setChangeTypeFilter] = useState("ALL");
   const [expandedCommitSha, setExpandedCommitSha] = useState<string | null>(null);
   const [refreshingCommits, setRefreshingCommits] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
@@ -594,6 +598,8 @@ export function RepoDetailView({
   // Filtered Commits Table
   const filteredCommits = useMemo(() => {
     const list = commits.filter((c) => {
+      if (commitSearch && !`${c.sha} ${c.message ?? ""}`.toLowerCase().includes(commitSearch.toLowerCase())) return false;
+      if (changeTypeFilter !== "ALL" && !c.threshold?.activeTypes.includes(changeTypeFilter)) return false;
       const matchingRollout = liveRollouts.find((r) => r.commitSha === c.sha);
       if (outcomeFilter === "ALL") return true;
       if (outcomeFilter === "NONE") return !matchingRollout;
@@ -613,7 +619,7 @@ export function RepoDetailView({
       );
       return timeB - timeA;
     });
-  }, [commits, liveRollouts, outcomeFilter]);
+  }, [commits, liveRollouts, outcomeFilter, commitSearch, changeTypeFilter]);
 
   // Snippets for Augment view
   const argoRolloutsSnippet = `apiVersion: argoproj.io/v1alpha1
@@ -747,7 +753,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
 
         {/* Action Controls */}
         <div className="flex items-center gap-2">
-          {isStandalone ? (
+          {view === "overview" && isStandalone ? (
             <>
               <button
                 type="button"
@@ -781,15 +787,11 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 </button>
               )}
 
-              <Link
-                href={repoSetupHref(owner, repo, { edit: true })}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
-              >
-                <Terminal className="size-3.5" />
-                <span>Edit connection</span>
+              <Link href={projectSectionHref(owner, repo, "settings")} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted">
+                <Terminal className="size-3.5" /><span>Project settings</span>
               </Link>
             </>
-          ) : (
+          ) : view === "overview" ? (
             <>
               <button
                 type="button"
@@ -801,20 +803,80 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 <span>{verifyingPolicy ? "Testing..." : "Test Policy Engine"}</span>
               </button>
 
-              <Link
-                href={repoSetupHref(owner, repo, { edit: true })}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90"
-              >
-                <Zap className="size-3.5" />
-                <span>Reconfigure Integration</span>
+              <Link href={projectSectionHref(owner, repo, "settings")} className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90">
+                <Zap className="size-3.5" /><span>Project settings</span>
               </Link>
             </>
+          ) : (
+            <Link href={repoSetupHref(owner, repo, { edit: true })} className="rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground hover:bg-muted">Edit connection</Link>
           )}
         </div>
       </div>
 
+      {view === "overview" && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Latest rollout</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{liveRollouts[0]?.status === "PENDING" ? "Observing" : liveRollouts[0]?.status?.replaceAll("_", " ") ?? "No rollout"}</p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">{liveRollouts[0]?.commitSha.slice(0, 7) ?? "Awaiting deployment"}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Latest analyzed commit</p>
+              {commits[0] ? <Link href={commitPageHref(owner, repo, commits[0].sha)} className="mt-2 block font-mono text-lg font-semibold text-primary hover:underline">{commits[0].sha.slice(0, 7)}</Link> : <p className="mt-2 text-lg font-semibold text-foreground">None yet</p>}
+              <p className="mt-1 text-xs text-muted-foreground">{commits[0]?.threshold ? `${(commits[0].threshold.finalThreshold * 100).toFixed(2)}% ceiling · ${commits[0].threshold.finalWindow}s window` : "Policy pending"}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Runtime</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{isPm2 ? pm2Status?.process?.status ?? "Unknown" : resolved.runtimeLabel}</p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">{isPm2 ? pm2Status?.processName ?? connection?.pm2Process ?? "Process unselected" : resolved.integrationLabel}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Monitoring</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{monitoringPaused ? "Paused" : "Active"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{connection?.verifiedAt ? `Verified ${new Date(connection.verifiedAt).toLocaleDateString()}` : "Connection needs verification"}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+            <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+              <h2 className="text-sm font-semibold text-foreground">Recent activity</h2>
+              <Link href={projectSectionHref(owner, repo, "commits")} className="text-xs font-semibold text-primary hover:underline">All commits</Link>
+            </div>
+            {commits.length === 0 ? <p className="py-5 text-xs text-muted-foreground">No analyzed commits yet.</p> : (
+              <div className="divide-y divide-border">
+                {commits.slice(0, 5).map((commit) => {
+                  const outcome = liveRollouts.find((item) => item.commitSha === commit.sha);
+                  return <Link key={commit.sha} href={commitPageHref(owner, repo, commit.sha)} className="flex items-center justify-between gap-3 py-3 text-xs hover:text-primary">
+                    <span className="font-mono font-semibold">{commit.sha.slice(0, 7)}</span>
+                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{commit.threshold?.activeTypes.join(", ") || "Awaiting classification"}</span>
+                    <span className="font-medium">{outcome?.status === "PENDING" ? "Observing" : outcome?.status?.replaceAll("_", " ") ?? "No rollout"}</span>
+                  </Link>;
+                })}
+              </div>
+            )}
+          </div>
+          <Link href={projectSectionHref(owner, repo, "settings")} className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-3 text-xs text-muted-foreground shadow-xs hover:bg-muted/40">
+            <span>GitHub Actions {resolved.deploymentIntegration === "github_actions" ? "connected" : "not configured"} · {isPm2 ? `PM2 ${pm2Status?.processName ?? connection?.pm2Process ?? "unconfigured"}` : resolved.runtimeLabel}</span>
+            <span className="font-semibold text-primary">Manage integration</span>
+          </Link>
+        </>
+      )}
+
+      {view === "rollouts" && (
+        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          <div className="border-b border-border pb-3"><h2 className="text-sm font-semibold text-foreground">Rollout history</h2><p className="mt-1 text-xs text-muted-foreground">Observation outcomes and rollback decisions for this project.</p></div>
+          {liveRollouts.length === 0 ? <p className="py-6 text-xs text-muted-foreground">No rollouts recorded yet.</p> : <div className="divide-y divide-border">
+            {liveRollouts.map((rollout) => <div key={rollout.id} className="flex flex-wrap items-center justify-between gap-3 py-4 text-xs">
+              <div><Link href={commitPageHref(owner, repo, rollout.commitSha)} className="font-mono font-semibold text-primary hover:underline">{rollout.commitSha.slice(0, 7)}</Link><p className="mt-1 text-muted-foreground" suppressHydrationWarning>{new Date(rollout.startedAt).toLocaleString()} · {(rollout.threshold * 100).toFixed(2)}% / {rollout.window}s</p></div>
+              <div className="text-right"><p className="font-semibold text-foreground">{rollout.status.replaceAll("_", " ")}</p><p className="mt-1 text-muted-foreground">{rollout.status === "ROLLED_BACK" ? `Rollback ${rollout.rollbackVerified ? "verified" : "not verified"}` : rollout.reason ?? ""}</p></div>
+              {isStandalone && rollout.status === "PENDING" && <button type="button" onClick={() => setRollbackTarget(rollout)} className="rounded-md border border-rose-500/30 px-2.5 py-1.5 font-semibold text-rose-600 hover:bg-rose-500/10">Roll back</button>}
+            </div>)}
+          </div>}
+        </div>
+      )}
+
       {/* ─── PM2 RUNTIME ADAPTER CARD ─── */}
-      {isPm2 && (
+      {view === "settings" && isPm2 && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
             <div>
@@ -973,7 +1035,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── STANDALONE: HOST AGENT DRAWER (NON-PM2 ONLY) ─── */}
-      {!isPm2 && isStandalone && showAgentSettings && (
+      {view === "settings" && !isPm2 && isStandalone && showAgentSettings && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-sm animate-in fade-in-50 duration-200">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
             <div>
@@ -1101,11 +1163,11 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── AUGMENT: POLICY & INTEGRATION CARD ─── */}
-      {resolved.deploymentIntegration === "github_actions" && connection?.id && (
+      {view === "settings" && resolved.deploymentIntegration === "github_actions" && connection?.id && (
         <GitHubActionsIntegrationPanel repositoryId={connection.id} defaultBranch={defaultBranch} />
       )}
 
-      {resolved.deploymentIntegration !== "github_actions" && (
+      {view === "settings" && resolved.deploymentIntegration !== "github_actions" && (
         <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
             <div>
@@ -1251,7 +1313,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── STANDALONE: LIVE POLLING BANNER ─── */}
-      {isStandalone && isPolling && pendingRollout && (
+      {view === "overview" && isStandalone && isPolling && pendingRollout && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-700 dark:text-amber-400 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5">
             <Clock className="size-4 animate-spin text-amber-600 dark:text-amber-400" />
@@ -1269,7 +1331,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── ANALYTICS GRAPHS ─── */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {view === "metrics" && <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* STANDALONE: Graph 1 Error Rate vs Threshold Over Time */}
         {isStandalone && (
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
@@ -1472,10 +1534,10 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* ─── COMMITS & CHANGE CLASSIFICATION TABLE (Standalone & Augment) ─── */}
-      <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+      {view === "commits" && <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">
@@ -1525,6 +1587,14 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           </p>
         ) : null}
 
+        <div className="mt-4 flex flex-wrap gap-2">
+          <input type="search" value={commitSearch} onChange={(event) => setCommitSearch(event.target.value)} placeholder="Search SHA or message" aria-label="Search commits" className="min-w-48 flex-1 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground" />
+          <select value={changeTypeFilter} onChange={(event) => setChangeTypeFilter(event.target.value)} aria-label="Filter by change type" className="rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground">
+            <option value="ALL">All change types</option>
+            {["code", "config", "dependency", "infra", "data"].map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </div>
+
         <div className="mt-4 divide-y divide-border border border-border rounded-lg overflow-hidden">
           {filteredCommits.length === 0 ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
@@ -1559,13 +1629,10 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                           >
                             {c.sha.slice(0, 7)}
                           </Link>
-                          <span className="font-medium text-foreground truncate max-w-sm sm:max-w-md">
-                            {c.message}
-                          </span>
+                          <span className="font-medium text-foreground truncate max-w-sm sm:max-w-md">{c.message ?? c.threshold?.activeTypes.join(", ") ?? "Classification pending"}</span>
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                          <span>{c.author}</span>
-                          <span>•</span>
+                          {c.author && <><span>{c.author}</span><span>•</span></>}
                           <span suppressHydrationWarning>{new Date(c.createdAt).toLocaleString()}</span>
                         </div>
                       </div>
@@ -1682,10 +1749,10 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             })
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ─── AUDIT LOGS SECTION ─── */}
-      <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+      {view === "activity" && <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
         <div className="border-b border-border pb-3">
           <h2 className="text-sm font-semibold text-foreground">Automated Action Audit Trail</h2>
           <p className="text-[11px] text-muted-foreground">
@@ -1719,7 +1786,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             ))
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ─── MANUAL ROLLBACK MODAL (Standalone Only) ─── */}
       {isStandalone && rollbackTarget && (

@@ -8,6 +8,7 @@ import {
   THRESHOLD_DEMO_HREF,
   repoSetupHref,
   projectPageHref,
+  projectSectionHref,
   commitPageHref,
 } from "../../src/lib/dashboardNav";
 
@@ -83,6 +84,12 @@ describe("repo onboarding hrefs", () => {
 
   it("opens rollouts on the project page", () => {
     expect(projectPageHref("dineshkorukonda", "Sahaay")).toBe("/dashboard/repos/dineshkorukonda/Sahaay");
+  });
+
+  it("keeps project sections scoped to the selected repository", () => {
+    expect(projectSectionHref("acme", "api", "overview")).toBe("/dashboard/repos/acme/api");
+    expect(projectSectionHref("acme", "api", "commits")).toBe("/dashboard/repos/acme/api?view=commits");
+    expect(projectSectionHref("acme", "api", "settings")).toBe("/dashboard/repos/acme/api?view=settings");
   });
 
   it("opens a per-commit pipeline page", () => {

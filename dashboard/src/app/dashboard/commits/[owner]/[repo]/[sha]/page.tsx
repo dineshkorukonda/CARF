@@ -3,7 +3,7 @@ import { getCurrentAccount } from "../../../../../../lib/auth";
 import { listInstallationsForAccount } from "../../../../../../lib/accountService";
 import { prisma } from "../../../../../../lib/prisma";
 import { mintInstallationToken } from "../../../../../../lib/installationAccess";
-import { listCompareFiles, type CompareFile } from "../../../../../../adapters/github/compareClient";
+import { getCommitMetadata, listCompareFiles, type CompareFile } from "../../../../../../adapters/github/compareClient";
 import { pickInstallationIdForCommit } from "../../../../../../lib/commitPageAccess";
 import { CommitPipelineView } from "../../../CommitPipelineView";
 
@@ -66,9 +66,16 @@ export default async function CommitPipelinePage(props: {
 
   let files: CompareFile[] = [];
   let filesError: string | null = null;
+  let metadata: { message: string; author: string } | null = null;
   try {
     const token = await mintInstallationToken(installationId);
-    files = await listCompareFiles(commit.owner, commit.repo, commit.baseSha, commit.sha, token);
+    const [fileResult, metadataResult] = await Promise.allSettled([
+      listCompareFiles(commit.owner, commit.repo, commit.baseSha, commit.sha, token),
+      getCommitMetadata(commit.owner, commit.repo, commit.sha, token),
+    ]);
+    if (metadataResult.status === "fulfilled") metadata = metadataResult.value;
+    if (fileResult.status === "fulfilled") files = fileResult.value;
+    else throw fileResult.reason;
   } catch (err) {
     filesError =
       err instanceof Error
@@ -87,6 +94,8 @@ export default async function CommitPipelinePage(props: {
       sha={commit.sha}
       baseSha={commit.baseSha}
       createdAt={commit.createdAt}
+      message={metadata?.message ?? null}
+      author={metadata?.author ?? null}
       vector={
         cv
           ? {
@@ -114,6 +123,8 @@ export default async function CommitPipelinePage(props: {
               status: rollout.status,
               reason: rollout.reason,
               rolledBack: rollout.rolledBack,
+              rollbackVerified: rollout.rollbackVerified,
+              threshold: rollout.threshold,
               startedAt: rollout.startedAt,
               finishedAt: rollout.finishedAt,
               samples: rollout.samples.map((s) => ({ ts: s.ts, errorRate: s.errorRate })),

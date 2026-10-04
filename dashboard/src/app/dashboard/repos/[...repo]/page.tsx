@@ -4,6 +4,7 @@ import { listInstallationsForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { readOrEmpty } from "../../../../lib/repoActivity";
 import { findRepoConnectionSafe } from "../../../../lib/repoConnectionService";
+import { PROJECT_SECTIONS, type ProjectSection } from "../../../../lib/dashboardNav";
 import {
   RepoDetailView,
   type RolloutItem,
@@ -13,11 +14,16 @@ import {
 
 export default async function RepoDetailPage(props: {
   params: Promise<{ repo: string[] }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
 
   const { repo: repoParts } = await props.params;
+  const { view: requestedView } = await props.searchParams;
+  const view: ProjectSection = PROJECT_SECTIONS.includes(requestedView as ProjectSection)
+    ? requestedView as ProjectSection
+    : "overview";
   if (!repoParts || repoParts.length === 0) {
     notFound();
   }
@@ -134,6 +140,7 @@ export default async function RepoDetailPage(props: {
       commits={commits as unknown as CommitWithDetails[]}
       auditLogs={auditLogs as unknown as AuditLogItem[]}
       activityError={activityError}
+      view={view}
     />
   );
 }
