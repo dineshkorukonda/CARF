@@ -106,7 +106,7 @@ export class PM2Adapter implements RollbackAdapter {
   private readonly baselineRestarts = new Map<string | number, number>();
 
   constructor(
-    private readonly previousSha: string = "",
+    private previousSha: string = "",
     options: PM2AdapterOptions = {}
   ) {
     if (previousSha && previousSha.trim().length > 0) {
@@ -132,7 +132,7 @@ export class PM2Adapter implements RollbackAdapter {
     this.startupGraceSeconds = options.startupGraceSeconds ?? 60;
     this.sharedPaths = options.sharedPaths ?? [];
     this.probeCount = options.probeCount ?? 1;
-    this.fetchFn = options.fetchFn ?? ((url: string) => globalThis.fetch(url));
+    this.fetchFn = options.fetchFn ?? ((url: string) => globalThis.fetch(url, { signal: AbortSignal.timeout(5_000) }));
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? Date.now;
 
@@ -369,6 +369,16 @@ export class PM2Adapter implements RollbackAdapter {
       processErrorRate,
       httpErrorRate,
     };
+  }
+
+  async getCurrentRevision(): Promise<string> {
+    const command = this.layout === "git"
+      ? `${this.cwd ? `cd ${this.cwd} && ` : ""}git rev-parse HEAD`
+      : `basename $(readlink -f ${this.currentSymlink})`;
+    const revision = (await this.executor.exec(command)).stdout.trim();
+    if (!/^[0-9a-f]{40}$/i.test(revision)) throw new Error("Cannot identify the deployed PM2 revision; deployment skipped");
+    this.previousSha = revision;
+    return revision;
   }
 
   async applyRelease(sha: string, target?: string): Promise<void> {

@@ -128,6 +128,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
         owner: "org",
         repo: "api",
         commitSha: "head123",
+        previousSha: "actual-deployed-sha",
         commit: { baseSha: "base123" },
       },
       repoConnection: {
@@ -136,9 +137,10 @@ describe("POST /v1/rollouts/:id/rollback", () => {
       },
     });
 
+    const adapterFactory = vi.fn(() => mockAdapter as any);
     await registerRolloutRollbackRoute(app, {
       prismaClient: mockPrisma as any,
-      adapterFactory: () => mockAdapter as any,
+      adapterFactory,
     });
 
     const res = await app.inject({
@@ -156,6 +158,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
     });
 
     expect(mockAdapter.rollbackWithVerification).toHaveBeenCalled();
+    expect(adapterFactory).toHaveBeenCalledWith("actual-deployed-sha", expect.any(String));
     expect(mockPrisma.rolloutOutcome.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "rollout-1" },

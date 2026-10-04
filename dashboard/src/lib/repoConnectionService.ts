@@ -91,6 +91,7 @@ export async function attemptAutoRepairSchema(): Promise<void> {
       `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "status" "RolloutStatus" NOT NULL DEFAULT 'PENDING'`,
       `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "trigger" "RolloutTrigger" NOT NULL DEFAULT 'auto'`,
       `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "readyAt" TIMESTAMP(3)`,
+      `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "previousSha" TEXT`,
       `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "threshold" DOUBLE PRECISION NOT NULL DEFAULT 0`,
       `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "window" INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "startedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP`,

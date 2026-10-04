@@ -79,11 +79,13 @@ export function SetupWizard({
     targetName: string;
     cwd: string;
     healthUrl: string;
+    buildCommand: string;
     layout: "releases" | "git";
   }>({
     targetName: initialPm2.targetName || "",
     cwd: initialPm2.cwd || `/opt/${seedRepo ? seedRepo.split("/")[1] || "app" : "app"}`,
     healthUrl: initialPm2.healthUrl || "http://127.0.0.1:3000/healthz",
+    buildCommand: initialPm2.buildCommand || "",
     layout: initialPm2.layout || "git",
   });
 

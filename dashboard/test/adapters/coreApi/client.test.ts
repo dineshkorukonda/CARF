@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchCoreApiVersion, fetchInstallationApiKey, fetchRecentCommits } from "../../../src/adapters/coreApi/client";
+import { fetchCoreApiVersion, fetchInstallationApiKey, fetchRecentCommits, refreshRepoCommits } from "../../../src/adapters/coreApi/client";
 import type { FetchFn } from "../../../src/adapters/github/fetchTypes";
+
+it("history refresh explicitly disables deployment even with an older core-api default", async () => {
+  const fetchFn: FetchFn = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ pulled: [], failed: [] }) });
+  await refreshRepoCommits("https://core-api.example.com", "fixture-key", { owner: "acme", repo: "app", branch: "main" }, fetchFn);
+  expect(fetchFn).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ body: JSON.stringify({ owner: "acme", repo: "app", branch: "main", observeLive: false }) }));
+});
 
 describe("fetchRecentCommits", () => {
   it("returns the parsed commit list on success", async () => {
@@ -73,4 +79,3 @@ describe("fetchCoreApiVersion", () => {
     await expect(fetchCoreApiVersion("https://core-api.example.com", fetchFn)).rejects.toThrow(/status 500/);
   });
 });
-

@@ -5,15 +5,13 @@
  * (`.github/workflows/carf.yml`). The dashboard UI never duplicates it -- the manual
  * "Advanced" view fetches the rendered template from the backend.
  *
- * Augment contract: the workflow only *reads* CARF policy (threshold / window /
- * changeVector) for the exact commit being built. It never starts a host agent,
- * touches PM2, monitors health, creates rollout records, or triggers rollback --
- * the external deployment system owns all of that.
+ * Augment projects read policy only. Standalone PM2 projects wait for successful
+ * push CI, request exact-SHA deployment, and report the observation/rollback outcome.
  */
 
 export const CARF_WORKFLOW_PATH = ".github/workflows/carf.yml";
 export const CARF_WORKFLOW_MARKER = "# CARF-MANAGED-WORKFLOW";
-export const CARF_WORKFLOW_VERSION = 1;
+export const CARF_WORKFLOW_VERSION = 2;
 /** Name of the GitHub Actions repository secret CARF configures automatically. */
 export const CARF_SECRET_NAME = "CARF_API_KEY";
 
@@ -22,6 +20,8 @@ export interface WorkflowTemplateInput {
   coreApiUrl: string;
   /** Branch whose pushes should trigger the policy job (the repo default branch). */
   branch: string;
+  /** Standalone PM2 projects deploy only after this CI workflow succeeds. */
+  managedPm2?: boolean;
 }
 
 export class InvalidWorkflowInputError extends Error {}
@@ -55,8 +55,97 @@ export function isPrivateHostUrl(url: string): boolean {
 export function renderCarfWorkflow(input: WorkflowTemplateInput): string {
   assertSafeInput(input);
   const url = input.coreApiUrl.replace(/\/+$/, "");
-  return `${CARF_WORKFLOW_MARKER}
+  if (input.managedPm2) return `${CARF_WORKFLOW_MARKER}
 # version: ${CARF_WORKFLOW_VERSION}
+# CARF deploys the exact SHA only after the named CI workflow succeeds.
+name: CARF PM2 Deployment
+run-name: CARF PM2 deploy \${{ github.event.workflow_run.head_sha }}
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: carf-pm2-\${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  carf-deploy:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == '${input.branch}' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARF_API_URL: ${url}
+      CARF_API_KEY: \${{ secrets.${CARF_SECRET_NAME} }}
+      CARF_OWNER: \${{ github.repository_owner }}
+      CARF_REPO: \${{ github.event.repository.name }}
+      CARF_BRANCH: ${input.branch}
+      CARF_SHA: \${{ github.event.workflow_run.head_sha }}
+      CARF_CI_RUN_ID: \${{ github.event.workflow_run.id }}
+    steps:
+      - name: Get CARF policy
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            status=$(curl -sS -G "$CARF_API_URL/v1/augment/threshold" \\
+              --data-urlencode "owner=$CARF_OWNER" \\
+              --data-urlencode "repo=$CARF_REPO" \\
+              --data-urlencode "sha=$CARF_SHA" \\
+              -H "Authorization: Bearer $CARF_API_KEY" \\
+              -o carf-policy.json -w '%{http_code}' || echo 000)
+            if [ "$status" = "200" ]; then break; fi
+            if [ "$status" = "401" ]; then echo "::error::CARF rejected the repository secret"; exit 1; fi
+            echo "CARF policy pending for $CARF_SHA (HTTP $status), attempt $attempt/12"
+            sleep 5
+          done
+          if [ "$status" != "200" ]; then echo "::error::CARF policy unavailable for $CARF_SHA (HTTP $status)"; exit 1; fi
+          echo "Policy: threshold=$(jq -r '.threshold' carf-policy.json), window=$(jq -r '.window' carf-policy.json)s"
+      - name: Deploy exact commit with CARF and PM2
+        run: |
+          set -euo pipefail
+          payload=$(jq -n --arg owner "$CARF_OWNER" --arg repo "$CARF_REPO" --arg branch "$CARF_BRANCH" --arg sha "$CARF_SHA" --argjson ciRunId "$CARF_CI_RUN_ID" '{owner:$owner,repo:$repo,branch:$branch,expectedSha:$sha,ciRunId:$ciRunId,observeLive:true}')
+          curl --fail-with-body -sS -X POST "$CARF_API_URL/v1/commits/refresh" \\
+            -H "Authorization: Bearer $CARF_API_KEY" -H "Content-Type: application/json" \\
+            --data "$payload" -o carf-deploy.json
+          if [ "$(jq '.failed | length' carf-deploy.json)" != "0" ]; then
+            jq -r '.failed[] | "::error::CARF deployment failed for \\(.sha): \\(.error)"' carf-deploy.json
+            exit 1
+          fi
+          echo "CARF deployment requested for $CARF_SHA"
+      - name: Wait for observation and rollback decision
+        run: |
+          set -euo pipefail
+          for attempt in {1..300}; do
+            status=$(curl -sS -G "$CARF_API_URL/v1/rollouts/status" \\
+              --data-urlencode "owner=$CARF_OWNER" \\
+              --data-urlencode "repo=$CARF_REPO" \\
+              --data-urlencode "sha=$CARF_SHA" \\
+              -H "Authorization: Bearer $CARF_API_KEY" \\
+              -o carf-rollout.json -w '%{http_code}' || echo 000)
+            if [ "$status" = "200" ]; then
+              result=$(jq -r '.status' carf-rollout.json)
+              case "$result" in
+                SUCCESS) echo "CARF verified $CARF_SHA healthy"; exit 0 ;;
+                ROLLED_BACK|FAILED) jq -r '"::error::CARF rollout " + .status + ": " + (.reason // "unknown reason")' carf-rollout.json; exit 1 ;;
+              esac
+            elif [ "$status" = "401" ]; then echo "::error::CARF authentication failed"; exit 1
+            elif [ "$status" != "404" ]; then echo "CARF rollout status HTTP $status"
+            fi
+            sleep 5
+          done
+          echo "::error::CARF did not finish observing $CARF_SHA in 25 minutes"
+          exit 1
+`;
+  return `${CARF_WORKFLOW_MARKER}
+# version: 1
 # Generated and kept up to date by CARF.
 # Augment mode: this workflow only fetches change-aware deployment policy.
 # Your own deployment steps consume the outputs below and remain responsible for deployment.
@@ -147,6 +236,8 @@ export interface WorkflowChecks {
   usesAugmentEndpoint: boolean;
   referencesSecret: boolean;
   referencesCarfApi: boolean;
+  triggersDeployment: boolean;
+  waitsForCi: boolean;
 }
 
 /** Static verification that an installed workflow targets the expected CARF integration. */
@@ -156,5 +247,7 @@ export function checkWorkflowContent(content: string, coreApiUrl: string): Workf
     usesAugmentEndpoint: content.includes("/v1/augment/threshold"),
     referencesSecret: content.includes(`secrets.${CARF_SECRET_NAME}`),
     referencesCarfApi: content.includes(coreApiUrl.replace(/\/+$/, "")),
+    triggersDeployment: content.includes("/v1/commits/refresh") && content.includes("observeLive:true"),
+    waitsForCi: content.includes("workflow_run:") && content.includes("conclusion == 'success'"),
   };
 }

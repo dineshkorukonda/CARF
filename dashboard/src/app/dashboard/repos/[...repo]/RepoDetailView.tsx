@@ -295,11 +295,13 @@ export function RepoDetailView({
   const [expandedCommitSha, setExpandedCommitSha] = useState<string | null>(null);
   const [refreshingCommits, setRefreshingCommits] = useState(false);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [refreshFailures, setRefreshFailures] = useState<Array<{ sha: string; error: string }>>([]);
   const router = useRouter();
 
   const refreshCommits = async () => {
     setRefreshingCommits(true);
     setRefreshMessage(null);
+    setRefreshFailures([]);
     try {
       const res = await fetch("/api/repo/refresh-commits", {
         method: "POST",
@@ -309,8 +311,9 @@ export function RepoDetailView({
       const data = (await res.json()) as {
         error?: string;
         pulled?: Array<{ sha: string }>;
-        failed?: Array<{ sha: string }>;
+        failed?: Array<{ sha: string; error: string }>;
         soakSha?: string | null;
+        skipped?: Array<{ sha: string; reason: string }>;
       };
       if (!res.ok) {
         setRefreshMessage(data.error ?? "Refresh failed");
@@ -318,12 +321,15 @@ export function RepoDetailView({
       }
       const pulled = data.pulled?.length ?? 0;
       const failed = data.failed?.length ?? 0;
-      if (data.soakSha) {
+      setRefreshFailures(data.failed ?? []);
+      if (data.skipped?.length && failed === 0) {
+        setRefreshMessage(`Analyzed ${pulled} commits; skipped ${data.skipped.length} empty diffs. Refresh does not deploy or start monitoring.`);
+      } else if (data.soakSha) {
         setRefreshMessage(`Live soak started on ${data.soakSha.slice(0, 7)}. Open Pipeline — rollback should decide on that SHA.`);
       } else if (pulled === 0 && failed === 0) {
         setRefreshMessage("No missing commits on this branch.");
       } else if (failed === 0) {
-        setRefreshMessage(`Classified ${pulled} commit${pulled === 1 ? "" : "s"} that the push tip had skipped.`);
+        setRefreshMessage(`Classified ${pulled} historical commit${pulled === 1 ? "" : "s"}. Refresh does not deploy or start monitoring.`);
       } else {
         setRefreshMessage(`Classified ${pulled}, ${failed} failed.`);
       }
@@ -1586,6 +1592,14 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             {refreshMessage}
           </p>
         ) : null}
+        {refreshFailures.length > 0 && (
+          <details className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
+            <summary className="cursor-pointer font-medium">View classification failures ({refreshFailures.length})</summary>
+            <ul className="mt-2 space-y-2">
+              {refreshFailures.map((failure) => <li key={failure.sha}><code>{failure.sha.slice(0, 7)}</code>: {failure.error}</li>)}
+            </ul>
+          </details>
+        )}
 
         <div className="mt-4 flex flex-wrap gap-2">
           <input type="search" value={commitSearch} onChange={(event) => setCommitSearch(event.target.value)} placeholder="Search SHA or message" aria-label="Search commits" className="min-w-48 flex-1 rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground" />
@@ -1680,7 +1694,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                               )}
                             </div>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground font-mono">No rollout</span>
+                            <span title="Classified policy only; this commit has no deployment or runtime observation record." className="text-[11px] text-muted-foreground font-mono">No rollout</span>
                           )}
                         </>
                       )}
@@ -1688,7 +1702,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                       {/* Threshold info pill */}
                       {c.threshold ? (
                         <span className="rounded bg-muted px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-                          {(c.threshold.finalThreshold * 100).toFixed(1)}% / {c.threshold.finalWindow}s
+                          Policy: {(c.threshold.finalThreshold * 100).toFixed(1)}% / {c.threshold.finalWindow}s
                         </span>
                       ) : null}
                     </div>
