@@ -729,9 +729,15 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
 
             <p className="mt-1 text-xs text-muted-foreground" suppressHydrationWarning>
               {isStandalone ? (
-                connection?.verifiedAt
-                  ? `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
-                  : "Linked — host verify has not passed yet. Rollouts still run from .carf.yml."
+                derivedStatus === "Adapter error" && liveRollouts[0]?.reason ? (
+                  <span className="text-red-600 dark:text-red-400 font-medium">
+                    Adapter error on {liveRollouts[0].commitSha ? liveRollouts[0].commitSha.slice(0, 7) : "latest"}: {liveRollouts[0].reason}
+                  </span>
+                ) : connection?.verifiedAt ? (
+                  `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
+                ) : (
+                  "Linked — host verify has not passed yet. Rollouts still run from .carf.yml."
+                )
               ) : (
                 "Augment Mode — CARF provides change-aware threshold & window policy to your external deployment orchestrator."
               )}
@@ -1660,6 +1666,15 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                           </p>
                         </div>
                       </div>
+
+                      {rollout?.reason && (
+                        <div className="mt-3 rounded border border-red-500/20 bg-red-500/5 p-3 text-red-700 dark:text-red-300">
+                          <span className="font-semibold uppercase tracking-wider text-[10px] block mb-1">
+                            {rollout.status === "FAILED" ? "Rollout / Adapter Failure Reason" : "Rollout Detail"}
+                          </span>
+                          <p className="font-mono text-xs break-all">{rollout.reason}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
