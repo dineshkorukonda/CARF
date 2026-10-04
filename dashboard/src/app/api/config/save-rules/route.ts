@@ -4,7 +4,7 @@ import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
 import { mintInstallationToken } from "../../../../lib/installationAccess";
 import { getCarfConfigFile, putCarfConfigFile, GitHubContentsError } from "../../../../adapters/github/contentsClient";
-import { applyClassificationThresholdPatch, InvalidCarfConfigError } from "../../../../lib/carfConfigWriter";
+import { applyClassificationThresholdPatch, carfConfigsEqual, InvalidCarfConfigError } from "../../../../lib/carfConfigWriter";
 import { ClassificationSchema, ThresholdSchema } from "../../../../lib/carfConfigSchema";
 
 /**
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       threshold: thresholdResult.data,
     });
 
-    await putCarfConfigFile(
+    if (!carfConfigsEqual(existingFile?.content ?? null, nextYaml)) await putCarfConfigFile(
       owner,
       repo,
       nextYaml,

@@ -61,7 +61,7 @@ export async function handleGithubActionsIntegration(repositoryId: string, actio
       return { status: res.status, ...(body ? { body } : {}) };
     },
     refreshCommits: async ({ owner, repo, branch, apiKey }) => {
-      await refreshRepoCommits(env.coreApiBaseUrl(), apiKey, { owner, repo, branch });
+        await refreshRepoCommits(env.coreApiBaseUrl(), apiKey, { owner, repo, branch, observeLive: false });
     },
     probePublicPolicy: async ({ owner, repo, sha, apiKey }) => {
       const url = new URL(`${env.coreApiPublicUrl()}/v1/augment/threshold`);

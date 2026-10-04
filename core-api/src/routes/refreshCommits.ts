@@ -42,6 +42,7 @@ interface RefreshBody {
   owner?: unknown;
   repo?: unknown;
   branch?: unknown;
+  observeLive?: unknown;
 }
 
 /**
@@ -104,7 +105,7 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
     let soakSha: string | null = null;
     for (const commit of missing) {
       try {
-        const observeLive = commit.sha === tipSha;
+        const observeLive = body.observeLive !== false && commit.sha === tipSha;
         await options.classifyCommit(
           {
             owner,
@@ -125,7 +126,7 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
       }
     }
 
-    if (tip?.parentSha && !missing.some((commit) => commit.sha === tip.sha)) {
+    if (body.observeLive !== false && tip?.parentSha && !missing.some((commit) => commit.sha === tip.sha)) {
       let hasRollout = false;
       if (prismaClient.rolloutOutcome?.findFirst) {
         const existing = await prismaClient.rolloutOutcome.findFirst({

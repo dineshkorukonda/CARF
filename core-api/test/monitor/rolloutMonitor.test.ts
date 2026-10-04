@@ -284,7 +284,7 @@ describe("RolloutMonitor State Machine", () => {
       pollIntervalMs: 5000,
       sleep,
       now: () => new Date(currentTime),
-      adapterFactory: () => adapter,
+      adapterFactory: async () => adapter,
     });
 
     const recoveredCount = await monitor.recoverPending();
@@ -491,4 +491,3 @@ describe("RolloutMonitor State Machine", () => {
     expect(finalized.reason).toContain("; schema not reverted");
   });
 });
-

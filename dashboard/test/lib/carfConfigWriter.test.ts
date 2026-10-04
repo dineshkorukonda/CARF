@@ -3,6 +3,10 @@ import { describe, expect, it } from "vitest";
 import { applyClassificationThresholdPatch, applyModeAdapterPatch, applyThreeLayerConfigPatch, InvalidCarfConfigError } from "../../src/lib/carfConfigWriter";
 
 describe("applyModeAdapterPatch", () => {
+  it("preserves rollback build and probe settings during a partial target edit", () => {
+    const next = applyModeAdapterPatch("mode: standalone\nadapter:\n  kind: pm2\n  target: old\n  cwd: /opt/app\n  layout: git\n  buildCommand: npm run build\n  healthUrl: http://localhost:3000/health\n", { mode: "standalone", adapter: { kind: "pm2", target: "new" } });
+    expect(load(next)).toMatchObject({ adapter: { target: "new", cwd: "/opt/app", layout: "git", buildCommand: "npm run build", healthUrl: "http://localhost:3000/health" } });
+  });
   it("creates a minimal document when the repo has no .carf.yml yet", () => {
     const result = applyModeAdapterPatch(null, {
       mode: "standalone",

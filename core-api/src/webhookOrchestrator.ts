@@ -23,6 +23,7 @@ import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 import { resolveRepoMode } from "./deploymentMode.js";
 import { resolveFromLegacy } from "./capabilities/resolver.js";
+import { resolveRepoAdapterConfig } from "./config/repoAdapterConfig.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
 
@@ -193,6 +194,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         deploymentIntegration?: string | null;
         runtimeAdapter?: string | null;
         storedConfig?: unknown;
+        pm2Process?: string | null;
         installTokenHash?: string | null;
       } | null>;
     };
@@ -201,6 +203,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   let connectionMode: ReturnType<typeof resolveRepoMode> | null = null;
   let connectionCapabilities: ReturnType<typeof resolveFromLegacy> | null = null;
   let monitoringPaused = false;
+  let connectionAdapter = activeCarfConfig?.adapter;
+  let connectionConfigFailed = false;
   if (repoConnClient.repoConnection?.findUnique) {
     try {
       const conn = await repoConnClient.repoConnection.findUnique({
@@ -216,11 +220,17 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         connectionMode = resolveRepoMode(conn);
         connectionCapabilities = resolveFromLegacy(conn);
         monitoringPaused = Boolean(conn.monitoringPaused);
+        if (connectionCapabilities.runtimeAdapter === "pm2") {
+          connectionAdapter = resolveRepoAdapterConfig(conn.storedConfig, conn.pm2Process, connectionAdapter);
+        }
       }
     } catch (err) {
+      connectionConfigFailed = true;
       deps.logger.error({ err }, "failed to load repository connection mode");
     }
   }
+
+  if (connectionConfigFailed) return;
 
   // Resolve 3-layer capabilities:
   // Precedence: explicit RepoConnection capabilities if connection exists,
@@ -251,7 +261,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  const adapterConfig = carfConfig?.adapter;
+  const adapterConfig = connectionAdapter;
   if (!adapterConfig) {
     deps.logger.error(
       { adapter: adapterConfig },

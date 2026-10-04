@@ -116,6 +116,13 @@ beforeEach(() => {
 });
 
 describe("POST /api/config/save", () => {
+  it("does not commit an unchanged configuration even with comments and different key order", async () => {
+    getCurrentAccount.mockResolvedValue(ACCOUNT);
+    getInstallationForAccount.mockResolvedValue(INSTALLATION);
+    getCarfConfigFile.mockResolvedValue({ sha: "existing", content: "# retain this comment\nadapter:\n  target: api-server\n  kind: pm2\nmode: standalone\n" });
+    expect((await save(formRequest(VALID_FORM))).status).toBe(200);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
   it("commits the new mode/adapter and returns JSON", async () => {
     getCurrentAccount.mockResolvedValue(ACCOUNT);
     getInstallationForAccount.mockResolvedValue(INSTALLATION);

@@ -25,6 +25,7 @@ import { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import type { RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 import { startSampleRetentionJob, type SampleRetentionJob } from "./retention/sampleRetention.js";
 import { dispatchRollbackAlert } from "./alerts/dispatch.js";
+import { resolveRepoAdapterConfig } from "./config/repoAdapterConfig.js";
 
 // Issue #60: real end-to-end webhook test commit.
 // Issue #60: second probe -- retest push webhook delivery after the earlier 404.
@@ -46,6 +47,22 @@ let rolloutMonitor: RolloutMonitor;
 let retentionJob: SampleRetentionJob;
 
 const app = buildApp({
+  augmentThreshold: {
+    classifyMissingCommit: async ({ owner, repo, sha, installationId }) => {
+      const token = await installationTokenClient.getInstallationToken(installationId);
+      const response = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/commits/${encodeURIComponent(sha)}`, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`GitHub commit lookup returned HTTP ${response.status}`);
+      const commit = await response.json() as { sha: string; parents: Array<{ sha: string }> };
+      const baseSha = commit.parents[0]?.sha;
+      if (!baseSha) throw new Error("Commit has no parent to compare");
+      await handleWebhookCommit({ owner, repo, headSha: commit.sha, baseSha, installationId, event: "push" }, {
+        githubApiClient, installationTokenClient, carfConfig, logger: app.log, observeLive: false,
+      });
+    },
+  },
   webhook: {
     webhookSecret: env.githubWebhookSecret(),
     onValidWebhook: (target) =>
@@ -75,23 +92,31 @@ rolloutMonitor = new RolloutMonitor({
   prismaClient: prisma as unknown as RolloutOutcomePrismaClient,
   logger: app.log,
   onRollbackAlert: (event) => dispatchRollbackAlert(process.env.CARF_ALERT_WEBHOOK_URL, event),
-  adapterFactory: (outcome) => {
-    const firstTarget = carfConfig?.adapter?.targets?.[0];
+  adapterFactory: async (outcome) => {
+    if (!outcome.owner || !outcome.repo || !outcome.installationId) return undefined;
+    const [connection, commit] = await Promise.all([
+      prisma.repoConnection.findUnique({ where: { installationId_owner_repo: { installationId: outcome.installationId, owner: outcome.owner, repo: outcome.repo } } }),
+      prisma.commit.findFirst({ where: { installationId: outcome.installationId, owner: outcome.owner, repo: outcome.repo, sha: outcome.commitSha } }),
+    ]);
+    if (!commit?.baseSha || /^0+$/.test(commit.baseSha)) return undefined;
+    const adapterConfig = resolveRepoAdapterConfig(connection?.storedConfig, connection?.pm2Process, carfConfig?.adapter);
+    if (!adapterConfig) return undefined;
+    const firstTarget = adapterConfig.targets?.[0];
     const targetName =
-      carfConfig?.adapter?.target ??
+      adapterConfig.target ??
       (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
       "";
-    return new PM2Adapter(outcome.commitSha, {
+    return new PM2Adapter(commit.baseSha, {
       target: targetName,
-      releasesRoot: carfConfig?.adapter?.releasesRoot,
-      currentSymlink: carfConfig?.adapter?.currentSymlink,
-      cwd: carfConfig?.adapter?.cwd,
-      buildCommand: carfConfig?.adapter?.buildCommand,
-      layout: carfConfig?.adapter?.layout,
-      healthUrl: carfConfig?.adapter?.healthUrl,
-      startupGraceSeconds: carfConfig?.adapter?.startupGraceSeconds,
-      sharedPaths: carfConfig?.adapter?.sharedPaths,
-      probeCount: carfConfig?.adapter?.probeCount,
+      releasesRoot: adapterConfig.releasesRoot,
+      currentSymlink: adapterConfig.currentSymlink,
+      cwd: adapterConfig.cwd,
+      buildCommand: adapterConfig.buildCommand,
+      layout: adapterConfig.layout,
+      healthUrl: adapterConfig.healthUrl,
+      startupGraceSeconds: adapterConfig.startupGraceSeconds,
+      sharedPaths: adapterConfig.sharedPaths,
+      probeCount: adapterConfig.probeCount,
     });
   },
 });
