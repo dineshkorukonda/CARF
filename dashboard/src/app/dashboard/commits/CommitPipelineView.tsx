@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -14,7 +15,7 @@ import {
   AlertTriangle,
   ChevronRight,
 } from "lucide-react";
-import { projectPageHref } from "../../../lib/dashboardNav";
+import { projectSectionHref } from "../../../lib/dashboardNav";
 import { classifyPath } from "../../../lib/pathClassification";
 import {
   pipelineSteps,
@@ -32,6 +33,8 @@ import { Badge } from "../../../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 
 export interface CommitPipelineData {
+  message: string | null;
+  author: string | null;
   owner: string;
   repo: string;
   sha: string;
@@ -54,6 +57,8 @@ export interface CommitPipelineData {
     status: "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED";
     reason: string | null;
     rolledBack: boolean;
+    rollbackVerified: boolean | null;
+    threshold: number;
     startedAt: Date | string;
     finishedAt: Date | string | null;
     samples: { ts: Date | string; errorRate: number }[];
@@ -79,7 +84,7 @@ function stepIcon(status: PipelineStep["status"]) {
 }
 
 export function CommitPipelineView(data: CommitPipelineData) {
-  const [openStep, setOpenStep] = useState<string>("tier1");
+  const [openStep, setOpenStep] = useState<string>("rollback");
   const decision = rollbackDecision({
     hasVector: Boolean(data.vector),
     rolloutStatus: data.rollout?.status ?? null,
@@ -104,7 +109,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link
-            href={projectPageHref(data.owner, data.repo)}
+            href={projectSectionHref(data.owner, data.repo, "commits")}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="size-3" />
@@ -112,24 +117,46 @@ export function CommitPipelineView(data: CommitPipelineData) {
           </Link>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <GitCommitHorizontal className="size-5 text-primary" />
-            <h1 className="font-mono text-xl font-bold text-foreground">{data.sha.slice(0, 7)}</h1>
+            <h1 className="text-xl font-bold text-foreground">{data.message ?? data.sha.slice(0, 7)}</h1>
           </div>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-            {data.owner}/{data.repo} · base {data.baseSha.slice(0, 7)} ·{" "}
+            {data.sha.slice(0, 7)} · {data.author ?? "Author unavailable"} · base {data.baseSha.slice(0, 7)} ·{" "}
             {new Date(data.createdAt).toLocaleString()}
           </p>
         </div>
-        <a
+        <div className="flex flex-wrap gap-2"><a
           href={githubUrl}
           target="_blank"
           rel="noreferrer"
           className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
         >
           View on GitHub
-        </a>
+        </a><a href={`https://github.com/${data.owner}/${data.repo}/actions`} target="_blank" rel="noreferrer" className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted">GitHub Actions</a></div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground">Click a step. Only that stage’s detail is shown below.</p>
+      <div className={`rounded-xl border p-5 ${DECISION_STYLE[decision.kind]}`}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide opacity-75">Rollout outcome</p>
+        <h2 className="mt-1 text-lg font-semibold">{decision.title}</h2>
+        <p className="mt-1 text-xs">{decision.detail}</p>
+        {data.rollout?.status === "ROLLED_BACK" && <p className="mt-2 text-xs font-semibold">Recovery {data.rollout.rollbackVerified === true ? "verified" : data.rollout.rollbackVerified === false ? "not verified" : "verification pending"}</p>}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Change types</p><p className="mt-2 text-sm font-semibold text-foreground capitalize">{data.threshold?.activeTypes.join(", ") || "No classified signal"}</p></div>
+        <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Error ceiling</p><p className="mt-2 font-mono text-lg font-semibold text-foreground">{data.threshold ? `${(data.threshold.finalThreshold * 100).toFixed(2)}%` : "—"}</p></div>
+        <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Observation window</p><p className="mt-2 font-mono text-lg font-semibold text-foreground">{data.threshold ? `${data.threshold.finalWindow}s` : "—"}</p></div>
+      </div>
+
+      <Card className="py-4">
+        <CardHeader className="pb-0"><CardTitle className="text-sm">Observed error rate</CardTitle><CardDescription className="text-xs">Samples recorded while CARF monitored this rollout, compared with its policy ceiling.</CardDescription></CardHeader>
+        <CardContent className="mt-3">
+          {data.rollout?.samples.length ? <div className="h-56 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.rollout.samples.map((sample) => ({ time: new Date(sample.ts).toLocaleTimeString(), errorRate: sample.errorRate * 100, ceiling: data.rollout!.threshold * 100 }))}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" /><XAxis dataKey="time" tick={{ fontSize: 10 }} /><YAxis unit="%" tick={{ fontSize: 10 }} /><Tooltip /><Line type="monotone" dataKey="errorRate" name="Error rate (%)" stroke="#ef4444" dot={false} /><Line type="stepAfter" dataKey="ceiling" name="Ceiling (%)" stroke="#6366f1" strokeDasharray="4 4" dot={false} />
+          </LineChart></ResponsiveContainer></div> : <p className="text-xs text-muted-foreground">No observation samples recorded for this commit.</p>}
+        </CardContent>
+      </Card>
+
+      <p className="text-[11px] text-muted-foreground">Explore how CARF classified this commit and reached its decision.</p>
       <div className="overflow-x-auto pb-1">
         <ol className="flex min-w-max items-stretch">
           {steps.map((step, index) => {
