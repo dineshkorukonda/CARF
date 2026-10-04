@@ -38,8 +38,7 @@ EXCEPTION
     WHEN undefined_column THEN NULL;
 END $$;
 
-CREATE TABLE IF NOT EXISTS "RolloutSample" (
-    "id" TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS "RolloutSample" (\n    "id" TEXT NOT NULL,
     "rolloutId" TEXT NOT NULL,
     "ts" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "errorRate" DOUBLE PRECISION NOT NULL,
@@ -72,15 +71,16 @@ ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentLastHeartbeat" TIMES
 ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentVersion" TEXT;
 ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "agentRevoked" BOOLEAN NOT NULL DEFAULT false;
 
-DO $ BEGIN
+DO $$ BEGIN
     CREATE TYPE "DeploymentMode" AS ENUM ('standalone', 'augment');
 EXCEPTION
     WHEN duplicate_object THEN NULL;
-END $;
+END $$;
 
 ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "mode" "DeploymentMode" DEFAULT 'standalone';
 ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "deploymentIntegration" TEXT DEFAULT 'github_actions';
 ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "runtimeAdapter" TEXT DEFAULT 'none';
+ALTER TABLE "RepoConnection" ADD COLUMN IF NOT EXISTS "pm2Process" TEXT;
 
 -- Backfill runtimeAdapter for PM2/standalone repos (including Sahaay)
 UPDATE "RepoConnection"
@@ -95,6 +95,17 @@ WHERE ("runtimeAdapter" = 'none' OR "runtimeAdapter" IS NULL)
     OR "storedConfig"->'adapter' IS NOT NULL
     OR "installTokenHash" IS NOT NULL
   );
+
+-- Backfill pm2Process for PM2 repos (including Sahaay)
+UPDATE "RepoConnection"
+SET "pm2Process" = COALESCE(
+  "pm2Process",
+  "storedConfig"->>'target',
+  "storedConfig"->>'name',
+  "storedConfig"->>'targetName',
+  CASE WHEN lower("repo") = 'sahaay' THEN 'sahaay' ELSE NULL END
+)
+WHERE ("runtimeAdapter" = 'pm2' OR lower("repo") = 'sahaay' OR "storedConfig"->>'kind' = 'pm2');
 
 -- Backfill deploymentIntegration based on storedConfig if specified
 UPDATE "RepoConnection"

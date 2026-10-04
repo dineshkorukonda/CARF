@@ -14,14 +14,14 @@ describe("SetupWizard 3-layer architecture resolution", () => {
     expect(resolved.runtimeLabel).toBe("No direct runtime integration (Policy only)");
   });
 
-  it("resolves capabilities correctly for GitHub Actions + PM2 (active rollback & agent)", () => {
+  it("resolves capabilities correctly for GitHub Actions + PM2 (active rollback & direct local runtime)", () => {
     const resolved = resolveCapabilities("github_actions", "pm2");
     expect(resolved.deploymentIntegration).toBe("github_actions");
     expect(resolved.runtimeAdapter).toBe("pm2");
     expect(resolved.capabilities.policy).toBe(true);
     expect(resolved.capabilities.monitoring).toBe(true);
     expect(resolved.capabilities.rollback).toBe(true);
-    expect(resolved.requiresAgent).toBe(true);
+    expect(resolved.requiresAgent).toBe(false);
     expect(resolved.runtimeStatus).toBe("active");
   });
 

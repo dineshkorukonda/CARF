@@ -40,6 +40,65 @@ function createMockPrisma(installationId = "inst-100") {
   };
 }
 
+describe("GET /v1/pm2/discovery", () => {
+  it("returns 401 when no Authorization header is provided", async () => {
+    const app = Fastify();
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: vi.fn().mockResolvedValue({ stdout: "[]", stderr: "" }),
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/pm2/discovery",
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  it("returns structured discovery result with connected status and process metrics", async () => {
+    const app = Fastify();
+    const rawPm2Output = JSON.stringify([
+      {
+        name: "sahaay",
+        pid: 12345,
+        monit: { cpu: 1.2, memory: 104857600 },
+        pm2_env: {
+          status: "online",
+          restart_time: 0,
+          pm_uptime: Date.now() - 60000,
+          pm_cwd: "/opt/sahaay",
+        },
+      },
+    ]);
+
+    await registerPm2Route(app, {
+      prismaClient: createMockPrisma() as any,
+      executor: { exec: vi.fn().mockResolvedValue({ stdout: rawPm2Output, stderr: "" }) },
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/pm2/discovery",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.runtime).toBe("pm2");
+    expect(body.connected).toBe(true);
+    expect(body.processes).toHaveLength(1);
+    expect(body.processes[0]).toMatchObject({
+      name: "sahaay",
+      status: "online",
+      pid: 12345,
+      cpu: 1.2,
+      memory: 104857600,
+      restarts: 0,
+    });
+  });
+});
+
 describe("GET /v1/pm2/apps", () => {
   it("returns 401 when no Authorization header is provided", async () => {
     const app = Fastify();
@@ -614,4 +673,3 @@ describe("POST /v1/pm2/verify", () => {
     expect(body.verified).toBe(true);
   });
 });
-
