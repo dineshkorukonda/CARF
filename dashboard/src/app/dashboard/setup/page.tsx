@@ -8,6 +8,7 @@ import { createInstallationToken } from "../../../adapters/github/installationTo
 import { listInstallationRepos, type InstallationRepo } from "../../../adapters/github/reposClient";
 import { findRepoConnection, splitRepoFullName } from "../../../lib/connectionLookup";
 import { projectPageHref } from "../../../lib/dashboardNav";
+import { listRepoConnectionsSafe } from "../../../lib/repoConnectionService";
 import { SetupWizard, type RepoConnectionItem } from "./SetupWizard";
 
 export default async function SetupPage(props: {
@@ -40,17 +41,13 @@ export default async function SetupPage(props: {
     }
   }
 
-  // Fetch RepoConnection rows for this account's installations (fail-soft if schema migration pending)
+  // Fetch RepoConnection rows for this account's installations (safe against missing columns / unapplied migrations)
   let connections: RepoConnectionItem[] = [];
   if (installations.length > 0) {
     try {
-      connections = (await prisma.repoConnection.findMany({
-        where: {
-          installationId: {
-            in: installations.map((i) => String(i.installationId)),
-          },
-        },
-      })) as unknown as RepoConnectionItem[];
+      connections = (await listRepoConnectionsSafe(
+        installations.map((i) => String(i.installationId)),
+      )) as unknown as RepoConnectionItem[];
     } catch (err) {
       console.error("[dashboard/setup] failed to load repo connections:", err);
     }

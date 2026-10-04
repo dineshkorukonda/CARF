@@ -7,6 +7,10 @@ import { signGithubAppJwt } from "../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../adapters/github/installationTokenClient";
 import { listInstallationRepos, type InstallationRepo } from "../../adapters/github/reposClient";
 import { listIntegratedRepos, readOrEmpty } from "../../lib/repoActivity";
+import {
+  listRepoConnectionsSafe,
+  attemptAutoRepairSchema,
+} from "../../lib/repoConnectionService";
 import { RepoListView } from "./RepoListView";
 
 export default async function DashboardPage() {
@@ -30,20 +34,21 @@ export default async function DashboardPage() {
     console.error("[dashboard/page] failed to load repos:", err);
   }
 
-  // Fetch repo connections, rollouts, and commits. A missing column here is a
-  // server migration gap (RolloutOutcome.trigger / readyAt), not a reason to
-  // blank the whole repositories page.
   const installationIds = installations.map((i) => String(i.installationId));
 
-  const activity = await readOrEmpty(
-    "[dashboard/page] failed to load rollout activity:",
-    () =>
-      Promise.all([
-        prisma.repoConnection.findMany({
-          where: {
-            installationId: { in: installationIds },
-          },
-        }),
+  // Run non-destructive schema auto-repair so missing columns on Neon are fixed
+  void attemptAutoRepairSchema();
+
+  // Safely load all user's repo connections with fallback to raw SQL query
+  // so connected repositories NEVER disappear due to pending schema migrations
+  const connections = await listRepoConnectionsSafe(installationIds);
+
+  // Fetch rollouts and commits independently so a rollout/commit schema mismatch
+  // never blanks out the repository list
+  const [rolloutsRes, commitsRes] = await Promise.all([
+    readOrEmpty(
+      "[dashboard/page] failed to load rollouts:",
+      () =>
         prisma.rolloutOutcome.findMany({
           where: {
             installationId: { in: installationIds },
@@ -53,6 +58,11 @@ export default async function DashboardPage() {
           },
           take: 200,
         }),
+      [],
+    ),
+    readOrEmpty(
+      "[dashboard/page] failed to load commits:",
+      () =>
         prisma.commit.findMany({
           where: {
             installationId: { in: installationIds },
@@ -62,10 +72,13 @@ export default async function DashboardPage() {
           },
           take: 200,
         }),
-      ]),
-    [[], [], []] as const,
-  );
-  const [connections, rollouts, commits] = activity.value;
+      [],
+    ),
+  ]);
+
+  const rollouts = rolloutsRes.value;
+  const commits = commitsRes.value;
+  const activityError = rolloutsRes.error || commitsRes.error;
 
   const githubRepos = repos.map((r) => ({
     ...r,
@@ -79,7 +92,7 @@ export default async function DashboardPage() {
       connections={connections}
       rollouts={rollouts}
       commits={commits}
-      activityError={activity.error}
+      activityError={activityError}
     />
   );
 }
