@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
+import { startActivityPolling } from "./activityPolling";
 
 export interface RolloutSampleItem {
   id: string;
@@ -13,6 +14,8 @@ export interface LiveRolloutItem {
   threshold: number;
   window: number;
   startedAt: Date | string;
+  readyAt?: Date | string | null;
+  deployedAt?: Date | string | null;
   finishedAt: Date | string | null;
   rolledBack: boolean;
   reason: string | null;
@@ -22,106 +25,88 @@ export interface LiveRolloutItem {
   samples?: RolloutSampleItem[];
 }
 
-export function calculateRemainingWindow(
-  startedAt: Date | string,
-  windowSeconds: number,
-  nowMs: number = Date.now()
-): number {
-  const startedMs = new Date(startedAt).getTime();
-  const expiryMs = startedMs + windowSeconds * 1000;
-  return Math.max(0, Math.ceil((expiryMs - nowMs) / 1000));
+export function calculateRemainingWindow(startedAt: Date | string, windowSeconds: number, nowMs = Date.now()): number {
+  return Math.max(0, Math.ceil((new Date(startedAt).getTime() + windowSeconds * 1000 - nowMs) / 1000));
 }
 
 export function shouldPollRollout(rollouts: { status: string }[]): boolean {
   return rollouts.some((r) => r.status === "PENDING");
 }
 
-export function useLiveRolloutPolling(
+export function useLiveRolloutPolling<TCommit extends { sha: string }>(
   initialRollouts: LiveRolloutItem[],
   installationId: string,
-  pollIntervalMs: number = 3000
+  options: { owner: string; repo: string; initialCommits: TCommit[]; samplesFor?: string; includeSamples: boolean },
 ) {
-  const [rollouts, setRollouts] = useState<LiveRolloutItem[]>(initialRollouts);
+  const { owner, repo, initialCommits, samplesFor, includeSamples } = options;
+  const [rollouts, setRollouts] = useState(initialRollouts);
+  const [commits, setCommits] = useState(initialCommits);
+  const [pollingError, setPollingError] = useState(false);
   const rolloutsRef = useRef(rollouts);
+  useEffect(() => { rolloutsRef.current = rollouts; }, [rollouts]);
 
   useEffect(() => {
-    rolloutsRef.current = rollouts;
-  }, [rollouts]);
-
-  // Derive if any rollout is in PENDING state
-  const pendingRollout = rollouts.find((r) => r.status === "PENDING");
-  const isPolling = shouldPollRollout(rollouts);
-
-  // Countdown timer for active pending rollout
-  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
-
-  const updateCountdown = useCallback(() => {
-    if (!pendingRollout) {
-      setCountdownSeconds(null);
-      return;
-    }
-    setCountdownSeconds(calculateRemainingWindow(pendingRollout.startedAt, pendingRollout.window));
-  }, [pendingRollout]);
+    // Server refreshes are new authoritative snapshots, not just initial state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRollouts(initialRollouts);
+    setCommits(initialCommits);
+  }, [initialRollouts, initialCommits]);
 
   useEffect(() => {
-    queueMicrotask(() => updateCountdown());
-    if (!isPolling) return;
-
-    const timer = setInterval(updateCountdown, 1000);
-    return () => clearInterval(timer);
-  }, [isPolling, updateCountdown]);
-
-  // Telemetry polling: ONLY runs while at least one rollout is PENDING
-  useEffect(() => {
-    if (!isPolling || !pendingRollout || !installationId) {
-      return;
-    }
-
-    let isMounted = true;
-
-    const pollSamples = async () => {
-      try {
-        const res = await fetch(
-          `/api/rollouts/${encodeURIComponent(pendingRollout.id)}/samples?installationId=${encodeURIComponent(
-            installationId
-          )}`
-        );
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (isMounted && data.samples) {
-          setRollouts((prev) =>
-            prev.map((r) => {
-              if (r.id === pendingRollout.id) {
-                return {
-                  ...r,
-                  samples: data.samples,
-                };
-              }
-              return r;
-            })
-          );
-        }
-      } catch {
-        // Network errors during polling do not throw
-      }
-    };
-
-    const interval = setInterval(pollSamples, pollIntervalMs);
-    // Initial fetch immediately
-    pollSamples();
-
+    if (!installationId) return;
+    let previous = "";
+    type Snapshot = { rollouts: LiveRolloutItem[]; commits: TCommit[] };
+    const polling = startActivityPolling<Snapshot>({
+      isVisible: () => document.visibilityState !== "hidden",
+      fetchSnapshot: async (signal) => {
+        const query = new URLSearchParams({ installationId, owner, repo });
+        const sampleId = samplesFor || rolloutsRef.current[0]?.id;
+        if (includeSamples && sampleId) query.set("samplesFor", sampleId);
+        const response = await fetch(`/api/repo/activity?${query}`, { signal, cache: "no-store" });
+        if (!response.ok) throw new Error("Activity unavailable");
+        const snapshot = await response.json() as Snapshot;
+        if (!Array.isArray(snapshot.rollouts) || !Array.isArray(snapshot.commits)) throw new Error("Invalid activity response");
+        return snapshot;
+      },
+      onSnapshot: (snapshot) => {
+        setPollingError(false);
+        const serialized = JSON.stringify(snapshot);
+        if (serialized === previous) return;
+        previous = serialized;
+        setRollouts(snapshot.rollouts);
+        setCommits(snapshot.commits);
+      },
+      onError: () => setPollingError(true),
+      delay: (snapshot) => {
+        if (shouldPollRollout(snapshot.rollouts)) return 2000;
+        const latestSha = snapshot.commits[0]?.sha;
+        return latestSha && !snapshot.rollouts.some((r) => r.commitSha === latestSha) ? 3000 : 10_000;
+      },
+    });
+    document.addEventListener("visibilitychange", polling.refresh);
+    window.addEventListener("focus", polling.refresh);
     return () => {
-      isMounted = false;
-      clearInterval(interval);
+      polling.stop();
+      document.removeEventListener("visibilitychange", polling.refresh);
+      window.removeEventListener("focus", polling.refresh);
     };
-  }, [isPolling, pendingRollout, installationId, pollIntervalMs]);
+  }, [installationId, owner, repo, samplesFor, includeSamples]);
 
-  return {
-    rollouts,
-    setRollouts,
-    isPolling,
-    pendingRollout,
-    countdownSeconds,
-  };
+  const pendingRollout = rollouts.find((r) => r.status === "PENDING");
+  const readyAt = pendingRollout?.readyAt;
+  const windowSeconds = pendingRollout?.window;
+  const rollbackRequested = Boolean(pendingRollout?.rollbackRequestedAt);
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    const tick = () => {
+      if (mounted) setCountdownSeconds(readyAt && windowSeconds != null && !rollbackRequested
+        ? calculateRemainingWindow(readyAt, windowSeconds) : null);
+    };
+    queueMicrotask(tick);
+    const timer = readyAt && !rollbackRequested ? setInterval(tick, 1000) : undefined;
+    return () => { mounted = false; clearInterval(timer); };
+  }, [readyAt, windowSeconds, rollbackRequested]);
+
+  return { rollouts, commits, setRollouts, isPolling: shouldPollRollout(rollouts), pendingRollout, countdownSeconds, pollingError };
 }

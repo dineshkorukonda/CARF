@@ -207,6 +207,7 @@ model RolloutOutcome {
   readyAt          DateTime?
   previousSha      String?
   rollbackExecutor String   @default("server")
+  deployedAt       DateTime?
   rollbackRequestedAt DateTime?
   rollbackStartedAt DateTime?
   threshold        Float
