@@ -5,10 +5,14 @@ on:
     branches: [main]
     paths:
       - "core-api/**"
+      - "dashboard/prisma/schema.prisma"
+      - "scripts/check-schema-parity.mjs"
       - ".github/workflows/core-api.yml"
   pull_request:
     paths:
       - "core-api/**"
+      - "dashboard/prisma/schema.prisma"
+      - "scripts/check-schema-parity.mjs"
       - ".github/workflows/core-api.yml"
 
 defaults:

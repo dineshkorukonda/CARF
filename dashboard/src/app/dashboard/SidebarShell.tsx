@@ -15,7 +15,6 @@ import {
   LayoutDashboard,
   GitCommitHorizontal,
   RotateCcw,
-  Activity,
   History,
   Settings2,
 } from "lucide-react";
@@ -34,7 +33,6 @@ const PROJECT_ICONS = {
   overview: LayoutDashboard,
   commits: GitCommitHorizontal,
   rollouts: RotateCcw,
-  metrics: Activity,
   activity: History,
   settings: Settings2,
 } satisfies Record<ProjectSection, ComponentType<{ className?: string }>>;
@@ -60,7 +58,7 @@ function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
       <nav aria-label="Project" className="flex flex-col gap-0.5 px-3">
         {PROJECT_SECTIONS.map((section) => {
           const Icon = PROJECT_ICONS[section];
-          const active = selected === section;
+          const active = (selected === "metrics" ? "overview" : selected) === section;
           return (
             <Link key={section} href={projectSectionHref(owner, repo, section)} title={collapsed ? section : undefined}
               aria-current={active ? "page" : undefined}
