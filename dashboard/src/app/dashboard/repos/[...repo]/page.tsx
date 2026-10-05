@@ -60,66 +60,65 @@ export default async function RepoDetailPage(props: {
 
   const installationIds = installations.map((i) => String(i.installationId));
 
-  const connectionRead = await readOrEmpty(
-    "[dashboard/repos] failed to load repo connection:",
-    () => findRepoConnectionSafe(installationIds, owner, repoName),
-    null,
-  );
-
-  const rolloutsRead = await readOrEmpty(
-    "[dashboard/repos] failed to load rollouts:",
-    () =>
-      prisma.rolloutOutcome.findMany({
-        where: {
-          installationId: { in: installationIds },
-          owner: { equals: owner, mode: "insensitive" },
-          repo: { equals: repoName, mode: "insensitive" },
-        },
-        orderBy: {
-          startedAt: "desc",
-        },
-        take: 50,
-      }),
-    [],
-  );
-
-  const commitsRead = await readOrEmpty(
-    "[dashboard/repos] failed to load commits:",
-    () =>
-      prisma.commit.findMany({
-        where: {
-          installationId: { in: installationIds },
-          owner: { equals: owner, mode: "insensitive" },
-          repo: { equals: repoName, mode: "insensitive" },
-        },
-        include: {
-          changeVector: true,
-          threshold: true,
-          riskProfile: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 50,
-      }),
-    [],
-  );
-
-  const auditRead = await readOrEmpty(
-    "[dashboard/repos] failed to load audit logs:",
-    () =>
-      prisma.rolloutAuditLog.findMany({
-        where: {
-          owner: { equals: owner, mode: "insensitive" },
-          repo: { equals: repoName, mode: "insensitive" },
-        },
-        orderBy: {
-          ts: "desc",
-        },
-        take: 50,
-      }),
-    [],
-  );
+  const [connectionRead, rolloutsRead, commitsRead, auditRead] = await Promise.all([
+    readOrEmpty(
+      "[dashboard/repos] failed to load repo connection:",
+      () => findRepoConnectionSafe(installationIds, owner, repoName),
+      null,
+    ),
+    readOrEmpty(
+      "[dashboard/repos] failed to load rollouts:",
+      () =>
+        prisma.rolloutOutcome.findMany({
+          where: {
+            installationId: { in: installationIds },
+            owner: { equals: owner, mode: "insensitive" },
+            repo: { equals: repoName, mode: "insensitive" },
+          },
+          orderBy: {
+            startedAt: "desc",
+          },
+          take: 50,
+        }),
+      [],
+    ),
+    readOrEmpty(
+      "[dashboard/repos] failed to load commits:",
+      () =>
+        prisma.commit.findMany({
+          where: {
+            installationId: { in: installationIds },
+            owner: { equals: owner, mode: "insensitive" },
+            repo: { equals: repoName, mode: "insensitive" },
+          },
+          include: {
+            changeVector: true,
+            threshold: true,
+            riskProfile: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 50,
+        }),
+      [],
+    ),
+    readOrEmpty(
+      "[dashboard/repos] failed to load audit logs:",
+      () =>
+        prisma.rolloutAuditLog.findMany({
+          where: {
+            owner: { equals: owner, mode: "insensitive" },
+            repo: { equals: repoName, mode: "insensitive" },
+          },
+          orderBy: {
+            ts: "desc",
+          },
+          take: 50,
+        }),
+      [],
+    ),
+  ]);
 
   const connection = connectionRead.value;
   const rollouts = rolloutsRead.value;

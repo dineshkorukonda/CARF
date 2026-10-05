@@ -51,6 +51,7 @@ import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } f
 import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
+import { rolloutStage } from "../../../../lib/rolloutStage";
 import { commitPageHref, projectSectionHref, repoSetupHref, type ProjectSection } from "../../../../lib/dashboardNav";
 
 interface SampleItem {
@@ -66,6 +67,8 @@ export interface RolloutItem {
   threshold: number;
   window: number;
   startedAt: Date | string;
+  readyAt?: Date | string | null;
+  deployedAt?: Date | string | null;
   finishedAt: Date | string | null;
   rolledBack: boolean;
   reason: string | null;
@@ -144,7 +147,7 @@ export function RepoDetailView({
   installationId,
   connection,
   rollouts,
-  commits,
+  commits: initialCommits,
   auditLogs,
   activityError,
 }: RepoDetailViewProps) {
@@ -166,6 +169,7 @@ export function RepoDetailView({
     connection?.monitoringPaused ?? false
   );
   const [togglingPause, setTogglingPause] = useState<boolean>(false);
+  const [selectedRolloutId, setSelectedRolloutId] = useState<string>(rollouts[0]?.id || "");
 
   const {
     rollouts: liveRollouts,
@@ -173,7 +177,12 @@ export function RepoDetailView({
     isPolling,
     pendingRollout,
     countdownSeconds,
-  } = useLiveRolloutPolling(rollouts, installationId);
+    commits,
+    pollingError,
+  } = useLiveRolloutPolling(rollouts, installationId, {
+    owner, repo, initialCommits, samplesFor: selectedRolloutId,
+    includeSamples: view === "overview" || view === "metrics",
+  });
 
   // Agent State (Standalone)
   const [agentRevoked, setAgentRevoked] = useState<boolean>(Boolean(connection?.agentRevoked));
@@ -345,11 +354,6 @@ export function RepoDetailView({
       setRefreshingCommits(false);
     }
   };
-
-  // Selected rollout for Graph 1
-  const [selectedRolloutId, setSelectedRolloutId] = useState<string>(
-    liveRollouts[0]?.id || ""
-  );
 
   // Manual Rollback Modal State
   const [rollbackTarget, setRollbackTarget] = useState<RolloutItem | null>(null);
@@ -610,6 +614,7 @@ export function RepoDetailView({
       const matchingRollout = liveRollouts.find((r) => r.commitSha === c.sha);
       if (outcomeFilter === "ALL") return true;
       if (outcomeFilter === "NONE") return !matchingRollout;
+      if (outcomeFilter === "PENDING" && !matchingRollout) return c.sha === commits[0]?.sha;
       return matchingRollout?.status === outcomeFilter;
     });
 
@@ -726,7 +731,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.colorClass}`}
               >
                 <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
-                {derivedStatus}
+                {pendingRollout ? rolloutStage(pendingRollout) : isStandalone && commits[0] && !liveRollouts.some((r) => r.commitSha === commits[0].sha) ? rolloutStage(null, true) : derivedStatus}
               </span>
 
               {/* AGENT BADGE (When Agent Required) */}
@@ -825,7 +830,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
               <p className="text-[11px] font-semibold uppercase text-muted-foreground">Latest rollout</p>
-              <p className="mt-2 text-lg font-semibold text-foreground">{liveRollouts[0]?.status === "PENDING" ? "Observing" : liveRollouts[0]?.status?.replaceAll("_", " ") ?? "No rollout"}</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{rolloutStage(liveRollouts[0], true)}</p>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{liveRollouts[0]?.commitSha.slice(0, 7) ?? "Awaiting deployment"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
@@ -856,7 +861,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                   return <Link key={commit.sha} href={commitPageHref(owner, repo, commit.sha)} className="flex items-center justify-between gap-3 py-3 text-xs hover:text-primary">
                     <span className="font-mono font-semibold">{commit.sha.slice(0, 7)}</span>
                     <span className="min-w-0 flex-1 truncate text-muted-foreground">{commit.threshold?.activeTypes.join(", ") || "Awaiting classification"}</span>
-                    <span className="font-medium">{outcome?.status === "PENDING" ? "Observing" : outcome?.status?.replaceAll("_", " ") ?? "No rollout"}</span>
+                    <span className="font-medium">{rolloutStage(outcome, commit.sha === commits[0]?.sha)}</span>
                   </Link>;
                 })}
               </div>
@@ -875,8 +880,8 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           {liveRollouts.length === 0 ? <p className="py-6 text-xs text-muted-foreground">No rollouts recorded yet.</p> : <div className="divide-y divide-border">
             {liveRollouts.map((rollout) => <div key={rollout.id} className="flex flex-wrap items-center justify-between gap-3 py-4 text-xs">
               <div><Link href={commitPageHref(owner, repo, rollout.commitSha)} className="font-mono font-semibold text-primary hover:underline">{rollout.commitSha.slice(0, 7)}</Link><p className="mt-1 text-muted-foreground">{dates.dateTime(rollout.startedAt)} · {(rollout.threshold * 100).toFixed(2)}% / {rollout.window}s</p></div>
-              <div className="text-right"><p className="font-semibold text-foreground">{rollout.status.replaceAll("_", " ")}</p><p className="mt-1 text-muted-foreground">{rollout.status === "ROLLED_BACK" ? `Rollback ${rollout.rollbackVerified ? "verified" : "not verified"}` : rollout.reason ?? ""}</p></div>
-              {isStandalone && rollout.status === "PENDING" && <button type="button" onClick={() => setRollbackTarget(rollout)} className="rounded-md border border-rose-500/30 px-2.5 py-1.5 font-semibold text-rose-600 hover:bg-rose-500/10">Roll back</button>}
+              <div className="text-right"><p className="font-semibold text-foreground">{rolloutStage(rollout)}</p><p className="mt-1 text-muted-foreground">{rollout.status === "ROLLED_BACK" ? `Rollback ${rollout.rollbackVerified ? "verified" : "not verified"}` : rollout.reason ?? ""}</p></div>
+              {isStandalone && rollout.status === "PENDING" && rollout.readyAt && !rollout.rollbackRequestedAt && <button type="button" onClick={() => setRollbackTarget(rollout)} className="rounded-md border border-rose-500/30 px-2.5 py-1.5 font-semibold text-rose-600 hover:bg-rose-500/10">Roll back</button>}
             </div>)}
           </div>}
         </div>
@@ -1325,9 +1330,9 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="flex items-center gap-2.5">
             <Clock className="size-4 animate-spin text-amber-600 dark:text-amber-400" />
             <div>
-              <span className="font-semibold">Observation In Progress for commit {pendingRollout.commitSha.slice(0, 7)}:</span>
+              <span className="font-semibold">{rolloutStage(pendingRollout)} · {pendingRollout.commitSha.slice(0, 7)}:</span>
               <span className="ml-1 text-amber-600 dark:text-amber-300">
-                Window expires in {countdownSeconds ?? pendingRollout.window}s. Polling error-rate telemetry live every 3s.
+                {countdownSeconds !== null ? `Observation window: ${countdownSeconds}s remaining. ` : ""}Live updates every 2s.
               </span>
             </div>
           </div>
@@ -1580,7 +1585,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {f === "NONE" ? "Unmonitored" : f.charAt(0) + f.slice(1).toLowerCase()}
+                    {f === "NONE" ? "Not deployed" : f === "PENDING" ? "In progress" : f === "SUCCESS" ? "Promoted" : f.charAt(0) + f.slice(1).toLowerCase().replaceAll("_", " ")}
                   </button>
                 ))}
               </div>
@@ -1593,6 +1598,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             {refreshMessage}
           </p>
         ) : null}
+        {pollingError && <p role="status" className="mt-2 text-xs text-amber-600">Live updates delayed. Reconnecting…</p>}
         {refreshFailures.length > 0 && (
           <details className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
             <summary className="cursor-pointer font-medium">View classification failures ({refreshFailures.length})</summary>
@@ -1670,16 +1676,10 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                                     : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 animate-pulse"
                                 }`}
                               >
-                                {rollout.status === "SUCCESS"
-                                  ? "Promoted"
-                                  : rollout.status === "ROLLED_BACK"
-                                  ? "Rolled Back"
-                                  : rollout.status === "PENDING"
-                                  ? rollout.rollbackStartedAt ? "Rolling back" : rollout.rollbackRequestedAt ? "Rollback required" : "Observing"
-                                  : rollout.status}
+                                {rolloutStage(rollout)}
                               </span>
 
-                              {rollout.status === "PENDING" && (
+                              {rollout.status === "PENDING" && rollout.readyAt && !rollout.rollbackRequestedAt && (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1695,7 +1695,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                               )}
                             </div>
                           ) : (
-                            <span title="Classified policy only; this commit has no deployment or runtime observation record." className="text-[11px] text-muted-foreground font-mono">No rollout</span>
+                            <span title={c.sha === commits[0]?.sha ? "Waiting for the CI-gated deployment to start. This updates automatically." : "This historical commit has no deployment record; it may have been skipped or superseded."} className="text-[11px] text-muted-foreground">{rolloutStage(null, c.sha === commits[0]?.sha)}</span>
                           )}
                         </>
                       )}

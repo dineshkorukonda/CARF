@@ -365,7 +365,8 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       await adapter.applyRelease(target.headSha, targetName);
       if (pendingOutcome) {
         // Compilation/install time must not consume startup grace or observation time.
-        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: new Date() } });
+        const deployedAt = new Date();
+        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: deployedAt, deployedAt } });
       }
     } catch (error) {
       deps.logger.error({ error, key, sha: target.headSha }, "failed to apply commit on the host before soak");
