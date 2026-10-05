@@ -29,7 +29,7 @@ export default async function RepoDetailPage(props: {
     notFound();
   }
 
-  const installations = await listInstallationsForAccount(prisma, account.id);
+  const installations = await listInstallationsForAccount(prisma, account.id, { prune: false });
   if (installations.length === 0) {
     redirect("/dashboard/settings");
   }

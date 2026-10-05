@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentAccount } from "../../../../lib/auth";
+import { auth } from "../../../../auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { commitActivitySelect, rolloutActivitySelect } from "../../../../lib/repoActivitySelect";
 import { getRepoCi } from "../../../../lib/repoCi";
@@ -7,14 +7,14 @@ import { prisma } from "../../../../lib/prisma";
 
 export async function GET(request: NextRequest) {
   const started = performance.now();
-  const account = await getCurrentAccount();
-  if (!account) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const params = request.nextUrl.searchParams;
   const installationId = params.get("installationId");
   const owner = params.get("owner");
   const repo = params.get("repo");
   if (!installationId || !owner || !repo) return NextResponse.json({ error: "installationId, owner and repo are required" }, { status: 400 });
-  if (!await getInstallationForAccount(prisma, account.id, installationId)) {
+  if (!await getInstallationForAccount(prisma, session.user.id, installationId)) {
     return NextResponse.json({ error: "Installation not authorized" }, { status: 403 });
   }
   const where = { installationId, owner: { equals: owner, mode: "insensitive" as const }, repo: { equals: repo, mode: "insensitive" as const } };

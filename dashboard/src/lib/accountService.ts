@@ -97,9 +97,11 @@ export async function getInstallationForAccount(
 
 export async function listInstallationsForAccount(
   prisma: DashboardPrismaClient,
-  userId: string
+  userId: string,
+  options: { prune?: boolean } = {},
 ): Promise<InstallationRow[]> {
   const rows = await prisma.installation.findMany({ where: { userId }, orderBy: { createdAt: "desc" } });
+  if (options.prune === false) return rows;
   const prunable = prisma as unknown as Partial<PrunePrismaClient>;
   if (typeof prunable.installation?.delete !== "function") return rows;
   return pruneStaleInstallations(prunable as PrunePrismaClient, userId, rows);
