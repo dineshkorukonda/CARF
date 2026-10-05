@@ -9,6 +9,7 @@ export const TEST_PATTERNS = [
   "**/test/**",
   "**/tests/**",
   "**/__tests__/**",
+  "**/*.feature",
   "**/*_test.go",
   "**/*_test.py",
 ];
