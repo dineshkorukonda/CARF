@@ -16,6 +16,7 @@ export async function createInstallationToken(
 ): Promise<{ token: string; expiresAt: string }> {
   const response = await fetchFn(`${GITHUB_API_BASE}/app/installations/${installationId}/access_tokens`, {
     method: "POST",
+    signal: AbortSignal.timeout(6000),
     headers: {
       Authorization: `Bearer ${appJwt}`,
       Accept: "application/vnd.github+json",

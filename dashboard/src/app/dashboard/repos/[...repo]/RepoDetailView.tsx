@@ -51,6 +51,8 @@ import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } f
 import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
+import { ObservationCountdown } from "../../../../components/ObservationCountdown";
+import { commitCiStage } from "../../../../lib/ciStatus";
 import { rolloutStage } from "../../../../lib/rolloutStage";
 import { commitPageHref, projectSectionHref, repoSetupHref, type ProjectSection } from "../../../../lib/dashboardNav";
 
@@ -82,7 +84,7 @@ export interface ChangeVectorItem {
   code: number;
   config: number;
   dependency: number;
-  infrastructure: number;
+  infra: number;
 }
 
 export interface ThresholdItem {
@@ -176,8 +178,8 @@ export function RepoDetailView({
     setRollouts: setLiveRollouts,
     isPolling,
     pendingRollout,
-    countdownSeconds,
     commits,
+    ci,
     pollingError,
   } = useLiveRolloutPolling(rollouts, installationId, {
     owner, repo, initialCommits, samplesFor: selectedRolloutId,
@@ -585,7 +587,7 @@ export function RepoDetailView({
         code: cv ? Number((cv.code * 100).toFixed(0)) : 0,
         config: cv ? Number((cv.config * 100).toFixed(0)) : 0,
         dependency: cv ? Number((cv.dependency * 100).toFixed(0)) : 0,
-        infra: cv ? Number((cv.infrastructure * 100).toFixed(0)) : 0,
+        infra: cv ? Number((cv.infra * 100).toFixed(0)) : 0,
       };
     }).reverse();
   }, [commits]);
@@ -614,7 +616,8 @@ export function RepoDetailView({
       const matchingRollout = liveRollouts.find((r) => r.commitSha === c.sha);
       if (outcomeFilter === "ALL") return true;
       if (outcomeFilter === "NONE") return !matchingRollout;
-      if (outcomeFilter === "PENDING" && !matchingRollout) return c.sha === commits[0]?.sha;
+      if (!matchingRollout && outcomeFilter === "FAILED") return ["CI failed", "Deployment failed"].includes(commitCiStage(c.sha, ci));
+      if (outcomeFilter === "PENDING" && !matchingRollout) return ["CI running", "CI queued", "Waiting for CI", "Waiting for deployment", "Deployment running", "Deployment queued"].includes(commitCiStage(c.sha, ci));
       return matchingRollout?.status === outcomeFilter;
     });
 
@@ -631,7 +634,7 @@ export function RepoDetailView({
       );
       return timeB - timeA;
     });
-  }, [commits, liveRollouts, outcomeFilter, commitSearch, changeTypeFilter]);
+  }, [commits, liveRollouts, outcomeFilter, commitSearch, changeTypeFilter, ci]);
 
   // Snippets for Augment view
   const argoRolloutsSnippet = `apiVersion: argoproj.io/v1alpha1
@@ -731,7 +734,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.colorClass}`}
               >
                 <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
-                {pendingRollout ? rolloutStage(pendingRollout) : isStandalone && commits[0] && !liveRollouts.some((r) => r.commitSha === commits[0].sha) ? rolloutStage(null, true) : derivedStatus}
+                {pendingRollout ? rolloutStage(pendingRollout) : isStandalone && commits[0] && !liveRollouts.some((r) => r.commitSha === commits[0].sha) ? commitCiStage(commits[0].sha, ci) : derivedStatus}
               </span>
 
               {/* AGENT BADGE (When Agent Required) */}
@@ -861,7 +864,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                   return <Link key={commit.sha} href={commitPageHref(owner, repo, commit.sha)} className="flex items-center justify-between gap-3 py-3 text-xs hover:text-primary">
                     <span className="font-mono font-semibold">{commit.sha.slice(0, 7)}</span>
                     <span className="min-w-0 flex-1 truncate text-muted-foreground">{commit.threshold?.activeTypes.join(", ") || "Awaiting classification"}</span>
-                    <span className="font-medium">{rolloutStage(outcome, commit.sha === commits[0]?.sha)}</span>
+                    <span className="font-medium">{(outcome ? rolloutStage(outcome) : commitCiStage(commit.sha, ci))}</span>
                   </Link>;
                 })}
               </div>
@@ -1332,7 +1335,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             <div>
               <span className="font-semibold">{rolloutStage(pendingRollout)} · {pendingRollout.commitSha.slice(0, 7)}:</span>
               <span className="ml-1 text-amber-600 dark:text-amber-300">
-                {countdownSeconds !== null ? `Observation window: ${countdownSeconds}s remaining. ` : ""}Live updates every 2s.
+                {pendingRollout.readyAt && !pendingRollout.rollbackRequestedAt && <ObservationCountdown readyAt={pendingRollout.readyAt} windowSeconds={pendingRollout.window} />}Live updates every 2s.
               </span>
             </div>
           </div>
@@ -1598,6 +1601,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             {refreshMessage}
           </p>
         ) : null}
+        {ci?.unavailable && <p role="status" className="mt-2 text-xs text-amber-600">GitHub CI status is temporarily unavailable. Retrying automatically.</p>}
         {pollingError && <p role="status" className="mt-2 text-xs text-amber-600">Live updates delayed. Reconnecting…</p>}
         {refreshFailures.length > 0 && (
           <details className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs">
@@ -1695,7 +1699,8 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                               )}
                             </div>
                           ) : (
-                            <span title={c.sha === commits[0]?.sha ? "Waiting for the CI-gated deployment to start. This updates automatically." : "This historical commit has no deployment record; it may have been skipped or superseded."} className="text-[11px] text-muted-foreground">{rolloutStage(null, c.sha === commits[0]?.sha)}</span>
+                            <div><span title="GitHub CI state; older revisions are superseded by the current branch tip." className="text-[11px] text-muted-foreground">{commitCiStage(c.sha, ci)}</span>
+                            {ci?.runs[c.sha]?.url && <a href={ci.runs[c.sha].url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="ml-2 text-xs text-primary underline">View CI</a>}</div>
                           )}
                         </>
                       )}
@@ -1743,7 +1748,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                           </span>
                           <p className="font-mono text-foreground text-[11px]">
                             {c.changeVector
-                              ? `code:${(c.changeVector.code * 100).toFixed(0)}% cfg:${(c.changeVector.config * 100).toFixed(0)}% dep:${(c.changeVector.dependency * 100).toFixed(0)}% inf:${(c.changeVector.infrastructure * 100).toFixed(0)}%`
+                              ? `code:${(c.changeVector.code * 100).toFixed(0)}% cfg:${(c.changeVector.config * 100).toFixed(0)}% dep:${(c.changeVector.dependency * 100).toFixed(0)}% inf:${(c.changeVector.infra * 100).toFixed(0)}%`
                               : "Standard"}
                           </p>
                         </div>

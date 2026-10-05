@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { ciIsActive, type CiSnapshot } from "./ciStatus";
 import { startActivityPolling } from "./activityPolling";
 
 export interface RolloutSampleItem {
@@ -41,6 +42,7 @@ export function useLiveRolloutPolling<TCommit extends { sha: string }>(
   const { owner, repo, initialCommits, samplesFor, includeSamples } = options;
   const [rollouts, setRollouts] = useState(initialRollouts);
   const [commits, setCommits] = useState(initialCommits);
+  const [ci, setCi] = useState<CiSnapshot>();
   const [pollingError, setPollingError] = useState(false);
   const rolloutsRef = useRef(rollouts);
   useEffect(() => { rolloutsRef.current = rollouts; }, [rollouts]);
@@ -54,8 +56,10 @@ export function useLiveRolloutPolling<TCommit extends { sha: string }>(
 
   useEffect(() => {
     if (!installationId) return;
-    let previous = "";
-    type Snapshot = { rollouts: LiveRolloutItem[]; commits: TCommit[] };
+    let previousRollouts = "";
+    let previousCommits = "";
+    let previousCi = "";
+    type Snapshot = { rollouts: LiveRolloutItem[]; commits: TCommit[]; ci?: CiSnapshot };
     const polling = startActivityPolling<Snapshot>({
       isVisible: () => document.visibilityState !== "hidden",
       fetchSnapshot: async (signal) => {
@@ -70,17 +74,17 @@ export function useLiveRolloutPolling<TCommit extends { sha: string }>(
       },
       onSnapshot: (snapshot) => {
         setPollingError(false);
-        const serialized = JSON.stringify(snapshot);
-        if (serialized === previous) return;
-        previous = serialized;
-        setRollouts(snapshot.rollouts);
-        setCommits(snapshot.commits);
+        const nextRollouts = JSON.stringify(snapshot.rollouts);
+        const nextCommits = JSON.stringify(snapshot.commits);
+        const nextCi = JSON.stringify(snapshot.ci);
+        if (nextRollouts !== previousRollouts) { previousRollouts = nextRollouts; setRollouts(snapshot.rollouts); }
+        if (nextCommits !== previousCommits) { previousCommits = nextCommits; setCommits(snapshot.commits); }
+        if (nextCi !== previousCi) { previousCi = nextCi; setCi(snapshot.ci); }
       },
       onError: () => setPollingError(true),
       delay: (snapshot) => {
         if (shouldPollRollout(snapshot.rollouts)) return 2000;
-        const latestSha = snapshot.commits[0]?.sha;
-        return latestSha && !snapshot.rollouts.some((r) => r.commitSha === latestSha) ? 3000 : 10_000;
+        return ciIsActive(snapshot.ci) && !snapshot.rollouts.some((r) => r.commitSha === snapshot.ci?.headSha) ? 3000 : 10_000;
       },
     });
     document.addEventListener("visibilitychange", polling.refresh);
@@ -93,20 +97,5 @@ export function useLiveRolloutPolling<TCommit extends { sha: string }>(
   }, [installationId, owner, repo, samplesFor, includeSamples]);
 
   const pendingRollout = rollouts.find((r) => r.status === "PENDING");
-  const readyAt = pendingRollout?.readyAt;
-  const windowSeconds = pendingRollout?.window;
-  const rollbackRequested = Boolean(pendingRollout?.rollbackRequestedAt);
-  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    const tick = () => {
-      if (mounted) setCountdownSeconds(readyAt && windowSeconds != null && !rollbackRequested
-        ? calculateRemainingWindow(readyAt, windowSeconds) : null);
-    };
-    queueMicrotask(tick);
-    const timer = readyAt && !rollbackRequested ? setInterval(tick, 1000) : undefined;
-    return () => { mounted = false; clearInterval(timer); };
-  }, [readyAt, windowSeconds, rollbackRequested]);
-
-  return { rollouts, commits, setRollouts, isPolling: shouldPollRollout(rollouts), pendingRollout, countdownSeconds, pollingError };
+  return { rollouts, commits, ci, setRollouts, isPolling: shouldPollRollout(rollouts), pendingRollout, pollingError };
 }
