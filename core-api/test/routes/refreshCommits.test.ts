@@ -171,6 +171,29 @@ describe("POST /v1/commits/refresh", () => {
     expect(classifyCommit).not.toHaveBeenCalled();
   });
 
+  it("admits only the latest revision in a ten-commit burst", async () => {
+    const prisma = new FakePrisma();
+    const key = generateApiKey();
+    prisma.apiKeys.set(key.hash, "inst-1");
+    const shas = Array.from({ length: 10 }, (_, i) => (i + 1).toString(16).padStart(40, "0"));
+    let requestedSha = shas[0]!;
+    const classifyCommit = vi.fn().mockResolvedValue(undefined);
+    app = Fastify();
+    await registerRefreshCommitsRoute(app, {
+      prismaClient: prisma, getInstallationToken: async () => "token", classifyCommit,
+      fetchFn: async () => { const response = await passedCi(); return { ...response, json: async () => ({ ...await response.json(), head_sha: requestedSha }) }; },
+      listCommits: async () => [{ sha: shas[9]!, parentSha: shas[8]! }],
+    });
+    for (const sha of shas) {
+      requestedSha = sha;
+      const response = await app.inject({ method: "POST", url: "/v1/commits/refresh", headers: { authorization: `Bearer ${key.plaintext}` }, payload: { owner: "acme", repo: "widgets", observeLive: true, expectedSha: sha, ciRunId: 42 } });
+      expect(response.statusCode).toBe(sha === shas[9] ? 200 : 409);
+      if (sha !== shas[9]) expect(response.json().code).toBe("SUPERSEDED");
+    }
+    expect(classifyCommit).toHaveBeenCalledTimes(1);
+    expect(classifyCommit).toHaveBeenCalledWith(expect.objectContaining({ headSha: shas[9] }), { observeLive: true });
+  });
+
   it("requires an exact SHA for live deployment", async () => {
     const prisma = new FakePrisma();
     const key = generateApiKey();

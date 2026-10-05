@@ -11,7 +11,7 @@
 
 export const CARF_WORKFLOW_PATH = ".github/workflows/carf.yml";
 export const CARF_WORKFLOW_MARKER = "# CARF-MANAGED-WORKFLOW";
-export const CARF_WORKFLOW_VERSION = 3;
+export const CARF_WORKFLOW_VERSION = 4;
 /** Name of the GitHub Actions repository secret CARF configures automatically. */
 export const CARF_SECRET_NAME = "CARF_API_KEY";
 
@@ -70,13 +70,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: carf-pm2-\${{ github.repository }}
+  group: carf-pm2-\${{ github.event.workflow_run.conclusion == 'success' && github.repository || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   carf-deploy:
     outputs:
       rollback_id: \${{ steps.observe.outputs.rollback_id }}
+      superseded: \${{ steps.admission.outputs.superseded || steps.deploy.outputs.superseded }}
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -93,7 +94,21 @@ jobs:
       CARF_SHA: \${{ github.event.workflow_run.head_sha }}
       CARF_CI_RUN_ID: \${{ github.event.workflow_run.id }}
     steps:
+      - name: Check deployment is still current
+        id: admission
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch=$(jq -rn --arg branch "$CARF_BRANCH" '$branch | @uri')
+          curl --fail-with-body --max-time 20 -sS -H "Authorization: Bearer $GH_TOKEN" \\
+            "https://api.github.com/repos/$CARF_OWNER/$CARF_REPO/commits/$branch" -o branch-tip.json
+          if [ "$(jq -r '.sha' branch-tip.json)" != "$CARF_SHA" ]; then
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "### Superseded: a newer commit is on $CARF_BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Get CARF policy
+        if: steps.admission.outputs.superseded != 'true'
         run: |
           set -euo pipefail
           for attempt in {1..12}; do
@@ -111,12 +126,24 @@ jobs:
           if [ "$status" != "200" ]; then echo "::error::CARF policy unavailable for $CARF_SHA (HTTP $status)"; exit 1; fi
           echo "Policy: threshold=$(jq -r '.threshold' carf-policy.json), window=$(jq -r '.window' carf-policy.json)s"
       - name: Deploy exact commit with CARF and PM2
+        id: deploy
+        if: steps.admission.outputs.superseded != 'true'
         run: |
           set -euo pipefail
           payload=$(jq -n --arg owner "$CARF_OWNER" --arg repo "$CARF_REPO" --arg branch "$CARF_BRANCH" --arg sha "$CARF_SHA" --argjson ciRunId "$CARF_CI_RUN_ID" '{owner:$owner,repo:$repo,branch:$branch,expectedSha:$sha,ciRunId:$ciRunId,observeLive:true,rollbackViaActions:true}')
-          curl --fail-with-body -sS -X POST "$CARF_API_URL/v1/commits/refresh" \\
+          http_status=$(curl --max-time 1100 -sS -X POST "$CARF_API_URL/v1/commits/refresh" \\
             -H "Authorization: Bearer $CARF_API_KEY" -H "Content-Type: application/json" \\
-            --data "$payload" -o carf-deploy.json
+            --data "$payload" -o carf-deploy.json -w '%{http_code}')
+          if [ "$http_status" = "409" ] && [ "$(jq -r '.code' carf-deploy.json)" = "SUPERSEDED" ]; then
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "### Superseded before deployment: newer branch tip" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$http_status" != "200" ]; then
+            echo "::error::CARF deployment request failed (HTTP $http_status)"
+            jq -r '.error // "Unknown error"' carf-deploy.json
+            exit 1
+          fi
           if [ "$(jq '.failed | length' carf-deploy.json)" != "0" ]; then
             jq -r '.failed[] | "::error::CARF deployment failed for \\(.sha): \\(.error)"' carf-deploy.json
             # A failed build can still require restoration by the rollback job.
@@ -128,6 +155,7 @@ jobs:
           echo "CARF deployment requested for $CARF_SHA"
       - name: Wait for observation and rollback decision
         id: observe
+        if: steps.admission.outputs.superseded != 'true' && steps.deploy.outputs.superseded != 'true'
         run: |
           set -euo pipefail
           for attempt in {1..300}; do
@@ -185,11 +213,17 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DEPLOY_RESULT: \${{ needs.carf-deploy.result }}
+      SUPERSEDED: \${{ needs.carf-deploy.outputs.superseded }}
       ROLLBACK_ID: \${{ needs.carf-deploy.outputs.rollback_id }}
       ROLLBACK_RESULT: \${{ needs.carf-rollback.result }}
     steps:
       - name: Report deployment outcome
         run: |
+          if [ "$SUPERSEDED" = "true" ]; then
+            echo "Superseded: deployment skipped safely; current release unchanged"
+            echo "### Superseded by a newer commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [ -n "$ROLLBACK_ID" ]; then
             echo "::error::Deployment rejected; rollback job result: $ROLLBACK_RESULT"
             exit 1

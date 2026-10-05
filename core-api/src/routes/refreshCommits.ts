@@ -126,7 +126,7 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
     const tip = branchCommits[0];
     const tipSha = tip?.sha;
     if (observeLive && tipSha?.toLowerCase() !== expectedSha) {
-      return reply.code(409).send({ error: "expectedSha is not the current branch tip; deployment skipped" });
+      return reply.code(409).send({ code: "SUPERSEDED", currentSha: tipSha, error: "expectedSha is not the current branch tip; deployment skipped" });
     }
     let soakSha: string | null = null;
     // A deployment request acts on one exact revision. History refresh is read-only.

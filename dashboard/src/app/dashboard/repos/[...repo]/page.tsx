@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { listInstallationsForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
+import { commitActivitySelect, rolloutActivitySelect } from "../../../../lib/repoActivitySelect";
 import { readOrEmpty } from "../../../../lib/repoActivity";
 import { findRepoConnectionSafe } from "../../../../lib/repoConnectionService";
 import { PROJECT_SECTIONS, type ProjectSection } from "../../../../lib/dashboardNav";
@@ -70,6 +71,7 @@ export default async function RepoDetailPage(props: {
       "[dashboard/repos] failed to load rollouts:",
       () =>
         prisma.rolloutOutcome.findMany({
+          select: rolloutActivitySelect,
           where: {
             installationId: { in: installationIds },
             owner: { equals: owner, mode: "insensitive" },
@@ -91,11 +93,7 @@ export default async function RepoDetailPage(props: {
             owner: { equals: owner, mode: "insensitive" },
             repo: { equals: repoName, mode: "insensitive" },
           },
-          include: {
-            changeVector: true,
-            threshold: true,
-            riskProfile: true,
-          },
+          select: commitActivitySelect,
           orderBy: {
             createdAt: "desc",
           },
