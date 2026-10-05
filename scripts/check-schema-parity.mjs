@@ -2,29 +2,20 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT_DIR = resolve(__dirname, "..");
 
-// Format both schemas first to ensure canonical column alignment
-try {
-  execSync("npx prisma format", { cwd: resolve(ROOT_DIR, "core-api"), stdio: "ignore" });
-  execSync("npx prisma format", { cwd: resolve(ROOT_DIR, "dashboard"), stdio: "ignore" });
-} catch (err) {
-  // If prisma format cannot execute in this environment, continue to content check
-}
-
+// Compare tokens without installing formatters or modifying either schema.
+// Preserve quoted values exactly; ignore alignment and comments outside strings.
 function stripCommentsAndNormalize(content) {
   return content
     .split(/\r?\n/)
-    .map((line) => {
-      const commentIndex = line.indexOf("//");
-      const withoutComment = commentIndex !== -1 ? line.slice(0, commentIndex) : line;
-      return withoutComment.trimEnd();
-    })
-    .filter((line) => line.trim().length > 0)
+    .map((line) => (line.match(/"(?:\\.|[^"\\])*"|\/\/.*|[^\s"]+/g) ?? [])
+      .filter((token) => !token.startsWith("//"))
+      .join(" "))
+    .filter(Boolean)
     .join("\n");
 }
 

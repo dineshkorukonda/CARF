@@ -181,7 +181,7 @@ export function RepoDetailView({
     pollingError,
   } = useLiveRolloutPolling(rollouts, installationId, {
     owner, repo, initialCommits, samplesFor: selectedRolloutId,
-    includeSamples: view === "overview" || view === "metrics",
+    includeSamples: view === "overview",
   });
 
   // Agent State (Standalone)
@@ -1343,7 +1343,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── ANALYTICS GRAPHS ─── */}
-      {view === "metrics" && <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {view === "overview" && <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* STANDALONE: Graph 1 Error Rate vs Threshold Over Time */}
         {isStandalone && (
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
