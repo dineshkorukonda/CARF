@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../lib/useDashboardDates";
+
 import { useState } from "react";
 import Link from "next/link";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -86,6 +88,7 @@ function stepIcon(status: PipelineStep["status"]) {
 }
 
 export function CommitPipelineView(data: CommitPipelineData) {
+  const dates = useDashboardDates();
   const [openStep, setOpenStep] = useState<string>("rollback");
   const decision = rollbackDecision({
     hasVector: Boolean(data.vector),
@@ -125,7 +128,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
           </div>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">
             {data.sha.slice(0, 7)} · {data.author ?? "Author unavailable"} · base {data.baseSha.slice(0, 7)} ·{" "}
-            {new Date(data.createdAt).toLocaleString()}
+            {dates.dateTime(data.createdAt)}
           </p>
         </div>
         <div className="flex flex-wrap gap-2"><a
@@ -154,7 +157,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
       <Card className="py-4">
         <CardHeader className="pb-0"><CardTitle className="text-sm">Observed error rate</CardTitle><CardDescription className="text-xs">Samples recorded while CARF monitored this rollout, compared with its policy ceiling.</CardDescription></CardHeader>
         <CardContent className="mt-3">
-          {data.rollout?.samples.length ? <div className="h-56 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.rollout.samples.map((sample) => ({ time: new Date(sample.ts).toLocaleTimeString(), errorRate: sample.errorRate * 100, ceiling: data.rollout!.threshold * 100 }))}>
+          {data.rollout?.samples.length ? <div className="h-56 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.rollout.samples.map((sample) => ({ time: dates.time(sample.ts), errorRate: sample.errorRate * 100, ceiling: data.rollout!.threshold * 100 }))}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" /><XAxis dataKey="time" tick={{ fontSize: 10 }} /><YAxis unit="%" tick={{ fontSize: 10 }} /><Tooltip /><Line type="monotone" dataKey="errorRate" name="Error rate (%)" stroke="#ef4444" dot={false} /><Line type="stepAfter" dataKey="ceiling" name="Ceiling (%)" stroke="#6366f1" strokeDasharray="4 4" dot={false} />
           </LineChart></ResponsiveContainer></div> : <p className="text-xs text-muted-foreground">No observation samples recorded for this commit.</p>}
         </CardContent>
@@ -202,7 +205,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
           <CardContent className="mt-3 space-y-1 font-mono text-xs text-foreground">
             <p>SHA {data.sha}</p>
             <p>Base {data.baseSha}</p>
-            <p>Recorded {new Date(data.createdAt).toLocaleString()}</p>
+            <p>Recorded {dates.dateTime(data.createdAt)}</p>
           </CardContent>
         </Card>
       ) : null}
@@ -382,8 +385,8 @@ export function CommitPipelineView(data: CommitPipelineData) {
                 </p>
                 {data.rollout.reason ? <p className="text-muted-foreground">{data.rollout.reason}</p> : null}
                 <p className="text-muted-foreground">
-                  Started {new Date(data.rollout.startedAt).toLocaleString()}
-                  {data.rollout.finishedAt ? ` · finished ${new Date(data.rollout.finishedAt).toLocaleString()}` : ""}
+                  Started {dates.dateTime(data.rollout.startedAt)}
+                  {data.rollout.finishedAt ? ` · finished ${dates.dateTime(data.rollout.finishedAt)}` : ""}
                 </p>
                 {data.rollout.samples.length > 0 ? (
                   <p className="font-mono text-muted-foreground">

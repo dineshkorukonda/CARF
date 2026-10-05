@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../lib/useDashboardDates";
+
 import { useState } from "react";
 import {
   Activity,
@@ -22,6 +24,7 @@ import { Badge } from "../../../components/ui/badge";
 import type { ProbeReport } from "../../../adapters/github/appProbeClient";
 
 export function GithubAppProbeCard() {
+  const dates = useDashboardDates();
   const [report, setReport] = useState<ProbeReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -154,7 +157,7 @@ export function GithubAppProbeCard() {
                   : "Integration Probe Detected Critical Issues"}
               </span>
               <p className="text-[11px] opacity-90">
-                Timestamp: {new Date(report.timestamp).toLocaleTimeString()} · Tested 5 diagnostic layers.
+                Timestamp: {dates.time(report.timestamp)} · Tested 5 diagnostic layers.
               </p>
             </div>
           </div>

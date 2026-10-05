@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../lib/useDashboardDates";
+
 import { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -26,6 +28,7 @@ interface AccountSettingsViewProps {
 }
 
 export function AccountSettingsView({ initialAccount }: AccountSettingsViewProps) {
+  const dates = useDashboardDates();
   const router = useRouter();
 
   // Profile State
@@ -47,9 +50,7 @@ export function AccountSettingsView({ initialAccount }: AccountSettingsViewProps
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const memberSince = new Intl.DateTimeFormat("en-US", { dateStyle: "long" }).format(
-    new Date(initialAccount.createdAt)
-  );
+  const memberSince = dates.date(initialAccount.createdAt);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
