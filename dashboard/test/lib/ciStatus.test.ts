@@ -18,7 +18,7 @@ describe("CI status during a push burst", () => {
   it("never calls unknown or failed CI waiting", () => {
     expect(commitCiStage("new")).toBe("CI status unavailable");
     expect(commitCiStage("new", { ...snapshot, unavailable: true })).toBe("CI status unavailable");
-    expect(ciIsActive({ ...snapshot, headSha: "broken" })).toBe(false);
+    expect(ciIsActive({ ...snapshot, headSha: "broken", runs: { broken: snapshot.runs.broken } })).toBe(false);
   });
   it("shows a failed deployment after successful CI", () => {
     expect(commitCiStage("old", { ...snapshot, headSha: "old", deployments: {

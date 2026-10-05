@@ -6,6 +6,10 @@ const cache = new Map<string, Entry>();
 const tokens = new Map<string, { token: Promise<string>; expires: number }>();
 const unavailable: CiSnapshot = { headSha: null, runs: {}, unavailable: true };
 
+export function invalidateRepoCi(installationId: string, owner: string, repo: string, branch: string): void {
+  cache.delete(JSON.stringify([installationId, owner.toLowerCase(), repo.toLowerCase(), branch]));
+}
+
 // Scope by installation as well as repository. Concurrent viewers share one request.
 // GitHub is refreshed at most every 10s; rollout polling never mints a token per tick.
 export async function getRepoCi(installationId: string, owner: string, repo: string, branch: string): Promise<CiSnapshot> {

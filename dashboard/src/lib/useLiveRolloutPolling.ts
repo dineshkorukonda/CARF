@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { ciIsActive, type CiSnapshot } from "./ciStatus";
 import { startActivityPolling } from "./activityPolling";
 
@@ -44,6 +44,8 @@ export function useLiveRolloutPolling<TCommit extends { sha: string }>(
   const [commits, setCommits] = useState(initialCommits);
   const [ci, setCi] = useState<CiSnapshot>();
   const [pollingError, setPollingError] = useState(false);
+  const refreshRef = useRef<() => void>(() => {});
+  const refreshActivity = useCallback(() => refreshRef.current(), []);
   const rolloutsRef = useRef(rollouts);
   useEffect(() => { rolloutsRef.current = rollouts; }, [rollouts]);
 
@@ -87,15 +89,17 @@ export function useLiveRolloutPolling<TCommit extends { sha: string }>(
         return ciIsActive(snapshot.ci) && !snapshot.rollouts.some((r) => r.commitSha === snapshot.ci?.headSha) ? 3000 : 10_000;
       },
     });
+    refreshRef.current = polling.refresh;
     document.addEventListener("visibilitychange", polling.refresh);
     window.addEventListener("focus", polling.refresh);
     return () => {
       polling.stop();
+      refreshRef.current = () => {};
       document.removeEventListener("visibilitychange", polling.refresh);
       window.removeEventListener("focus", polling.refresh);
     };
   }, [installationId, owner, repo, samplesFor, includeSamples]);
 
   const pendingRollout = rollouts.find((r) => r.status === "PENDING");
-  return { rollouts, commits, ci, setRollouts, isPolling: shouldPollRollout(rollouts), pendingRollout, pollingError };
+  return { rollouts, commits, ci, refreshActivity, setRollouts, isPolling: shouldPollRollout(rollouts), pendingRollout, pollingError };
 }

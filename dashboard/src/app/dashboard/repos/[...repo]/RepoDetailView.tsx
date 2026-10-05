@@ -51,6 +51,7 @@ import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } f
 import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
+import { RetryCiPanel } from "../../../../components/RetryCiPanel";
 import { ObservationCountdown } from "../../../../components/ObservationCountdown";
 import { commitCiStage } from "../../../../lib/ciStatus";
 import { rolloutStage } from "../../../../lib/rolloutStage";
@@ -180,6 +181,7 @@ export function RepoDetailView({
     pendingRollout,
     commits,
     ci,
+    refreshActivity,
     pollingError,
   } = useLiveRolloutPolling(rollouts, installationId, {
     owner, repo, initialCommits, samplesFor: selectedRolloutId,
@@ -1595,6 +1597,8 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             )}
           </div>
         </div>
+
+        <RetryCiPanel installationId={installationId} owner={owner} repo={repo} commits={commits} ci={ci} onRequested={refreshActivity} />
 
         {refreshMessage ? (
           <p className="mt-3 rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-foreground" role="status">
