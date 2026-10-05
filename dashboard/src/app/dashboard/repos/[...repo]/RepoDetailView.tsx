@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../../lib/useDashboardDates";
+
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -146,6 +148,7 @@ export function RepoDetailView({
   auditLogs,
   activityError,
 }: RepoDetailViewProps) {
+  const dates = useDashboardDates();
   const resolved = resolveFromLegacy({
     mode: connection?.mode,
     deploymentIntegration: connection?.deploymentIntegration,
@@ -546,11 +549,7 @@ export function RepoDetailView({
     }
     const thresholdPct = Number((selectedRollout.threshold * 100).toFixed(2));
     return selectedRollout.samples.map((s, idx) => {
-      const t = new Date(s.ts);
-      const timeLabel = `${t.getHours().toString().padStart(2, "0")}:${t
-        .getMinutes()
-        .toString()
-        .padStart(2, "0")}:${t.getSeconds().toString().padStart(2, "0")}`;
+      const timeLabel = dates.time(s.ts);
       return {
         sampleIndex: idx + 1,
         time: timeLabel,
@@ -558,7 +557,7 @@ export function RepoDetailView({
         threshold: thresholdPct,
       };
     });
-  }, [selectedRollout]);
+  }, [selectedRollout, dates]);
 
   // --- Graph 2 Data: Threshold & Window per Commit (Standalone & Augment) ---
   const graph2Data = useMemo(() => {
@@ -741,14 +740,14 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               )}
             </div>
 
-            <p className="mt-1 text-xs text-muted-foreground" suppressHydrationWarning>
+            <p className="mt-1 text-xs text-muted-foreground">
               {isStandalone ? (
                 derivedStatus === "Adapter error" && liveRollouts[0]?.reason ? (
                   <span className="text-red-600 dark:text-red-400 font-medium">
                     Adapter error on {liveRollouts[0].commitSha ? liveRollouts[0].commitSha.slice(0, 7) : "latest"}: {liveRollouts[0].reason}
                   </span>
                 ) : connection?.verifiedAt ? (
-                  `Connection verified: ${new Date(connection.verifiedAt).toLocaleString()}`
+                  `Connection verified: ${dates.dateTime(connection.verifiedAt)}`
                 ) : (
                   "Linked — host verify has not passed yet. Rollouts still run from .carf.yml."
                 )
@@ -842,7 +841,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
               <p className="text-[11px] font-semibold uppercase text-muted-foreground">Monitoring</p>
               <p className="mt-2 text-lg font-semibold text-foreground">{monitoringPaused ? "Paused" : "Active"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{connection?.verifiedAt ? `Verified ${new Date(connection.verifiedAt).toLocaleDateString()}` : "Connection needs verification"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{connection?.verifiedAt ? `Verified ${dates.date(connection.verifiedAt)}` : "Connection needs verification"}</p>
             </div>
           </div>
           <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
@@ -875,7 +874,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="border-b border-border pb-3"><h2 className="text-sm font-semibold text-foreground">Rollout history</h2><p className="mt-1 text-xs text-muted-foreground">Observation outcomes and rollback decisions for this project.</p></div>
           {liveRollouts.length === 0 ? <p className="py-6 text-xs text-muted-foreground">No rollouts recorded yet.</p> : <div className="divide-y divide-border">
             {liveRollouts.map((rollout) => <div key={rollout.id} className="flex flex-wrap items-center justify-between gap-3 py-4 text-xs">
-              <div><Link href={commitPageHref(owner, repo, rollout.commitSha)} className="font-mono font-semibold text-primary hover:underline">{rollout.commitSha.slice(0, 7)}</Link><p className="mt-1 text-muted-foreground" suppressHydrationWarning>{new Date(rollout.startedAt).toLocaleString()} · {(rollout.threshold * 100).toFixed(2)}% / {rollout.window}s</p></div>
+              <div><Link href={commitPageHref(owner, repo, rollout.commitSha)} className="font-mono font-semibold text-primary hover:underline">{rollout.commitSha.slice(0, 7)}</Link><p className="mt-1 text-muted-foreground">{dates.dateTime(rollout.startedAt)} · {(rollout.threshold * 100).toFixed(2)}% / {rollout.window}s</p></div>
               <div className="text-right"><p className="font-semibold text-foreground">{rollout.status.replaceAll("_", " ")}</p><p className="mt-1 text-muted-foreground">{rollout.status === "ROLLED_BACK" ? `Rollback ${rollout.rollbackVerified ? "verified" : "not verified"}` : rollout.reason ?? ""}</p></div>
               {isStandalone && rollout.status === "PENDING" && <button type="button" onClick={() => setRollbackTarget(rollout)} className="rounded-md border border-rose-500/30 px-2.5 py-1.5 font-semibold text-rose-600 hover:bg-rose-500/10">Roll back</button>}
             </div>)}
@@ -1087,11 +1086,11 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <div className="text-[11px] font-medium text-muted-foreground uppercase">
                 {isHostColocated ? "Host Status" : "Last Heartbeat"}
               </div>
-              <div className="mt-1 font-semibold text-foreground font-mono" suppressHydrationWarning>
+              <div className="mt-1 font-semibold text-foreground font-mono">
                 {connection?.agentLastHeartbeat
-                  ? new Date(connection.agentLastHeartbeat).toLocaleString()
+                  ? dates.dateTime(connection.agentLastHeartbeat)
                   : connection?.verifiedAt
-                    ? `Verified (${new Date(connection.verifiedAt).toLocaleDateString()})`
+                    ? `Verified (${dates.date(connection.verifiedAt)})`
                     : "Never reported"}
               </div>
             </div>
@@ -1649,7 +1648,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
                           {c.author && <><span>{c.author}</span><span>•</span></>}
-                          <span suppressHydrationWarning>{new Date(c.createdAt).toLocaleString()}</span>
+                          <span>{dates.dateTime(c.createdAt)}</span>
                         </div>
                       </div>
                     </div>
@@ -1795,8 +1794,8 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                     Result: <span className="font-mono text-foreground">{log.result}</span>
                   </div>
                 </div>
-                <span className="text-[11px] text-muted-foreground" suppressHydrationWarning>
-                  {new Date(log.ts).toLocaleString()}
+                <span className="text-[11px] text-muted-foreground">
+                  {dates.dateTime(log.ts)}
                 </span>
               </div>
             ))

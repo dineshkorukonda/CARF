@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../lib/useDashboardDates";
+
 import React, { useMemo } from "react";
 import Link from "next/link";
 import {
@@ -91,6 +93,7 @@ export function RepoListView({
   commits,
   activityError,
 }: RepoListViewProps) {
+  const dates = useDashboardDates();
   const standaloneKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const c of connections) {
@@ -114,11 +117,7 @@ export function RepoListView({
 
   const chartData = useMemo(() => {
     const buckets: Record<string, OutcomeDayBucket> = {};
-    const now = new Date();
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split("T")[0]!;
+    for (const key of dates.recentDays(14)) {
       buckets[key] = {
         date: key.slice(5),
         SUCCESS: 0,
@@ -130,7 +129,7 @@ export function RepoListView({
     }
 
     standaloneRollouts.forEach((r) => {
-      const dateKey = new Date(r.startedAt).toISOString().split("T")[0]!;
+      const dateKey = dates.dayKey(r.startedAt);
       if (buckets[dateKey]) {
         buckets[dateKey][r.status] = (buckets[dateKey][r.status] || 0) + 1;
         buckets[dateKey].total += 1;
@@ -138,7 +137,7 @@ export function RepoListView({
     });
 
     return Object.values(buckets);
-  }, [standaloneRollouts]);
+  }, [standaloneRollouts, dates]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-6">
@@ -419,10 +418,7 @@ export function RepoListView({
                                 </span>
                               </div>
                               <span className="text-[11px] text-muted-foreground">
-                                {new Date(r.startedAt).toLocaleDateString(undefined, {
-                                  month: "short",
-                                  day: "numeric",
-                                })}
+                                {dates.date(r.startedAt)}
                               </span>
                             </li>
                           ))}

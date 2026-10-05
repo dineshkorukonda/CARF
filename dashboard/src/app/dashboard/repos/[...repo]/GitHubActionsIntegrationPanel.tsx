@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../../lib/useDashboardDates";
+
 import React, { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, Check, Copy, Loader2, Zap } from "lucide-react";
 
@@ -45,10 +47,6 @@ const STATUS_STYLE: Record<IntegrationStatus, string> = {
   failed: "border-rose-500/30 bg-rose-500/10 text-rose-600",
 };
 
-function formatTime(value: string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString();
-}
 
 type Action = "install" | "verify" | "reconfigure" | "disable";
 
@@ -64,6 +62,7 @@ export function GitHubActionsIntegrationPanel({
   repositoryId: string;
   defaultBranch: string;
 }) {
+  const dates = useDashboardDates();
   const base = `/api/repositories/${repositoryId}/integrations/github-actions`;
   const [state, setState] = useState<IntegrationState | null>(null);
   const [manualWorkflow, setManualWorkflow] = useState<string>("");
@@ -145,14 +144,14 @@ export function GitHubActionsIntegrationPanel({
             ["Branch", branch],
             ["GitHub App installation", state?.installationId],
             ["Workflow path", state?.workflowPath],
-            ["Last synchronization", formatTime(state?.lastSyncAt ?? null)],
-            ["Last policy generated", formatTime(state?.lastPolicyAt ?? null)],
+            ["Last synchronization", dates.dateTime(state?.lastSyncAt ?? null)],
+            ["Last policy generated", dates.dateTime(state?.lastPolicyAt ?? null)],
             ["Last commit analyzed", state?.lastCommitSha ? state.lastCommitSha.slice(0, 7) : "—"],
-            ["Last verified", formatTime(state?.lastVerifiedAt ?? null)],
+            ["Last verified", dates.dateTime(state?.lastVerifiedAt ?? null)],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
               <dt className="text-[11px] font-medium text-muted-foreground uppercase">{label}</dt>
-              <dd className="font-mono text-[11px] text-foreground truncate" suppressHydrationWarning>{value ?? "—"}</dd>
+              <dd className="font-mono text-[11px] text-foreground truncate">{value ?? "—"}</dd>
             </div>
           ))}
         </dl>

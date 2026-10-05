@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../lib/useDashboardDates";
+
 import { useState } from "react";
 import { Play, CheckCircle2, RefreshCw, BarChart2, Activity, AlertTriangle } from "lucide-react";
 import { Button } from "../../../components/ui/button";
@@ -14,6 +16,7 @@ export function VerifyDashboard({
   repoName: string;
   initialHistory: EvaluationHistoryItem[];
 }) {
+  const dates = useDashboardDates();
   const [running, setRunning] = useState(false);
   const [simResult, setSimResult] = useState<SimulationResult | null>(null);
   const [history, setHistory] = useState<EvaluationHistoryItem[]>(initialHistory);
@@ -107,7 +110,7 @@ export function VerifyDashboard({
               Synthetic Demo Results (50 Simulated Runs)
             </span>
             <span className="text-xs font-mono text-muted-foreground">
-              {simResult.evaluationKind} · seed {simResult.seed} · {new Date(simResult.createdAt).toLocaleTimeString()}
+              {simResult.evaluationKind} · seed {simResult.seed} · {dates.time(simResult.createdAt)}
             </span>
           </div>
 

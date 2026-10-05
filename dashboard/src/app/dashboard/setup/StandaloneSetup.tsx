@@ -1,5 +1,7 @@
 "use client";
 
+import { useDashboardDates } from "../../../lib/useDashboardDates";
+
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
@@ -45,6 +47,7 @@ export function StandaloneSetup({
   initialPm2,
   onBackToMode,
 }: StandaloneSetupProps) {
+  const dates = useDashboardDates();
   // Sub-step: 1 = PM2 App, 2 = Install Host Agent, 3 = Review & Commit
   const [subStep, setSubStep] = useState<1 | 2 | 3>(1);
 
@@ -491,7 +494,7 @@ export function StandaloneSetup({
                 {agentStatus === "online"
                   ? `Online (v${agentVersion ?? "latest"})${
                       agentLastHeartbeat
-                        ? ` • Heartbeat: ${new Date(agentLastHeartbeat).toLocaleTimeString()}`
+                        ? ` • Heartbeat: ${dates.time(agentLastHeartbeat)}`
                         : ""
                     }`
                   : agentStatus === "offline"
