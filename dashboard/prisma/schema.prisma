@@ -206,6 +206,9 @@ model RolloutOutcome {
   status           RolloutStatus   @default(PENDING)
   readyAt          DateTime?
   previousSha      String?
+  rollbackExecutor String   @default("server")
+  rollbackRequestedAt DateTime?
+  rollbackStartedAt DateTime?
   threshold        Float
   window           Int
   startedAt        DateTime        @default(now())

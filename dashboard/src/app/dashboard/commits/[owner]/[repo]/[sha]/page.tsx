@@ -124,6 +124,8 @@ export default async function CommitPipelinePage(props: {
               reason: rollout.reason,
               rolledBack: rollout.rolledBack,
               rollbackVerified: rollout.rollbackVerified,
+              rollbackRequestedAt: rollout.rollbackRequestedAt,
+              rollbackStartedAt: rollout.rollbackStartedAt,
               threshold: rollout.threshold,
               startedAt: rollout.startedAt,
               finishedAt: rollout.finishedAt,

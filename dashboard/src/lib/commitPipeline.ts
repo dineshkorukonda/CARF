@@ -23,6 +23,8 @@ export function rollbackDecision(input: {
   hasVector: boolean;
   rolloutStatus: "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED" | null;
   reason: string | null;
+  rollbackRequestedAt?: Date | string | null;
+  rollbackStartedAt?: Date | string | null;
 }): RollbackDecision {
   if (!input.hasVector) {
     return {
@@ -39,6 +41,13 @@ export function rollbackDecision(input: {
     };
   }
   if (input.rolloutStatus === "PENDING") {
+    if (input.rollbackRequestedAt) {
+      return {
+        kind: "observing",
+        title: input.rollbackStartedAt ? "GitHub Actions is rolling back" : "Rollback required — awaiting GitHub Actions",
+        detail: input.reason || "The rollback job will restore the previous revision and verify its health.",
+      };
+    }
     return {
       kind: "observing",
       title: "Observing — rollback not decided yet",

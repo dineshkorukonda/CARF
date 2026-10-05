@@ -15,7 +15,7 @@ export interface RollbackAdapter {
   /** Put `sha` live on the host so soak/health see that commit, not whatever was already running. */
   applyRelease?(sha: string, target?: string): Promise<void>;
   /** Capture the actual deployed revision before changing files, for durable rollback. */
-  getCurrentRevision?(): Promise<string>;
+  getCurrentRevision?(captureForRollback?: boolean): Promise<string>;
   rollbackWithVerification?(
     target?: string,
     graceSeconds?: number

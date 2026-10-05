@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { load } from "js-yaml";
 import { describe, expect, it } from "vitest";
 import { renderCarfWorkflow } from "../../src/lib/githubActionsWorkflow";
@@ -9,7 +11,20 @@ const parsed = load(renderCarfWorkflow({ coreApiUrl: "https://carf.example.com",
 const steps = parsed.jobs["carf-deploy"]!.steps;
 
 describe.skipIf(!existsSync(bash))("generated deployment Bash", () => {
-  it.each(steps)("parses $name with Bash", (step) => {
+  it("hands a required rollback to a separate job", () => {
+    const fixtures = `curl() { printf 200; }\njq() { if [ "$2" = ".status" ]; then printf ROLLBACK_REQUIRED; else printf rollout-123; fi; }\nsleep() { :; }\n`;
+    const root = mkdtempSync(join(tmpdir(), "carf-workflow-"));
+    try {
+      const result = spawnSync(bash, [], { cwd: root, input: fixtures + steps[2]!.run, encoding: "utf8", timeout: 3000, env: { ...process.env, CARF_API_URL: "https://carf.example.com", CARF_API_KEY: "fixture", CARF_OWNER: "acme", CARF_REPO: "app", CARF_SHA: "a".repeat(40), GITHUB_OUTPUT: "outputs.txt" } });
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(readFileSync(join(root, "outputs.txt"), "utf8")).toContain("rollback_id=rollout-123");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+    expect(parsed.jobs["carf-rollback"]!.steps[0]!.run).toContain('--data \'{"automatic":true}\'');
+  });
+  it.each(Object.values(parsed.jobs).flatMap((job) => job.steps))("parses $name with Bash", (step) => {
     const result = spawnSync(bash, ["-n"], { input: step.run, encoding: "utf8" });
     expect(result.stderr).toBe("");
     expect(result.status).toBe(0);
