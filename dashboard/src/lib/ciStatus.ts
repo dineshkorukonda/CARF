@@ -19,6 +19,7 @@ export function commitCiStage(sha: string, ci?: CiSnapshot): string {
     if (run.conclusion === "skipped") return "CI skipped";
     return "CI failed";
   }
+  if (run && run.status !== "completed") return run.status === "in_progress" ? "CI running" : "CI queued";
   const deployment = ci.deployments?.[sha];
   if (deployment?.status === "in_progress") return "Deployment running";
   if (deployment?.status === "queued") return "Deployment queued";
@@ -34,6 +35,8 @@ export function commitCiStage(sha: string, ci?: CiSnapshot): string {
 }
 
 export function ciIsActive(ci?: CiSnapshot): boolean {
-  return !!ci && !ci.unavailable && !!ci.headSha &&
+  if (!ci || ci.unavailable) return false;
+  if (Object.values(ci.runs).some((run) => run.status !== "completed")) return true;
+  return !!ci.headSha &&
     ["Waiting for CI", "CI running", "CI queued", "Waiting for deployment", "Deployment running", "Deployment queued"].includes(commitCiStage(ci.headSha, ci));
 }
