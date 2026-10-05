@@ -9,7 +9,7 @@ export default async function DashboardLayout({ children }: Readonly<{ children:
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
 
-  const installations = await listInstallationsForAccount(prisma, account.id);
+  const installations = await listInstallationsForAccount(prisma, account.id, { prune: false });
 
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden">

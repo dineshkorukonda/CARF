@@ -20,6 +20,7 @@ export function createGithubInstallationExists(fetchFn: typeof fetch = fetch): I
     try {
       const jwt = signGithubAppJwt(env.githubAppId(), env.githubAppPrivateKey());
       const res = await fetchFn(`https://api.github.com/app/installations/${installationId}`, {
+        signal: AbortSignal.timeout(4000),
         headers: { Authorization: `Bearer ${jwt}`, Accept: "application/vnd.github+json" },
       });
       if (res.status === 404) return false;
