@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ActionsPm2Demo } from "./ActionsPm2Demo";
 import { getCurrentAccount } from "../lib/auth";
 import { Button } from "../components/ui/button";
 import { InstallCommandBox } from "../components/InstallCommandBox";
@@ -93,6 +94,7 @@ export default async function HomePage() {
             </Link>
 
             <nav className="hidden sm:flex items-center gap-4 text-xs font-medium text-muted-foreground">
+              <a href="#actions-pm2-demo" className="transition-colors hover:text-foreground">Try demo</a>
               <a href="#how-it-works" className="transition-colors hover:text-foreground">
                 How it works
               </a>
@@ -154,8 +156,8 @@ export default async function HomePage() {
             <Button size="lg" render={<Link href={account ? "/dashboard" : "/login"} />}>
               {account ? "Go to Dashboard" : "Sign in with GitHub"} &rarr;
             </Button>
-            <Button size="lg" variant="outline" render={<a href="#how-it-works" />}>
-              How it works
+            <Button size="lg" variant="outline" render={<a href="#actions-pm2-demo" />}>
+              Try the deployment demo
             </Button>
           </div>
 
@@ -177,6 +179,8 @@ export default async function HomePage() {
               );
             })}
           </div>
+
+          <ActionsPm2Demo />
 
           {/* Feature Comparison */}
           <div className="mt-14 overflow-hidden rounded-xl border border-border bg-card text-left shadow-xs">
