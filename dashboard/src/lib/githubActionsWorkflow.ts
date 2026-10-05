@@ -11,7 +11,7 @@
 
 export const CARF_WORKFLOW_PATH = ".github/workflows/carf.yml";
 export const CARF_WORKFLOW_MARKER = "# CARF-MANAGED-WORKFLOW";
-export const CARF_WORKFLOW_VERSION = 2;
+export const CARF_WORKFLOW_VERSION = 3;
 /** Name of the GitHub Actions repository secret CARF configures automatically. */
 export const CARF_SECRET_NAME = "CARF_API_KEY";
 
@@ -75,6 +75,8 @@ concurrency:
 
 jobs:
   carf-deploy:
+    outputs:
+      rollback_id: \${{ steps.observe.outputs.rollback_id }}
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -111,16 +113,21 @@ jobs:
       - name: Deploy exact commit with CARF and PM2
         run: |
           set -euo pipefail
-          payload=$(jq -n --arg owner "$CARF_OWNER" --arg repo "$CARF_REPO" --arg branch "$CARF_BRANCH" --arg sha "$CARF_SHA" --argjson ciRunId "$CARF_CI_RUN_ID" '{owner:$owner,repo:$repo,branch:$branch,expectedSha:$sha,ciRunId:$ciRunId,observeLive:true}')
+          payload=$(jq -n --arg owner "$CARF_OWNER" --arg repo "$CARF_REPO" --arg branch "$CARF_BRANCH" --arg sha "$CARF_SHA" --argjson ciRunId "$CARF_CI_RUN_ID" '{owner:$owner,repo:$repo,branch:$branch,expectedSha:$sha,ciRunId:$ciRunId,observeLive:true,rollbackViaActions:true}')
           curl --fail-with-body -sS -X POST "$CARF_API_URL/v1/commits/refresh" \\
             -H "Authorization: Bearer $CARF_API_KEY" -H "Content-Type: application/json" \\
             --data "$payload" -o carf-deploy.json
           if [ "$(jq '.failed | length' carf-deploy.json)" != "0" ]; then
             jq -r '.failed[] | "::error::CARF deployment failed for \\(.sha): \\(.error)"' carf-deploy.json
-            exit 1
+            # A failed build can still require restoration by the rollback job.
+            curl --fail-with-body -sS -G "$CARF_API_URL/v1/rollouts/status" \\
+              --data-urlencode "owner=$CARF_OWNER" --data-urlencode "repo=$CARF_REPO" --data-urlencode "sha=$CARF_SHA" \\
+              -H "Authorization: Bearer $CARF_API_KEY" -o carf-rollout.json
+            if [ "$(jq -r '.status' carf-rollout.json)" != "ROLLBACK_REQUIRED" ]; then exit 1; fi
           fi
           echo "CARF deployment requested for $CARF_SHA"
       - name: Wait for observation and rollback decision
+        id: observe
         run: |
           set -euo pipefail
           for attempt in {1..300}; do
@@ -134,6 +141,11 @@ jobs:
               result=$(jq -r '.status' carf-rollout.json)
               case "$result" in
                 SUCCESS) echo "CARF verified $CARF_SHA healthy"; exit 0 ;;
+                ROLLBACK_REQUIRED)
+                  rollout_id=$(jq -er '.id | select(type == "string" and test("^[A-Za-z0-9_-]+$"))' carf-rollout.json)
+                  echo "rollback_id=$rollout_id" >> "$GITHUB_OUTPUT"
+                  echo "CARF requested rollback; handing execution to the rollback job"
+                  exit 0 ;;
                 ROLLED_BACK|FAILED) jq -r '"::error::CARF rollout " + .status + ": " + (.reason // "unknown reason")' carf-rollout.json; exit 1 ;;
               esac
             elif [ "$status" = "401" ]; then echo "::error::CARF authentication failed"; exit 1
@@ -143,6 +155,47 @@ jobs:
           done
           echo "::error::CARF did not finish observing $CARF_SHA in 25 minutes"
           exit 1
+
+  carf-rollback:
+    name: Rollback to previous healthy release
+    needs: carf-deploy
+    if: needs.carf-deploy.outputs.rollback_id != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARF_API_URL: ${url}
+      CARF_API_KEY: \${{ secrets.${CARF_SECRET_NAME} }}
+      CARF_ROLLOUT_ID: \${{ needs.carf-deploy.outputs.rollback_id }}
+    steps:
+      - name: Restore previous revision, rebuild, reload PM2, and verify health
+        run: |
+          set -euo pipefail
+          curl --fail-with-body --max-time 1100 -sS -X POST "$CARF_API_URL/v1/rollouts/$CARF_ROLLOUT_ID/rollback" \\
+            -H "Authorization: Bearer $CARF_API_KEY" -H "Content-Type: application/json" \\
+            --data '{"automatic":true}' -o carf-recovery.json
+          jq -e '.success == true and .status == "ROLLED_BACK"' carf-recovery.json >/dev/null
+          jq -r '.message' carf-recovery.json
+          echo "### Rollback completed and health verified" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.message' carf-recovery.json >> "$GITHUB_STEP_SUMMARY"
+
+  carf-result:
+    name: Deployment result
+    needs: [carf-deploy, carf-rollback]
+    if: always() && needs.carf-deploy.result != 'skipped'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_RESULT: \${{ needs.carf-deploy.result }}
+      ROLLBACK_ID: \${{ needs.carf-deploy.outputs.rollback_id }}
+      ROLLBACK_RESULT: \${{ needs.carf-rollback.result }}
+    steps:
+      - name: Report deployment outcome
+        run: |
+          if [ -n "$ROLLBACK_ID" ]; then
+            echo "::error::Deployment rejected; rollback job result: $ROLLBACK_RESULT"
+            exit 1
+          fi
+          if [ "$DEPLOY_RESULT" != "success" ]; then exit 1; fi
+          echo "Deployment promoted"
 `;
   return `${CARF_WORKFLOW_MARKER}
 # version: 1
@@ -238,6 +291,7 @@ export interface WorkflowChecks {
   referencesCarfApi: boolean;
   triggersDeployment: boolean;
   waitsForCi: boolean;
+  executesRollback: boolean;
 }
 
 /** Static verification that an installed workflow targets the expected CARF integration. */
@@ -249,5 +303,6 @@ export function checkWorkflowContent(content: string, coreApiUrl: string): Workf
     referencesCarfApi: content.includes(coreApiUrl.replace(/\/+$/, "")),
     triggersDeployment: content.includes("/v1/commits/refresh") && content.includes("observeLive:true"),
     waitsForCi: content.includes("workflow_run:") && content.includes("conclusion == 'success'"),
+    executesRollback: content.includes("carf-rollback:") && content.includes("rollbackViaActions:true") && content.includes('/rollback"') && content.includes('"automatic":true'),
   };
 }

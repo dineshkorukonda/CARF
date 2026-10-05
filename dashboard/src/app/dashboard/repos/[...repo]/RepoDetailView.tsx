@@ -68,6 +68,8 @@ export interface RolloutItem {
   rolledBack: boolean;
   reason: string | null;
   rollbackVerified: boolean | null;
+  rollbackRequestedAt?: Date | string | null;
+  rollbackStartedAt?: Date | string | null;
   samples?: SampleItem[];
 }
 
@@ -1674,7 +1676,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                                   : rollout.status === "ROLLED_BACK"
                                   ? "Rolled Back"
                                   : rollout.status === "PENDING"
-                                  ? "Observing"
+                                  ? rollout.rollbackStartedAt ? "Rolling back" : rollout.rollbackRequestedAt ? "Rollback required" : "Observing"
                                   : rollout.status}
                               </span>
 

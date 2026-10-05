@@ -22,12 +22,17 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
       threshold: number;
       window: number;
       previousSha?: string | null;
+      rollbackExecutor?: string;
+      rollbackRequestedAt?: Date | null;
+      rollbackStartedAt?: Date | null;
+      rollbackVerified?: boolean | null;
+      reason?: string | null;
       commit?: { baseSha: string; changeVector?: { data?: number } | null } | null;
     } | null>;
     update(args: {
       where: { id: string };
       data: {
-        status: "ROLLED_BACK";
+        status: "ROLLED_BACK" | "FAILED";
         trigger?: "manual" | "auto";
         rolledBack: boolean;
         reason: string;
@@ -35,6 +40,10 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
         finishedAt: Date;
       };
     }): Promise<unknown>;
+    updateMany?(args: {
+      where: { id: string; status: string; rollbackStartedAt: null };
+      data: { rollbackStartedAt: Date };
+    }): Promise<{ count: number }>;
   };
   repoConnection?: {
     findUnique(args: {
@@ -169,7 +178,7 @@ export async function registerRolloutRollbackRoute(
   const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as RolloutRollbackPrismaClient);
 
   // POST /v1/rollouts/:id/rollback — manual rollback triggered from UI
-  app.post<{ Params: { id: string }; Body: { actor?: string } }>(
+  app.post<{ Params: { id: string }; Body: { actor?: string; automatic?: boolean } }>(
     "/v1/rollouts/:id/rollback",
     { schema: rollbackSchema },
     async (request, reply) => {
@@ -190,7 +199,22 @@ export async function registerRolloutRollbackRoute(
 
       const owner = rollout.owner ?? "";
       const repo = rollout.repo ?? "";
-      const actor = request.body?.actor || "session_user";
+      const automatic = request.body?.automatic === true;
+      const actor = automatic ? "github_actions" : request.body?.actor || "session_user";
+      if (!automatic && rollout.status === "PENDING" && rollout.rollbackRequestedAt) {
+        return reply.code(409).send({ error: "Execute the pending rollback through the GitHub Actions rollback job" });
+      }
+      if (automatic) {
+        if (rollout.rollbackExecutor !== "github_actions" || !rollout.rollbackRequestedAt || !rollout.previousSha) {
+          return reply.code(409).send({ error: "No CARF rollback decision exists for this rollout" });
+        }
+        if (rollout.status === "ROLLED_BACK" && rollout.rollbackVerified === true) {
+          return reply.send({ success: true, rolloutId: rollout.id, status: "ROLLED_BACK", message: "Rollback already completed and verified" });
+        }
+        if (rollout.status !== "PENDING" || rollout.rollbackStartedAt) {
+          return reply.code(409).send({ error: "Rollback is already running or this rollout is terminal" });
+        }
+      }
 
       let adapterConfig = loadCarfConfig()?.adapter;
       // Verify repository connection has been verified
@@ -198,7 +222,7 @@ export async function registerRolloutRollbackRoute(
         const repoConn = await prismaClient.repoConnection.findUnique({
           where: { installationId_owner_repo: { installationId, owner, repo } },
         });
-        if (repoConn && !repoConn.verifiedAt) {
+        if (repoConn && !repoConn.verifiedAt && !automatic) {
           return reply.code(403).send({ error: "Cannot trigger rollback: repository connection is not verified" });
         }
         if (repoConn) adapterConfig = resolveRepoAdapterConfig(repoConn.storedConfig, undefined, adapterConfig);
@@ -232,11 +256,31 @@ export async function registerRolloutRollbackRoute(
       const buildAdapter = options.adapterFactory ?? defaultFactory;
       const adapter = buildAdapter(previousSha, targetName);
 
+      let claimed = false;
       try {
+        if (automatic) {
+          if (!adapter.getCurrentRevision || !adapter.rollbackWithVerification || !prismaClient.rolloutOutcome.updateMany) {
+            return reply.code(409).send({ error: "Actions rollback requires revision checks and verified recovery" });
+          }
+          const currentSha = await adapter.getCurrentRevision(false);
+          if (currentSha !== rollout.commitSha && currentSha !== previousSha) {
+            return reply.code(409).send({ error: "A different revision is deployed; refusing a stale rollback" });
+          }
+          const claim = await prismaClient.rolloutOutcome.updateMany({
+            where: { id: rollout.id, status: "PENDING", rollbackStartedAt: null },
+            data: { rollbackStartedAt: new Date() },
+          });
+          if (claim.count !== 1) return reply.code(409).send({ error: "Rollback is already claimed" });
+          claimed = true;
+        }
         let rollbackVerified: boolean | undefined = undefined;
         if (typeof adapter.rollbackWithVerification === "function") {
           const res = await adapter.rollbackWithVerification(targetName, carfConfig?.adapter?.startupGraceSeconds ?? 60);
           rollbackVerified = res.rollbackVerified;
+          if (automatic && !rollbackVerified) throw new Error("Previous revision was restored but its health check failed");
+          if (automatic && await adapter.getCurrentRevision!(false) !== previousSha) {
+            throw new Error("Recovery revision does not match the saved previous deployment");
+          }
         } else {
           await adapter.rollback(targetName);
         }
@@ -246,7 +290,7 @@ export async function registerRolloutRollbackRoute(
           typeof rollout.commit.changeVector.data === "number" &&
           rollout.commit.changeVector.data > 0
         );
-        let reason = `manual: triggered by ${actor}`;
+        let reason = automatic ? `${rollout.reason ?? "CARF requested rollback"}; executed by GitHub Actions` : `manual: triggered by ${actor}`;
         if (hasSchemaChange) {
           reason = `${reason}; schema not reverted`;
         }
@@ -256,7 +300,7 @@ export async function registerRolloutRollbackRoute(
           where: { id: rollout.id },
           data: {
             status: "ROLLED_BACK",
-            trigger: "manual",
+            trigger: automatic ? "auto" : "manual",
             rolledBack: true,
             reason,
             rollbackVerified: rollbackVerified ?? null,
@@ -271,7 +315,7 @@ export async function registerRolloutRollbackRoute(
               owner,
               repo,
               rolloutId: rollout.id,
-              action: "manual_rollback",
+              action: automatic ? "actions_rollback" : "manual_rollback",
               result: "success",
               details: { previousSha, rollbackVerified },
               ts: now,
@@ -295,9 +339,15 @@ export async function registerRolloutRollbackRoute(
           success: true,
           rolloutId: rollout.id,
           status: "ROLLED_BACK",
-          message: `Manual rollback to ${previousSha} executed successfully`,
+          message: `Rollback to ${previousSha} executed and health verified: ${rollbackVerified === true}`,
         });
       } catch (err) {
+        if (automatic && claimed) {
+          await prismaClient.rolloutOutcome.update({
+            where: { id: rollout.id },
+            data: { status: "FAILED", trigger: "auto", rolledBack: false, rollbackVerified: false, reason: `GitHub Actions rollback failed: ${(err as Error).message}`, finishedAt: new Date() },
+          });
+        }
         request.log.error({ err, id: rollout.id }, "manual rollback execution failed");
 
         if (prismaClient.rolloutAuditLog?.create) {
@@ -307,7 +357,7 @@ export async function registerRolloutRollbackRoute(
               owner,
               repo,
               rolloutId: rollout.id,
-              action: "manual_rollback",
+              action: automatic ? "actions_rollback" : "manual_rollback",
               result: "failed",
               details: { error: (err as Error).message },
               ts: new Date(),

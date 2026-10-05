@@ -64,7 +64,10 @@ describe.skipIf(process.env.CARF_TEST_REAL_PM2 !== "1")("real PM2 git rollback",
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
       expect((await adapter.checkHealth()).httpErrorRate).toBe(1);
-      const result = await adapter.rollbackWithVerification();
+      // Actions reconstructs the adapter from the persisted rollback baseline.
+      const recovery = new PM2Adapter(previousSha, { exec, layout: "git", cwd: root, buildCommand: "node build.cjs", target: "MIXEDCASEAPP", healthUrl: `http://127.0.0.1:${port}`, startupGraceSeconds: 15 });
+      expect(await recovery.getCurrentRevision(false)).toBe(failedSha);
+      const result = await recovery.rollbackWithVerification();
       expect(result.rollbackVerified).toBe(true);
       expect((await exec("git rev-parse HEAD")).stdout.trim()).toBe(previousSha);
       expect((await fetch(`http://127.0.0.1:${port}`)).status).toBe(200);

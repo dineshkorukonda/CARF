@@ -58,7 +58,7 @@ describe("renderCarfWorkflow", () => {
     expect(managed).toContain("/v1/rollouts/status");
     expect(managed).toContain("ROLLED_BACK|FAILED");
     expect(managed).not.toContain("github.sha");
-    expect(inspectExistingWorkflow(managed)).toEqual({ kind: "managed", version: 2 });
+    expect(inspectExistingWorkflow(managed)).toEqual({ kind: "managed", version: 3 });
   });
 
   it("rejects values that could break out of the YAML", () => {
@@ -165,7 +165,7 @@ describe("GitHubActionsIntegrationService", () => {
     t.ctx.connection = { mode: "standalone", storedConfig: { mode: "standalone", deploymentIntegration: "github_actions", runtimeAdapter: "pm2", target: "app", layout: "git", buildCommand: "npm ci && npm run build" } };
     const result = await t.service.install(t.ctx);
     expect(result.status).toBe("ready");
-    expect(result.workflowVersion).toBe(2);
+    expect(result.workflowVersion).toBe(3);
     expect(t.getFile()?.content).toContain("name: CARF PM2 Deployment");
     expect(result.checks?.find((check) => check.id === "ci-gate")?.ok).toBe(true);
   });

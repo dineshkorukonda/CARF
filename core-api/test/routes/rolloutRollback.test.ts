@@ -29,6 +29,7 @@ function createMockPrisma(options: {
         return null;
       }),
       update: vi.fn(async ({ data }: { data: any }) => data),
+      updateMany: vi.fn(async () => ({ count: 1 })),
     },
     repoConnection: {
       findUnique: vi.fn(async () => options.repoConnection ?? null),
@@ -45,6 +46,36 @@ function createMockPrisma(options: {
 }
 
 describe("POST /v1/rollouts/:id/rollback", () => {
+  it.each(["success", "no-decision", "stale-revision", "claimed", "unhealthy", "wrong-restored-revision"])("Actions rollback: %s", async (scenario) => {
+    const rollout = {
+      id: "actions-1", installationId: "inst-100", owner: "org", repo: "api",
+      commitSha: "bad", previousSha: "healthy", status: "PENDING",
+      rollbackExecutor: "github_actions", rollbackRequestedAt: scenario === "no-decision" ? null : new Date(),
+      rollbackStartedAt: null, reason: "Health check failed",
+    };
+    const prisma = createMockPrisma({ rolloutOutcome: rollout, repoConnection: { verifiedAt: null } });
+    if (scenario === "claimed") prisma.rolloutOutcome.updateMany.mockResolvedValue({ count: 0 });
+    const adapter = {
+      checkHealth: vi.fn(), rollback: vi.fn(),
+      getCurrentRevision: vi.fn().mockResolvedValueOnce(scenario === "stale-revision" ? "newer" : "bad").mockResolvedValue(scenario === "wrong-restored-revision" ? "bad" : "healthy"),
+      rollbackWithVerification: vi.fn().mockResolvedValue({ rollbackVerified: scenario !== "unhealthy" }),
+    };
+    const app = Fastify();
+    await registerRolloutRollbackRoute(app, { prismaClient: prisma as any, adapterFactory: () => adapter });
+    const res = await app.inject({ method: "POST", url: "/v1/rollouts/actions-1/rollback", headers: { authorization: `Bearer ${TEST_API_KEY}` }, payload: { automatic: true } });
+    if (scenario === "success") {
+      expect(res.statusCode).toBe(200);
+      expect(prisma.rolloutOutcome.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "ROLLED_BACK", trigger: "auto", rollbackVerified: true }) }));
+      expect(adapter.getCurrentRevision).toHaveBeenCalledWith(false);
+    } else if (scenario === "unhealthy" || scenario === "wrong-restored-revision") {
+      expect(res.statusCode).toBe(500);
+      expect(prisma.rolloutOutcome.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED", rollbackVerified: false }) }));
+    } else {
+      expect(res.statusCode).toBe(409);
+      expect(adapter.rollbackWithVerification).not.toHaveBeenCalled();
+    }
+    await app.close();
+  });
   it("returns 401 when unauthenticated", async () => {
     const app = Fastify();
     await registerRolloutRollbackRoute(app, { prismaClient: createMockPrisma() as any });

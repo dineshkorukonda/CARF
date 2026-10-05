@@ -63,6 +63,8 @@ export interface WebhookOrchestratorDeps {
   observeLive?: boolean;
   /** GitHub Actions owns the deploy trigger after its CI workflow succeeds. */
   deferGithubActionsDeployment?: boolean;
+  /** Opt-in only from a CI-verified managed workflow that supplies a rollback job. */
+  rollbackViaActions?: boolean;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -297,6 +299,9 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   const rolloutOutcomeClient =
     deps.rolloutOutcomePrismaClient ?? (defaultPrisma as unknown as RolloutOutcomePrismaClient);
 
+  const rollbackViaActions = deps.observeLive === true && deps.rollbackViaActions === true;
+  if (rollbackViaActions && !deps.rolloutMonitor) throw new Error("Actions rollback requires the rollout monitor");
+
   // Create PENDING RolloutOutcome row (idempotent per installationId, commitSha)
   let pendingOutcome: RolloutOutcomeRecord | undefined;
   try {
@@ -308,8 +313,14 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       threshold: result.finalThreshold,
       window: result.finalWindow,
     });
+    if (rollbackViaActions) {
+      pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({
+        where: { id: pendingOutcome.id }, data: { rollbackExecutor: "github_actions" },
+      });
+    }
   } catch (error) {
     deps.logger.error({ error, sha: target.headSha }, "failed to create pending rollout outcome");
+    if (rollbackViaActions) throw error;
   }
 
   const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
@@ -360,7 +371,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       deps.logger.error({ error, key, sha: target.headSha }, "failed to apply commit on the host before soak");
       let rollbackVerified: boolean | undefined;
       let recoveryReason = "";
-      if (capturedRevision && adapter.rollbackWithVerification) {
+      if (capturedRevision && adapter.rollbackWithVerification && !rollbackViaActions) {
         try {
           rollbackVerified = (await adapter.rollbackWithVerification(targetName, startupGraceSeconds)).rollbackVerified;
           recoveryReason = rollbackVerified ? "; previous deployment restored and verified" : "; recovery health verification failed";
@@ -371,14 +382,21 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       }
       if (pendingOutcome) {
         try {
-          const { finalizeRolloutOutcome } = await import("./adapters/rolloutOutcome.js");
-          await finalizeRolloutOutcome(rolloutOutcomeClient, {
-            id: pendingOutcome.id,
-            status: "FAILED",
-            rolledBack: rollbackVerified === true,
-            rollbackVerified,
-            reason: (error instanceof Error ? error.message : String(error)) + recoveryReason,
-          });
+          if (rollbackViaActions && capturedRevision) {
+            await rolloutOutcomeClient.rolloutOutcome.update({
+              where: { id: pendingOutcome.id },
+              data: { rollbackRequestedAt: new Date(), reason: `Deployment failed: ${error instanceof Error ? error.message : String(error)}` },
+            });
+          } else {
+            const { finalizeRolloutOutcome } = await import("./adapters/rolloutOutcome.js");
+            await finalizeRolloutOutcome(rolloutOutcomeClient, {
+              id: pendingOutcome.id,
+              status: "FAILED",
+              rolledBack: rollbackVerified === true,
+              rollbackVerified,
+              reason: (error instanceof Error ? error.message : String(error)) + recoveryReason,
+            });
+          }
         } catch (finalizeError) {
           deps.logger.error({ error: finalizeError, key }, "failed to record applyRelease failure");
         }

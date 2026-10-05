@@ -424,6 +424,7 @@ export class GitHubActionsIntegrationService {
         if (this.managesPm2(ctx)) {
           checks.push({ id: "ci-gate", label: "Workflow waits for successful CI", ok: c.waitsForCi });
           checks.push({ id: "deployment", label: "Workflow triggers CARF PM2 deployment", ok: c.triggersDeployment });
+          checks.push({ id: "rollback-job", label: "GitHub Actions executes and verifies rollback", ok: c.executesRollback, detail: c.executesRollback ? "A dedicated rollback job restores the saved revision." : "Run Reconfigure to install the rollback job." });
         }
         const urlMatch = file.content.match(/CARF_API_URL:\s*(\S+)/);
         const workflowUrl = urlMatch?.[1] ?? "";

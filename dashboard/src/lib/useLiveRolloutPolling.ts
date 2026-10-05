@@ -17,6 +17,8 @@ export interface LiveRolloutItem {
   rolledBack: boolean;
   reason: string | null;
   rollbackVerified: boolean | null;
+  rollbackRequestedAt?: Date | string | null;
+  rollbackStartedAt?: Date | string | null;
   samples?: RolloutSampleItem[];
 }
 

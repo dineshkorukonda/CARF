@@ -85,6 +85,7 @@ const app = buildApp({
         logger: app.log,
         rolloutMonitor,
         observeLive: classifyOptions?.observeLive === true,
+        rollbackViaActions: classifyOptions?.rollbackViaActions === true,
       }),
   },
 });

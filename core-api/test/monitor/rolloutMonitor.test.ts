@@ -72,6 +72,25 @@ function createFakePrisma(
 }
 
 describe("RolloutMonitor State Machine", () => {
+  it("persists an Actions rollback decision without executing it, including after restart", async () => {
+    const outcome: RolloutOutcomeRecord = {
+      id: "actions", commitSha: "bad", previousSha: "healthy", rollbackExecutor: "github_actions",
+      status: "PENDING", threshold: 0.05, window: 10, startedAt: new Date(0),
+      rolledBack: false, createdAt: new Date(0), updatedAt: new Date(0),
+    };
+    const prisma = createFakePrisma([outcome]);
+    const adapter = { checkHealth: vi.fn().mockResolvedValue({ errorRate: 1, healthy: false, processErrorRate: 1 }), rollback: vi.fn() };
+    const monitor = new RolloutMonitor({ prismaClient: prisma, logger: { info: vi.fn(), error: vi.fn() }, now: () => new Date(1000) });
+    await monitor.enqueue(outcome, adapter);
+    const saved = prisma.outcomes.get("actions")!;
+    expect(saved.status).toBe("PENDING");
+    expect(saved.rollbackRequestedAt).toEqual(new Date(1000));
+    expect(saved.rolledBack).toBe(false);
+    expect(adapter.rollback).not.toHaveBeenCalled();
+    await monitor.recoverPending(() => adapter);
+    expect(adapter.checkHealth).toHaveBeenCalledTimes(1);
+    expect(adapter.rollback).not.toHaveBeenCalled();
+  });
   const fakeLogger = {
     info: vi.fn(),
     error: vi.fn(),

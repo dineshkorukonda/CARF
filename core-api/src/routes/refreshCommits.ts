@@ -18,13 +18,14 @@ export interface RefreshCommitsPrismaClient extends InstallationAuthPrismaClient
   rolloutOutcome?: {
     findFirst(args: {
       where: { installationId: string; owner: string; repo: string; commitSha: string };
-    }): Promise<{ id: string; status?: string; reason?: string | null; rollbackVerified?: boolean | null; finalErrorRate?: number | null } | null>;
+    }): Promise<{ id: string; status?: string; reason?: string | null; rollbackVerified?: boolean | null; finalErrorRate?: number | null; previousSha?: string | null; rollbackRequestedAt?: Date | null; rollbackStartedAt?: Date | null } | null>;
   };
 }
 
 export interface ClassifyCommitOptions {
   /** True only for the branch tip: start soak/rollback. Historical SHAs stay classify-only. */
   observeLive?: boolean;
+  rollbackViaActions?: boolean;
 }
 
 export interface RefreshCommitsRouteOptions {
@@ -47,6 +48,7 @@ interface RefreshBody {
   observeLive?: unknown;
   expectedSha?: unknown;
   ciRunId?: unknown;
+  rollbackViaActions?: unknown;
 }
 
 /**
@@ -141,7 +143,7 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
             installationId,
             event: "push",
           },
-          { observeLive: watchTip },
+          { observeLive: watchTip, ...(watchTip && body.rollbackViaActions === true ? { rollbackViaActions: true } : {}) },
         );
         pulled.push({ sha: commit.sha, baseSha: commit.parentSha });
         if (watchTip) {
@@ -175,7 +177,7 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
               installationId,
               event: "push",
             },
-            { observeLive: true },
+            { observeLive: true, ...(body.rollbackViaActions === true ? { rollbackViaActions: true } : {}) },
           );
           soakSha = tip.sha;
         } catch (error) {
@@ -202,6 +204,9 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
     if (!owner || !repo || !/^[0-9a-f]{40}$/i.test(sha)) return reply.code(400).send({ error: "owner, repo, and full sha are required" });
     const outcome = await prismaClient.rolloutOutcome?.findFirst({ where: { installationId, owner, repo, commitSha: sha } });
     if (!outcome) return reply.code(404).send({ error: "rollout not found" });
-    return reply.send({ status: outcome.status ?? "PENDING", reason: outcome.reason ?? null, rollbackVerified: outcome.rollbackVerified ?? null, finalErrorRate: outcome.finalErrorRate ?? null });
+    const status = outcome.status === "PENDING" && outcome.rollbackRequestedAt
+      ? (outcome.rollbackStartedAt ? "ROLLING_BACK" : "ROLLBACK_REQUIRED")
+      : outcome.status ?? "PENDING";
+    return reply.send({ id: outcome.id, previousSha: outcome.previousSha ?? null, status, reason: outcome.reason ?? null, rollbackVerified: outcome.rollbackVerified ?? null, finalErrorRate: outcome.finalErrorRate ?? null });
   });
 }

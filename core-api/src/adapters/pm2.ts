@@ -371,13 +371,13 @@ export class PM2Adapter implements RollbackAdapter {
     };
   }
 
-  async getCurrentRevision(): Promise<string> {
+  async getCurrentRevision(captureForRollback = true): Promise<string> {
     const command = this.layout === "git"
       ? `${this.cwd ? `cd ${this.cwd} && ` : ""}git rev-parse HEAD`
       : `basename $(readlink -f ${this.currentSymlink})`;
     const revision = (await this.executor.exec(command)).stdout.trim();
     if (!/^[0-9a-f]{40}$/i.test(revision)) throw new Error("Cannot identify the deployed PM2 revision; deployment skipped");
-    this.previousSha = revision;
+    if (captureForRollback) this.previousSha = revision;
     return revision;
   }
 

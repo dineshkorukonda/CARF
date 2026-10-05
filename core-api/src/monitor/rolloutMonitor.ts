@@ -101,6 +101,11 @@ export class RolloutMonitor {
     let recoveredCount = 0;
 
     for (const outcome of pendingOutcomes) {
+      // A durable Actions request must survive a core restart without being
+      // reclassified as healthy or executed by the server monitor.
+      if (outcome.rollbackExecutor === "github_actions" && outcome.rollbackRequestedAt) {
+        continue;
+      }
       const startTime = outcome.readyAt ? new Date(outcome.readyAt).getTime() : new Date(outcome.startedAt).getTime();
       const elapsedSeconds = Math.max(0, Math.floor((currentTime - startTime) / 1000));
       const remainingSeconds = outcome.window - elapsedSeconds;
@@ -108,6 +113,10 @@ export class RolloutMonitor {
       const adapter = factory ? await factory(outcome) : undefined;
 
       if (!adapter) {
+        if (outcome.rollbackExecutor === "github_actions") {
+          this.logger.error({ id: outcome.id }, "cannot recover Actions deployment without its runtime adapter");
+          continue;
+        }
         if (remainingSeconds <= 0) {
           // Expired while offline without an adapter: finalize as SUCCESS
           await finalizeRolloutOutcome(this.prisma, {
@@ -132,6 +141,11 @@ export class RolloutMonitor {
         try {
           const health = await adapter.checkHealth();
           if (health.errorRate >= outcome.threshold) {
+            if (outcome.rollbackExecutor === "github_actions") {
+              await this.handleRollback(outcome, adapter, undefined, health.errorRate, "Health breach during boot recovery", 60);
+              recoveredCount++;
+              continue;
+            }
             let rollbackVerified: boolean | undefined = undefined;
             if (typeof adapter.rollbackWithVerification === "function") {
               const res = await adapter.rollbackWithVerification(undefined, 60);
@@ -390,6 +404,14 @@ export class RolloutMonitor {
     baseReason: string,
     startupGraceSeconds?: number
   ): Promise<void> {
+    if (outcome.rollbackExecutor === "github_actions") {
+      await this.prisma.rolloutOutcome.update({
+        where: { id: outcome.id },
+        data: { rollbackRequestedAt: this.now(), reason: baseReason, finalErrorRate: lastErrorRate },
+      });
+      this.logger.info({ id: outcome.id }, "rollback requested; awaiting GitHub Actions rollback job");
+      return;
+    }
     let rollbackVerified: boolean | undefined = undefined;
     if (typeof adapter.rollbackWithVerification === "function") {
       const verifyResult = await adapter.rollbackWithVerification(targetName, startupGraceSeconds);

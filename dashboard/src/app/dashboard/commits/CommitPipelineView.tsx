@@ -58,6 +58,8 @@ export interface CommitPipelineData {
     reason: string | null;
     rolledBack: boolean;
     rollbackVerified: boolean | null;
+    rollbackRequestedAt?: Date | string | null;
+    rollbackStartedAt?: Date | string | null;
     threshold: number;
     startedAt: Date | string;
     finishedAt: Date | string | null;
@@ -89,6 +91,8 @@ export function CommitPipelineView(data: CommitPipelineData) {
     hasVector: Boolean(data.vector),
     rolloutStatus: data.rollout?.status ?? null,
     reason: data.rollout?.reason ?? null,
+    rollbackRequestedAt: data.rollout?.rollbackRequestedAt,
+    rollbackStartedAt: data.rollout?.rollbackStartedAt,
   });
   const steps = pipelineSteps({
     hasCommit: true,
