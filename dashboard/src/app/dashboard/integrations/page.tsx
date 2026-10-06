@@ -5,16 +5,12 @@ import Link from "next/link";
 import {
   Layers,
   CheckCircle2,
-  AlertTriangle,
   Play,
   Copy,
   Download,
   Terminal,
   ExternalLink,
-  ShieldCheck,
-  Server,
   Activity,
-  ArrowRight,
   RefreshCw,
   Sliders,
   Check,
@@ -740,6 +736,26 @@ WantedBy=multi-user.target
                   type="text"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Repository Slug (owner/repo)</label>
+                <input
+                  type="text"
+                  value={repoSlug}
+                  onChange={(e) => setRepoSlug(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">API Key / Token</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
                   className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
                 />
               </div>
