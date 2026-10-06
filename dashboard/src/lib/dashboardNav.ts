@@ -1,18 +1,19 @@
 export const DASHBOARD_NAV_ITEMS = [
   { href: "/dashboard", exact: true, label: "Repositories" },
-  { href: "/dashboard/settings", exact: false, label: "GitHub App / Integrations" },
+  { href: "/dashboard/integrations", exact: false, label: "Integrations" },
+  { href: "/dashboard/settings", exact: false, label: "Settings" },
 ] as const;
 
 export const DASHBOARD_NAV_GROUPS = [
   {
     id: "product",
     label: "Product",
-    items: [DASHBOARD_NAV_ITEMS[0]],
+    items: [DASHBOARD_NAV_ITEMS[0], DASHBOARD_NAV_ITEMS[1]],
   },
   {
     id: "configuration",
     label: "Configuration",
-    items: [DASHBOARD_NAV_ITEMS[1]],
+    items: [DASHBOARD_NAV_ITEMS[2]],
   },
 ] as const;
 
@@ -49,25 +50,29 @@ export function repoSetupHref(owner: string, repo: string, opts?: { edit?: boole
   return opts?.edit ? `${href}&edit=1` : href;
 }
 
-export function projectPageHref(owner: string, repo: string): string {
-  return `/dashboard/repos/${owner}/${repo}`;
-}
+export const PROJECT_SECTIONS = [
+  "overview",
+  "commits",
+  "rollouts",
+  "activity",
+  "settings",
+] as const;
 
-export const PROJECT_SECTIONS = ["overview", "commits", "rollouts", "activity", "settings"] as const;
 export type ProjectSection = (typeof PROJECT_SECTIONS)[number];
+
+export function projectPageHref(owner: string, repo: string): string {
+  return `/dashboard/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+}
 
 export function projectSectionHref(owner: string, repo: string, section: ProjectSection): string {
   const base = projectPageHref(owner, repo);
   return section === "overview" ? base : `${base}?view=${section}`;
 }
 
-export function commitPageHref(owner: string, repo: string, sha: string): string {
-  return `/dashboard/commits/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(sha)}`;
+export function projectCommitsHref(owner: string, repo: string): string {
+  return projectSectionHref(owner, repo, "commits");
 }
 
-export function projectCommitsHref(installationId: string, repoFullName: string): string | null {
-  const installation = installationId.trim();
-  const repo = repoFullName.trim();
-  if (!installation || !repo) return null;
-  return `/dashboard/status/${installation}?repo=${encodeURIComponent(repo)}`;
+export function commitPageHref(owner: string, repo: string, sha: string): string {
+  return `/dashboard/commits/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(sha)}`;
 }
