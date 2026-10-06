@@ -2,6 +2,8 @@ import type { DeploymentIntegration, RuntimeAdapter } from "./contracts.js";
 import { PM2Adapter, type PM2AdapterOptions } from "./pm2.js";
 import { DockerAdapter, type DockerAdapterOptions } from "./docker.js";
 import { KubernetesAdapter, type KubernetesAdapterOptions } from "./kubernetes.js";
+import { SystemdAdapter, type SystemdAdapterOptions } from "./systemd.js";
+import { PromQLAdapter, type PromQLAdapterOptions } from "./promql.js";
 import { NoneRuntimeAdapter } from "./none.js";
 import { GitHubActionsIntegration, type GitHubActionsIntegrationOptions } from "./githubActions.js";
 import { GenericHttpIntegration, type GenericHttpIntegrationOptions } from "./genericHttp.js";
@@ -10,7 +12,7 @@ import { FlaggerIntegration, type FlaggerIntegrationOptions } from "./flagger.js
 
 export interface DetectionResult {
   recommendedIntegration: "github_actions" | "argo_rollouts" | "flagger" | "generic_http";
-  recommendedRuntime: "pm2" | "docker" | "kubernetes" | "none";
+  recommendedRuntime: "pm2" | "docker" | "kubernetes" | "systemd" | "none";
   reasons: string[];
 }
 
@@ -38,10 +40,27 @@ export function createRuntimeAdapter(
     case "k8s":
       return new KubernetesAdapter(baseSha, options as KubernetesAdapterOptions);
 
+    case "systemd":
+      return new SystemdAdapter(baseSha, options as SystemdAdapterOptions);
+
     case "none":
     default:
       return new NoneRuntimeAdapter();
   }
+}
+
+/**
+ * Creates a Health Telemetry Adapter (e.g. PromQL) based on the adapter kind.
+ */
+export function createHealthAdapter(
+  kind: string,
+  options: Record<string, unknown> = {}
+): PromQLAdapter | null {
+  const normalized = kind.toLowerCase().trim();
+  if (normalized === "promql" || normalized === "prometheus") {
+    return new PromQLAdapter(options as unknown as PromQLAdapterOptions);
+  }
+  return null;
 }
 
 /**
@@ -118,6 +137,9 @@ export function detectRepositoryAdapters(files: string[]): DetectionResult {
   const hasPm2 = lowerFiles.some(
     (f) => f.includes("ecosystem.config") || f.includes("pm2.config")
   );
+  const hasSystemd = lowerFiles.some(
+    (f) => f.endsWith(".service") || f.includes("systemd/")
+  );
 
   if (hasK8s || recommendedIntegration === "argo_rollouts" || recommendedIntegration === "flagger") {
     recommendedRuntime = "kubernetes";
@@ -128,6 +150,9 @@ export function detectRepositoryAdapters(files: string[]): DetectionResult {
   } else if (hasPm2) {
     recommendedRuntime = "pm2";
     reasons.push("Detected PM2 ecosystem configuration");
+  } else if (hasSystemd) {
+    recommendedRuntime = "systemd";
+    reasons.push("Detected systemd unit service configuration");
   } else {
     recommendedRuntime = "none";
     reasons.push("No explicit host runtime configuration detected; policy-only gating selected");
