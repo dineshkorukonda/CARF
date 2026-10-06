@@ -96,13 +96,18 @@ export interface RepoInfo {
   fullName: string;
 }
 
-/** CI-gated PM2 deployment currently requires an active workflow named CI. */
-export async function hasDeploymentCi(token: string, owner: string, repo: string, fetchFn: FetchFn = fetch): Promise<boolean> {
+/** CI-gated PM2 deployment checks for an active CI workflow matching configured or standard CI names. */
+export async function hasDeploymentCi(token: string, owner: string, repo: string, fetchFn: FetchFn = fetch, targetWorkflowName?: string): Promise<boolean> {
+  const isCiName = (name: string) => {
+    if (targetWorkflowName && name.toLowerCase() === targetWorkflowName.toLowerCase()) return true;
+    const lower = name.toLowerCase();
+    return lower === "ci" || lower === "build" || lower === "test" || lower === "build and test" || lower === "continuous integration";
+  };
   for (let page = 1; page <= 10; page++) {
     const res = await call(fetchFn, `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows?per_page=100&page=${page}`, { headers: headers(token) });
     if (!res.ok) throw await failure(res, "read CI workflows (Actions: Read)");
     const body = await res.json() as { workflows: Array<{ name: string; state: string }> };
-    if (body.workflows.some((workflow) => workflow.name === "CI" && workflow.state === "active")) return true;
+    if (body.workflows.some((workflow) => isCiName(workflow.name) && workflow.state === "active")) return true;
     if (body.workflows.length < 100) return false;
   }
   return false;
