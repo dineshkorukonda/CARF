@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: carf-error-rate-analysis
+  namespace: carf-test
+  labels:
+    app.kubernetes.io/part-of: carf
+spec:
+  metrics:
+    - name: success-rate
+      interval: 5s
+      count: 3
+      failureLimit: 1
+      provider:
+        web:
+          url: "http://sample-k8s-app-svc.carf-test.svc.cluster.local:8080/health"
+          timeoutSeconds: 3
+          jsonPath: "{$.status}"
+      successCondition: result == "ok"
