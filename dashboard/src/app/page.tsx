@@ -7,7 +7,6 @@ import {
   Activity,
   Cpu,
   RotateCcw,
-  Terminal,
   ShieldCheck,
   Server,
   Zap,
@@ -15,7 +14,6 @@ import {
   Layers,
   CheckCircle2,
   Sliders,
-  Sparkles,
   ArrowRight,
   Code2,
   Box,
@@ -112,7 +110,7 @@ const RUNTIMES = [
     name: "PM2 Process Manager",
     tag: "Host Daemon",
     desc: "Zero-downtime cluster reloads, memory leak monitoring, and automated restore.",
-    icon: Terminal,
+    icon: Server,
   },
   {
     name: "Argo Rollouts",
@@ -158,19 +156,15 @@ export default async function HomePage() {
               </span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-muted-foreground">
+            <nav className="hidden md:flex items-center gap-6 text-xs font-medium text-muted-foreground">
               <a href="#features" className="transition-colors hover:text-foreground">
                 Features
               </a>
-              <Link href="/dashboard/integrations" className="transition-colors hover:text-foreground flex items-center gap-1">
-                <span>Integrations</span>
-                <span className="text-[10px] px-1 py-0.2 rounded bg-primary/10 text-primary font-semibold">8 Runtimes</span>
-              </Link>
+              <a href="#install-server" className="transition-colors hover:text-foreground">
+                Host Setup
+              </a>
               <a href="#how-it-works" className="transition-colors hover:text-foreground">
                 How It Works
-              </a>
-              <a href="#install-server" className="transition-colors hover:text-foreground">
-                Host Agent
               </a>
               <a
                 href="https://github.com/dineshkorukonda/CARF"
@@ -216,14 +210,6 @@ export default async function HomePage() {
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 w-[600px] h-[350px] bg-primary/10 blur-[130px] rounded-full pointer-events-none" />
 
           <div className="mx-auto max-w-5xl px-6 text-center">
-            {/* Eyebrow Pill */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card/60 backdrop-blur-xs text-xs font-medium text-muted-foreground shadow-2xs mb-6">
-              <Sparkles className="size-3.5 text-primary" />
-              <span className="font-semibold text-foreground">CARF v1.4</span>
-              <span className="text-border">•</span>
-              <span>Automated Deployment Resilience</span>
-            </div>
-
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl text-foreground leading-[1.12]">
               Deployments that know
               <span className="block text-primary mt-1.5">when to roll themselves back.</span>
@@ -502,7 +488,7 @@ export default async function HomePage() {
                   Works with your existing stack
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground max-w-xl">
-                  Whether you run cloud-native Kubernetes clusters, bare-metal systemd services, or containerized Docker stacks, CARF integrates seamlessly.
+                  Whether you run cloud-native Kubernetes clusters, containerized Docker stacks, or bare-metal Linux services, CARF integrates seamlessly.
                 </p>
               </div>
 
@@ -585,21 +571,21 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* 1-Line Server Install Section */}
+        {/* Docker & Host Install Section */}
         <section id="install-server" className="border-t border-border py-20">
           <div className="mx-auto max-w-5xl px-6">
             <div className="rounded-2xl border border-border bg-card p-6 sm:p-8 shadow-xs">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="flex items-center gap-1.5 text-xs font-mono font-medium uppercase tracking-wider text-primary">
-                    <Terminal className="size-3.5" />
-                    <span>Host-Colocated Daemon</span>
+                    <Box className="size-3.5" />
+                    <span>Docker &amp; Host Daemon</span>
                   </div>
-                  <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground">
-                    Deploy the lightweight daemon on any server
+                  <h2 className="mt-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                    Run CARF on any server in seconds
                   </h2>
                   <p className="mt-1 text-xs text-muted-foreground max-w-xl leading-relaxed">
-                    Install CARF directly alongside your workloads. The daemon manages local rollbacks over HTTPS with zero database credentials or privileges on your host.
+                    Deploy with a single Docker command or lightweight shell script. The agent manages local rollbacks over HTTPS with zero database credentials or root privileges.
                   </p>
                 </div>
                 <div className="shrink-0">
@@ -611,9 +597,9 @@ export default async function HomePage() {
               </div>
 
               <div className="mt-6">
-                <InstallCommandBox command="curl -fsSL https://carf.indevs.in/install.sh | bash" />
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                  <span>Self-contained background service with auto-restart on crashes or reboot.</span>
+                <InstallCommandBox initialTab="docker" />
+                <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>Isolated container execution with automatic healthcheck verification and reboot persistence.</span>
                   <Link
                     href={account ? "/dashboard/setup" : "/login"}
                     className="font-medium text-foreground underline underline-offset-2 hover:text-primary transition-colors"
@@ -626,6 +612,15 @@ export default async function HomePage() {
               <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 text-xs">
                 <div className="rounded-lg border border-border bg-muted/20 p-3.5">
                   <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                    <Box className="size-3.5 text-blue-500" />
+                    <span>1-Command Docker Setup</span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Zero host dependencies or Node runtime required. Runs isolated via Docker CLI or Compose.
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/20 p-3.5">
+                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
                     <ShieldCheck className="size-3.5 text-emerald-500" />
                     <span>Zero DB Credentials</span>
                   </div>
@@ -636,19 +631,10 @@ export default async function HomePage() {
                 <div className="rounded-lg border border-border bg-muted/20 p-3.5">
                   <div className="flex items-center gap-1.5 font-semibold text-foreground">
                     <Server className="size-3.5 text-primary" />
-                    <span>Multi-Runtime Daemon</span>
+                    <span>Multi-Runtime Recovery</span>
                   </div>
                   <div className="mt-1 text-[11px] text-muted-foreground">
-                    Automatically supervises Linux systemd services, PM2 apps, or Docker containers.
-                  </div>
-                </div>
-                <div className="rounded-lg border border-border bg-muted/20 p-3.5">
-                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <Zap className="size-3.5 text-amber-500" />
-                    <span>Preflight Health Checks</span>
-                  </div>
-                  <div className="mt-1 text-[11px] text-muted-foreground">
-                    Validates process targets, HTTP probe reachability, and rollback permissions before releasing.
+                    Supervises Docker containers, Kubernetes deployments, systemd services, or PM2 apps.
                   </div>
                 </div>
               </div>
