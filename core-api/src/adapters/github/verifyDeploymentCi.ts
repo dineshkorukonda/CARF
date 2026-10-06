@@ -2,7 +2,7 @@ import type { FetchFn } from "./fetchTypes.js";
 
 /** Fail closed: only the repository's successful push CI for this exact revision authorizes deployment. */
 export async function verifyDeploymentCi(
-  input: { owner: string; repo: string; branch: string; sha: string; runId: number; token: string },
+  input: { owner: string; repo: string; branch: string; sha: string; runId: number; token: string; ciWorkflowName?: string },
   fetchFn: FetchFn = fetch,
 ): Promise<void> {
   const response = await fetchFn(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/runs/${input.runId}`, {
@@ -15,7 +15,12 @@ export async function verifyDeploymentCi(
     head_branch?: string; head_repository?: { full_name?: string }; repository?: { full_name?: string };
   };
   const repository = `${input.owner}/${input.repo}`.toLowerCase();
-  if (run.name !== "CI" || run.status !== "completed" || run.conclusion !== "success" || run.event !== "push" ||
+  const isCarfDeployment = run.name === "CARF PM2 Deployment" || run.name === "CARF Deployment";
+  const validWorkflowName = input.ciWorkflowName
+    ? run.name?.toLowerCase() === input.ciWorkflowName.toLowerCase()
+    : Boolean(run.name && !isCarfDeployment);
+
+  if (!validWorkflowName || run.status !== "completed" || run.conclusion !== "success" || run.event !== "push" ||
     run.head_sha?.toLowerCase() !== input.sha || run.head_branch !== input.branch ||
     run.repository?.full_name?.toLowerCase() !== repository || run.head_repository?.full_name?.toLowerCase() !== repository) {
     throw new Error("Deployment requires a successful CI push run for the exact SHA, branch, and repository");

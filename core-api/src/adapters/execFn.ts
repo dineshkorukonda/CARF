@@ -25,15 +25,17 @@ export class LocalCommandExecutor implements CommandExecutor {
   }
 }
 
-const TARGET_REGEX = /^[a-zA-Z0-9_./:-]+$/;
+const TARGET_REGEX = /^[a-zA-Z0-9_./:\\ -]+$/;
+const DANGEROUS_SHELL_CHARS = /[;&|`$()<>"'\n\r]/;
 
 /**
  * Validates that an adapter target (or namespace/path argument) contains only safe
  * alphanumeric and path characters to protect against shell injection attacks.
+ * Accepts standard POSIX and Windows file path characters and spaces while strictly
+ * rejecting shell injection metacharacters.
  */
 export function assertSafeTarget(target: string, paramName: string = "target"): void {
-  if (!target || !TARGET_REGEX.test(target)) {
+  if (!target || !TARGET_REGEX.test(target) || DANGEROUS_SHELL_CHARS.test(target)) {
     throw new Error(`Invalid ${paramName} "${target}": contains illegal shell characters`);
   }
 }
-

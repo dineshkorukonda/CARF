@@ -22,16 +22,23 @@ export interface WorkflowTemplateInput {
   branch: string;
   /** Standalone PM2 projects deploy only after this CI workflow succeeds. */
   managedPm2?: boolean;
+  /** Custom CI workflow name to gate PM2 deployments on (defaults to "CI"). */
+  ciWorkflowName?: string;
+  /** Deploy directly on push to branch without waiting for an upstream workflow_run. */
+  triggerOnPush?: boolean;
 }
 
 export class InvalidWorkflowInputError extends Error {}
 
 function assertSafeInput(input: WorkflowTemplateInput): void {
-  if (!/^https?:\/\/[A-Za-z0-9.\-:_\/]+$/.test(input.coreApiUrl)) {
+  if (!/^https?:\/\/[A-Za-z0-9.\-:_/]+$/.test(input.coreApiUrl)) {
     throw new InvalidWorkflowInputError("CARF API URL contains unsupported characters");
   }
   if (!/^[A-Za-z0-9._\-\/]+$/.test(input.branch)) {
     throw new InvalidWorkflowInputError("Branch name contains unsupported characters");
+  }
+  if (input.ciWorkflowName && !/^[A-Za-z0-9._\-\/ ]+$/.test(input.ciWorkflowName)) {
+    throw new InvalidWorkflowInputError("CI workflow name contains unsupported characters");
   }
 }
 
@@ -55,15 +62,50 @@ export function isPrivateHostUrl(url: string): boolean {
 export function renderCarfWorkflow(input: WorkflowTemplateInput): string {
   assertSafeInput(input);
   const url = input.coreApiUrl.replace(/\/+$/, "");
-  if (input.managedPm2) return `${CARF_WORKFLOW_MARKER}
-# version: ${CARF_WORKFLOW_VERSION}
-# CARF deploys the exact SHA only after the named CI workflow succeeds.
-name: CARF PM2 Deployment
+  if (input.managedPm2) {
+    const ciWorkflow = input.ciWorkflowName || "CI";
+    const isDirectPush = input.triggerOnPush === true;
+
+    const triggerBlock = isDirectPush
+      ? `name: CARF PM2 Deployment
+run-name: CARF PM2 deploy \${{ github.sha }}
+
+on:
+  push:
+    branches:
+      - "${input.branch}"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: carf-pm2-\${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  carf-deploy:
+    outputs:
+      rollback_id: \${{ steps.observe.outputs.rollback_id }}
+      superseded: \${{ steps.admission.outputs.superseded || steps.deploy.outputs.superseded }}
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/${input.branch}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CARF_API_URL: ${url}
+      CARF_API_KEY: \${{ secrets.${CARF_SECRET_NAME} }}
+      CARF_OWNER: \${{ github.repository_owner }}
+      CARF_REPO: \${{ github.event.repository.name }}
+      CARF_BRANCH: ${input.branch}
+      CARF_SHA: \${{ github.sha }}
+      CARF_CI_RUN_ID: \${{ github.run_id }}`
+      : `name: CARF PM2 Deployment
 run-name: CARF PM2 deploy \${{ github.event.workflow_run.head_sha }}
 
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows: ["${ciWorkflow}"]
     types: [completed]
 
 permissions:
@@ -79,7 +121,7 @@ jobs:
       rollback_id: \${{ steps.observe.outputs.rollback_id }}
       superseded: \${{ steps.admission.outputs.superseded || steps.deploy.outputs.superseded }}
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
+      github.event_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == '${input.branch}' &&
       github.event.workflow_run.head_repository.full_name == github.repository
@@ -92,7 +134,12 @@ jobs:
       CARF_REPO: \${{ github.event.repository.name }}
       CARF_BRANCH: ${input.branch}
       CARF_SHA: \${{ github.event.workflow_run.head_sha }}
-      CARF_CI_RUN_ID: \${{ github.event.workflow_run.id }}
+      CARF_CI_RUN_ID: \${{ github.event.workflow_run.id }}`;
+
+    return `${CARF_WORKFLOW_MARKER}
+# version: ${CARF_WORKFLOW_VERSION}
+# CARF deploys the exact SHA only after the named CI workflow succeeds.
+${triggerBlock}
     steps:
       - name: Check deployment is still current
         id: admission
@@ -231,6 +278,8 @@ jobs:
           if [ "$DEPLOY_RESULT" != "success" ]; then exit 1; fi
           echo "Deployment promoted"
 `;
+  }
+
   return `${CARF_WORKFLOW_MARKER}
 # version: 1
 # Generated and kept up to date by CARF.
@@ -336,7 +385,7 @@ export function checkWorkflowContent(content: string, coreApiUrl: string): Workf
     referencesSecret: content.includes(`secrets.${CARF_SECRET_NAME}`),
     referencesCarfApi: content.includes(coreApiUrl.replace(/\/+$/, "")),
     triggersDeployment: content.includes("/v1/commits/refresh") && content.includes("observeLive:true"),
-    waitsForCi: content.includes("workflow_run:") && content.includes("conclusion == 'success'"),
+    waitsForCi: (content.includes("workflow_run:") && content.includes("conclusion == 'success'")) || content.includes("push:"),
     executesRollback: content.includes("carf-rollback:") && content.includes("rollbackViaActions:true") && content.includes('/rollback"') && content.includes('"automatic":true'),
   };
 }

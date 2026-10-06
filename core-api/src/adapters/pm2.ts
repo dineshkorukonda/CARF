@@ -371,10 +371,17 @@ export class PM2Adapter implements RollbackAdapter {
     };
   }
 
+  private getCwdPrefix(): string {
+    if (!this.cwd) return "";
+    const cwdStr = this.cwd.includes(" ") ? `"${this.cwd}"` : this.cwd;
+    return `cd ${cwdStr} && `;
+  }
+
   async getCurrentRevision(captureForRollback = true): Promise<string> {
+    const cwdPrefix = this.getCwdPrefix();
     const command = this.layout === "git"
-      ? `${this.cwd ? `cd ${this.cwd} && ` : ""}git rev-parse HEAD`
-      : `basename $(readlink -f ${this.currentSymlink})`;
+      ? `${cwdPrefix}git rev-parse HEAD`
+      : `basename $(readlink -f "${this.currentSymlink}")`;
     const revision = (await this.executor.exec(command)).stdout.trim();
     if (!/^[0-9a-f]{40}$/i.test(revision)) throw new Error("Cannot identify the deployed PM2 revision; deployment skipped");
     if (captureForRollback) this.previousSha = revision;
@@ -389,9 +396,9 @@ export class PM2Adapter implements RollbackAdapter {
     }
 
     const targetArgs = targets.join(" ");
+    const cwdPrefix = this.getCwdPrefix();
 
     if (this.layout === "git") {
-      const cwdPrefix = this.cwd ? `cd ${this.cwd} && ` : "";
       await this.executor.exec(`${cwdPrefix}git fetch origin`);
       await this.executor.exec(`${cwdPrefix}git checkout ${sha}`);
       if (this.buildCommand) {
@@ -403,6 +410,10 @@ export class PM2Adapter implements RollbackAdapter {
       await this.executor.exec(`test -d ${releaseDir} && ln -sfn ${releaseDir} ${this.currentSymlink}`);
       await this.safeReload("", targetArgs);
     }
+
+    // Drop soak-window restart baselines so post-deployment health does not treat
+    // the expected reload restart count as a crash.
+    this.baselineRestarts.clear();
   }
 
   async rollback(target?: string): Promise<void> {
@@ -416,9 +427,9 @@ export class PM2Adapter implements RollbackAdapter {
     }
 
     const targetArgs = targets.join(" ");
+    const cwdPrefix = this.getCwdPrefix();
 
     if (this.layout === "git") {
-      const cwdPrefix = this.cwd ? `cd ${this.cwd} && ` : "";
       await this.executor.exec(`${cwdPrefix}git checkout ${this.previousSha}`);
       if (this.buildCommand) {
         await this.executor.exec(`${cwdPrefix}${this.buildCommand}`);
