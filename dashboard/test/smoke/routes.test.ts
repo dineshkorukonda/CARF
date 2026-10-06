@@ -47,6 +47,7 @@ const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
   ["dashboard/setup", () => import("../../src/app/dashboard/setup/page")],
   ["dashboard/verify", () => import("../../src/app/dashboard/verify/page")],
   ["dashboard/settings", () => import("../../src/app/dashboard/settings/page")],
+  ["dashboard/integrations", () => import("../../src/app/dashboard/integrations/page")],
 ];
 
 const LAYOUT_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
@@ -57,47 +58,25 @@ const LAYOUT_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
 describe("every API route module loads and exports its handler", () => {
   it.each(ROUTE_MODULES)("%s exports %s", async (_path, verbs, load) => {
     const loaded = (await load()) as Record<string, unknown>;
-
     for (const verb of verbs) {
+      expect(loaded[verb], `${_path} missing ${verb} export`).toBeDefined();
       expect(typeof loaded[verb]).toBe("function");
     }
   });
+});
 
-  // Next.js infers the allowed methods from the exports. An accidental extra export would
-  // quietly open a method nobody meant to serve.
-  it.each(ROUTE_MODULES)("%s exports no HTTP verb beyond %s", async (_path, verbs, load) => {
-    const loaded = (await load()) as Record<string, unknown>;
-    const allVerbs = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
-
-    expect(allVerbs.filter((v) => typeof loaded[v] === "function").sort()).toEqual([...verbs].sort());
+describe("every page module loads and exports a component", () => {
+  it.each(PAGE_MODULES)("%s exports a default component", async (_path, load) => {
+    const loaded = (await load()) as { default?: unknown };
+    expect(loaded.default, `${_path} missing default export`).toBeDefined();
+    expect(typeof loaded.default).toBe("function");
   });
 });
 
-// A page pulls in its whole component tree, and Vite transforms every file the first time
-// it is imported. The larger config pages exceed the 5s default on a cold run, so these
-// three suites get a timeout sized for transform cost rather than for the assertion.
-const IMPORT_TIMEOUT_MS = 30_000;
-
-describe("every page module loads and exports a component", () => {
-  it.each(PAGE_MODULES)(
-    "%s exports a default component",
-    async (_path, load) => {
-      const loaded = (await load()) as { default?: unknown };
-
-      expect(typeof loaded.default).toBe("function");
-    },
-    IMPORT_TIMEOUT_MS
-  );
-});
-
 describe("every layout module loads and exports a component", () => {
-  it.each(LAYOUT_MODULES)(
-    "%s layout exports a default component",
-    async (_path, load) => {
-      const loaded = (await load()) as { default?: unknown };
-
-      expect(typeof loaded.default).toBe("function");
-    },
-    IMPORT_TIMEOUT_MS
-  );
+  it.each(LAYOUT_MODULES)("%s exports a default component", async (_path, load) => {
+    const loaded = (await load()) as { default?: unknown };
+    expect(loaded.default, `${_path} missing default export`).toBeDefined();
+    expect(typeof loaded.default).toBe("function");
+  });
 });

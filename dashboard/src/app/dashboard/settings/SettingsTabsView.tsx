@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Plus, Shield, User, ExternalLink, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Plus, Shield, User, ExternalLink, AlertCircle, CheckCircle2, Layers } from "lucide-react";
 import { ApiKeyCopyButton } from "./ApiKeyCopyButton";
 import { GithubAppProbeCard } from "./GithubAppProbeCard";
 import { ManualInstallForm } from "./ManualInstallForm";
@@ -26,11 +26,18 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground">GitHub App & Integrations</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Connect the CARF GitHub App, review installations, and copy API keys through an explicit action. Keys are masked on this page.
+            Connect the CARF GitHub App, review installations, explore integrations, and manage API keys securely.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/integrations"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs hover:bg-muted transition-colors"
+          >
+            <Layers className="size-3.5 text-primary" />
+            <span>Integrations Center</span>
+          </Link>
           <a
             href="/api/github-app/install/start"
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
@@ -65,100 +72,79 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
           }`}
         >
           <User className="size-3.5" />
-          <span>Account Profile & Security</span>
+          <span>Account Settings</span>
         </button>
       </div>
 
-      {/* Tab 1: GitHub App & API Keys */}
+      {/* Notification Banners */}
+      {bannerError && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
+          <AlertCircle className="size-4 shrink-0" />
+          <span>{bannerError}</span>
+        </div>
+      )}
+
+      {bannerSuccess && (
+        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="size-4 shrink-0" />
+          <span>{bannerSuccess}</span>
+        </div>
+      )}
+
+      {/* Tab Content: GitHub App & Installations */}
       {activeTab === "github" && (
-        <div className="space-y-6">
-          {bannerError && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-xs text-red-600 dark:text-red-400">
-              <AlertCircle className="size-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">GitHub Integration Alert</p>
-                <p className="mt-0.5">
-                  {bannerError === "invalid_install_state"
-                    ? "GitHub redirect state verification timed out or was not received. You can paste your Installation ID manually below to complete setup."
-                    : bannerError === "already_linked_to_another_account"
-                    ? "This installation ID is already linked to another CARF account."
-                    : bannerError === "invalid_installation_id"
-                    ? "The specified installation ID was not recognized as a valid numeric ID."
-                    : "The GitHub App install callback could not be completed automatically. Paste your numeric Installation ID below."}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {bannerSuccess && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-xs text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold">Installation Linked</p>
-                <p className="mt-0.5">Your GitHub App installation was successfully connected to your account.</p>
-              </div>
-            </div>
-          )}
-
+        <div className="flex flex-col gap-6">
+          {/* GitHub App Status Probe Card */}
           <GithubAppProbeCard />
 
-          <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-            <div className="border-b border-border p-5">
-              <h2 className="text-sm font-semibold text-foreground">
-                Active GitHub App Installations ({installations.length})
-              </h2>
-              <p className="text-[11px] text-muted-foreground">
-                Each installation is granted access to selected repositories and authenticated via a dedicated installation API key.
-              </p>
+          {/* Connected Installations List */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">Connected Organizations & Accounts</h2>
+              <span className="text-[11px] text-muted-foreground">
+                {installations.length} {installations.length === 1 ? "installation" : "installations"}
+              </span>
             </div>
 
             {installations.length === 0 ? (
-              <div className="p-8 text-center text-xs text-muted-foreground">
-                <p>No GitHub App installations linked to your account.</p>
-                <div className="mt-3">
-                  <a
-                    href="/api/github-app/install/start"
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                  >
-                    <Plus className="size-3.5" />
-                    <span>Install CARF GitHub App</span>
-                  </a>
-                </div>
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 text-center bg-card/50">
+                <Shield className="size-8 text-muted-foreground/50 mb-2" />
+                <p className="text-xs font-medium text-foreground">No GitHub App installations found</p>
+                <p className="mt-1 text-[11px] text-muted-foreground max-w-sm">
+                  Click the button above to install the CARF GitHub App on your personal account or organization to enable automated rollbacks.
+                </p>
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-border rounded-xl border border-border bg-card overflow-hidden">
                 {installations.map((inst) => (
-                  <div key={inst.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs text-foreground">
-                          {inst.targetLogin || `Installation #${inst.installationId}`}
-                        </span>
-                        <span className="rounded border border-border bg-muted/40 px-1.5 py-0.2 font-mono text-[10px] text-muted-foreground">
-                          ID: {inst.installationId}
-                        </span>
+                  <div key={inst.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs uppercase">
+                        {inst.accountLogin.slice(0, 2)}
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-muted-foreground text-[11px]">Core API Key:</span>
-                        <ApiKeyCopyButton installationId={inst.installationId} />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-foreground">{inst.accountLogin}</span>
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
+                            {inst.targetType}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Installation ID: <span className="font-mono">{inst.installationId}</span>
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href="/dashboard"
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
-                      >
-                        <span>Open repositories</span>
-                      </Link>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <ApiKeyCopyButton installationId={inst.installationId} />
                       <a
                         href={`https://github.com/settings/installations/${inst.installationId}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                       >
-                        <span>GitHub Settings</span>
                         <ExternalLink className="size-3" />
+                        <span>Manage on GitHub</span>
                       </a>
                     </div>
                   </div>
@@ -167,16 +153,13 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
             )}
           </div>
 
+          {/* Manual Installation Linking Form */}
           <ManualInstallForm />
         </div>
       )}
 
-      {/* Tab 2: Account Profile & Security */}
-      {activeTab === "account" && (
-        <div>
-          <AccountSettingsView initialAccount={account} />
-        </div>
-      )}
+      {/* Tab Content: User Account Settings */}
+      {activeTab === "account" && <AccountSettingsView account={account} />}
     </main>
   );
 }
