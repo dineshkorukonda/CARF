@@ -9,7 +9,12 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { ignoreRestSiblings: true },
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
       ],
     },
   },

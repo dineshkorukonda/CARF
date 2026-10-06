@@ -13,16 +13,20 @@ export interface PromQLAdapterOptions {
   fetchFn?: (url: string, init?: RequestInit) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
 }
 
+export interface PrometheusVectorResult {
+  metric?: Record<string, string>;
+  value?: [number, string];
+}
+
+export type PrometheusScalarResult = [number, string];
+
 export interface PrometheusQueryResponse {
   status: "success" | "error";
   errorType?: string;
   error?: string;
   data?: {
     resultType: "vector" | "matrix" | "scalar" | "string";
-    result: Array<{
-      metric?: Record<string, string>;
-      value?: [number, string];
-    }> | [number, string];
+    result: PrometheusVectorResult[] | PrometheusScalarResult;
   };
 }
 
@@ -43,43 +47,54 @@ export class PromQLAdapter {
     if (!options.prometheusUrl) {
       throw new Error("PromQLAdapter requires a valid prometheusUrl");
     }
+    if (!options.query) {
+      throw new Error("PromQLAdapter requires a valid PromQL query");
+    }
+
     this.prometheusUrl = options.prometheusUrl.replace(/\/+$/, "");
     this.query = options.query;
     this.threshold = options.threshold ?? 0.05;
     this.timeoutMs = options.timeoutMs ?? 5000;
-    this.fetchFn = options.fetchFn ?? ((u, init) => fetch(u, init));
+    this.fetchFn =
+      options.fetchFn ??
+      ((url: string, init?: RequestInit) => globalThis.fetch(url, init as RequestInit));
   }
 
   /**
-   * Executes the PromQL query and extracts the scalar numerical result.
+   * Queries the Prometheus instant query API and returns the parsed float value.
    */
-  async queryMetric(customQuery?: string): Promise<number> {
-    const q = customQuery ?? this.query;
-    const url = `${this.prometheusUrl}/api/v1/query?query=${encodeURIComponent(q)}`;
+  async queryMetric(): Promise<number> {
+    const endpoint = `${this.prometheusUrl}/api/v1/query?query=${encodeURIComponent(this.query)}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const res = await this.fetchFn(url, { signal: controller.signal });
-      if (!res.ok) {
-        throw new Error(`Prometheus query failed with HTTP status ${res.status}`);
+      const response = await this.fetchFn(endpoint, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Prometheus returned HTTP status ${response.status}`);
       }
 
-      const body = (await res.json()) as PrometheusQueryResponse;
+      const body = (await response.json()) as PrometheusQueryResponse;
       if (body.status !== "success" || !body.data) {
         throw new Error(`Prometheus query error: ${body.error ?? "unknown error"}`);
       }
 
       const { resultType, result } = body.data;
 
-      if (resultType === "scalar" && Array.isArray(result) && result.length >= 2) {
-        const val = parseFloat(result[1] as string);
+      if (resultType === "scalar" && Array.isArray(result)) {
+        const scalar = result as PrometheusScalarResult;
+        const val = parseFloat(scalar[1]);
         return isNaN(val) ? 0.0 : val;
       }
 
       if (resultType === "vector" && Array.isArray(result) && result.length > 0) {
-        const first = result[0];
+        const vector = result as PrometheusVectorResult[];
+        const first = vector[0];
         if (first?.value && Array.isArray(first.value) && first.value.length >= 2) {
           const val = parseFloat(first.value[1]);
           return isNaN(val) ? 0.0 : val;
@@ -99,23 +114,21 @@ export class PromQLAdapter {
     try {
       const errorRate = await this.queryMetric();
       const healthy = errorRate <= targetThreshold;
+
       return {
-        errorRate,
         healthy,
-        perTarget: {
-          promqlQuery: this.query,
-          evaluatedValue: errorRate,
-          threshold: targetThreshold,
-        },
+        errorRate,
+        httpErrorRate: errorRate,
+        processErrorRate: 0.0,
       };
-    } catch {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
       return {
-        errorRate: 1.0,
         healthy: false,
-        perTarget: {
-          promqlQuery: this.query,
-          error: "Failed to evaluate PromQL metric",
-        },
+        errorRate: 1.0,
+        httpErrorRate: 1.0,
+        processErrorRate: 0.0,
+        perTarget: { error: message },
       };
     }
   }
