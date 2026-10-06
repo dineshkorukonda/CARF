@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState, type ComponentType } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
@@ -11,7 +10,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   LogOut,
-  UserRound,
   LayoutDashboard,
   GitCommitHorizontal,
   RotateCcw,
@@ -121,7 +119,11 @@ export function SidebarShell({
   useEffect(() => {
     try {
       const stored = localStorage.getItem(COLLAPSE_STORAGE_KEY);
-      if (stored !== null) setCollapsed(stored === "true");
+      if (stored !== null) {
+        queueMicrotask(() => {
+          setCollapsed(stored === "true");
+        });
+      }
     } catch {}
   }, []);
 
