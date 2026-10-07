@@ -7,7 +7,7 @@
  * Requirements:
  * - Pure Node.js (>=18) - ZERO native dependencies, ZERO database credentials.
  * - Authenticates to central CARF API via CARF_INSTALL_TOKEN.
- * - Standardized exclusively on PM2 background process management.
+ * - Standardized on PM2 and Docker host runtime management.
  */
 
 import fs from "node:fs";
@@ -240,12 +240,152 @@ export async function detectProcessManager() {
 }
 
 /**
+ * Detects whether Docker daemon is available and returns running container names.
+ */
+export async function detectDocker() {
+  try {
+    const { stdout } = await runCmd("docker ps --format {{.Names}}");
+    const list = stdout
+      .split("\n")
+      .map((s) => s.trim().replace(/['"]/g, ""))
+      .filter(Boolean);
+    return { type: "docker", available: true, list };
+  } catch {
+    // Docker not found or not running
+  }
+
+  return { type: "docker", available: false, list: [] };
+}
+
+/**
  * Runs verification checks against local host and target app configuration.
  */
 export async function runLocalVerification(targetConfig = {}) {
   const checks = [];
   const pm = await detectProcessManager();
+  const docker = await detectDocker();
 
+  const isDockerTarget =
+    targetConfig.kind === "docker" ||
+    targetConfig.runtimeAdapter === "docker" ||
+    (!pm.available && docker.available);
+
+  if (isDockerTarget) {
+    // Docker Verification Pipeline
+    if (docker.available) {
+      checks.push({
+        id: "docker_daemon",
+        title: "Docker Daemon Reachability",
+        passed: true,
+        message: `Docker daemon is reachable and responding (${docker.list.length} running container(s))`,
+      });
+    } else {
+      checks.push({
+        id: "docker_daemon",
+        title: "Docker Daemon Reachability",
+        passed: false,
+        message: "Docker daemon is not reachable or not running on host",
+      });
+    }
+
+    const targetName = targetConfig.target || targetConfig.containerName || targetConfig.name || "";
+    if (docker.available) {
+      if (!targetName) {
+        checks.push({
+          id: "target_app",
+          title: "Target Container Entry",
+          passed: docker.list.length > 0,
+          message: docker.list.length > 0
+            ? `Docker daemon has ${docker.list.length} running container(s)`
+            : "Docker daemon reachable; no containers running yet",
+        });
+      } else {
+        const found = docker.list.some((name) => name === targetName || name.includes(targetName));
+        if (found) {
+          checks.push({
+            id: "target_app",
+            title: "Target Container Entry",
+            passed: true,
+            message: `Target container '${targetName}' found in running containers`,
+          });
+        } else {
+          checks.push({
+            id: "target_app",
+            title: "Target Container Entry",
+            passed: false,
+            message: `Target container '${targetName}' not found in running containers (${docker.list.join(", ") || "none"})`,
+          });
+        }
+      }
+    } else {
+      checks.push({
+        id: "target_app",
+        title: "Target Container Entry",
+        passed: false,
+        message: "Cannot inspect containers: Docker daemon is offline",
+      });
+    }
+
+    const healthUrl = targetConfig.healthUrl;
+    if (healthUrl) {
+      try {
+        const res = await fetch(healthUrl, { signal: AbortSignal.timeout(5000) });
+        if (res.status >= 200 && res.status < 300) {
+          checks.push({
+            id: "health_url",
+            title: "HTTP Health Probe",
+            passed: true,
+            message: `Health check responded with HTTP ${res.status} OK`,
+          });
+        } else {
+          checks.push({
+            id: "health_url",
+            title: "HTTP Health Probe",
+            passed: false,
+            message: `Health check returned HTTP ${res.status} (expected 2xx)`,
+          });
+        }
+      } catch (err) {
+        checks.push({
+          id: "health_url",
+          title: "HTTP Health Probe",
+          passed: false,
+          message: `Health check probe failed: ${err.message || String(err)}`,
+        });
+      }
+    } else {
+      checks.push({
+        id: "health_url",
+        title: "HTTP Health Probe",
+        passed: true,
+        message: "No healthUrl configured; skipping probe check",
+      });
+    }
+
+    const composeFile = targetConfig.composeFile;
+    if (composeFile) {
+      try {
+        await fs.promises.access(composeFile, fs.constants.R_OK);
+        checks.push({
+          id: "compose_file",
+          title: "Compose File Access",
+          passed: true,
+          message: `Compose file '${composeFile}' is readable`,
+        });
+      } catch {
+        checks.push({
+          id: "compose_file",
+          title: "Compose File Access",
+          passed: false,
+          message: `Compose file '${composeFile}' not found or unreadable`,
+        });
+      }
+    }
+
+    return checks;
+  }
+
+  // PM2 Verification Pipeline
   // Check 1: PM2 Daemon Reachability
   if (pm.type === "pm2" && pm.available) {
     checks.push({
@@ -492,7 +632,7 @@ export async function runLocalVerification(targetConfig = {}) {
  */
 export function printCheckSummary(checks) {
   console.log("\n" + "=".repeat(62));
-  console.log("            CARF Host PM2 Verification");
+  console.log("            CARF Host Runtime Verification");
   console.log("=".repeat(62));
 
   let passedCount = 0;
@@ -550,7 +690,7 @@ async function startDaemon() {
 
   if (!INSTALL_TOKEN) {
     console.log(`[carf-agent] Notice: CARF_INSTALL_TOKEN is not configured.`);
-    console.log(`[carf-agent] Running in local standby mode under PM2.`);
+    console.log(`[carf-agent] Running in local standby mode.`);
     console.log(`[carf-agent] To connect this server to your CARF dashboard:`);
     console.log(`[carf-agent]   node ${agentFilePath()} --token=<your_token>`);
     console.log(`[carf-agent]   Or set CARF_INSTALL_TOKEN in ~/.carf/agent/.env`);
@@ -627,14 +767,14 @@ const tokenArgMatch = args.find((a) => a.startsWith("--token="))?.slice(8) ||
 if (isMain && (args.includes("--help") || args.includes("-h"))) {
   console.log(`
 CARF Host Agent v${VERSION}
-Managed PM2 daemon for host deployment rollback monitoring.
+Managed daemon for host deployment rollback monitoring (PM2 & Docker).
 
 Usage:
   node agent.mjs [options]
 
 Options:
   --token=<token>, -t <token>   Set or update CARF install token and connect
-  --verify                      Run preflight verification checks against PM2
+  --verify                      Run preflight verification checks against runtime (PM2 or Docker)
   --uninstall                   Notify central API and revoke agent connection
   --help, -h                    Show this help message
 `);

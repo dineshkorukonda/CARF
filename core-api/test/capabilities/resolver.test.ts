@@ -33,6 +33,19 @@ describe("Centralized Capability Resolver (core-api)", () => {
     expect(res.runtimeStatus).toBe("active");
   });
 
+  it("resolves GitHub Actions + Docker to full capabilities with monitoring and automated rollback", () => {
+    const res = resolveCapabilities("github_actions", "docker");
+    expect(res.deploymentIntegration).toBe("github_actions");
+    expect(res.runtimeAdapter).toBe("docker");
+    expect(res.capabilities).toEqual({
+      policy: true,
+      monitoring: true,
+      rollback: true,
+    });
+    expect(res.requiresAgent).toBe(false);
+    expect(res.runtimeStatus).toBe("active");
+  });
+
   it("resolves Argo Rollouts + none to policy only", () => {
     const res = resolveCapabilities("argo_rollouts", "none");
     expect(res.deploymentIntegration).toBe("argo_rollouts");
@@ -42,18 +55,12 @@ describe("Centralized Capability Resolver (core-api)", () => {
     expect(res.requiresAgent).toBe(false);
   });
 
-  it("does not claim un-implemented rollback capabilities for preview adapters (kubernetes, docker, systemd)", () => {
+  it("does not claim un-implemented rollback capabilities for preview adapters (kubernetes, systemd)", () => {
     const k8s = resolveCapabilities("argo_rollouts", "kubernetes");
     expect(k8s.capabilities.policy).toBe(true);
     expect(k8s.capabilities.monitoring).toBe(false);
     expect(k8s.capabilities.rollback).toBe(false);
     expect(k8s.runtimeStatus).toBe("preview");
-
-    const docker = resolveCapabilities("argo_rollouts", "docker");
-    expect(docker.capabilities.policy).toBe(true);
-    expect(docker.capabilities.monitoring).toBe(false);
-    expect(docker.capabilities.rollback).toBe(false);
-    expect(docker.runtimeStatus).toBe("preview");
 
     const systemd = resolveCapabilities("argo_rollouts", "systemd");
     expect(systemd.capabilities.policy).toBe(true);
@@ -67,6 +74,14 @@ describe("Centralized Capability Resolver (core-api)", () => {
       const res = resolveFromLegacy({ mode: "standalone" });
       expect(res.deploymentIntegration).toBe("github_actions");
       expect(res.runtimeAdapter).toBe("pm2");
+      expect(res.capabilities.rollback).toBe(true);
+      expect(res.requiresAgent).toBe(false);
+    });
+
+    it("maps legacy standalone with adapter docker to github_actions + docker", () => {
+      const res = resolveFromLegacy({ mode: "standalone", adapter: { kind: "docker" } });
+      expect(res.deploymentIntegration).toBe("github_actions");
+      expect(res.runtimeAdapter).toBe("docker");
       expect(res.capabilities.rollback).toBe(true);
       expect(res.requiresAgent).toBe(false);
     });

@@ -45,11 +45,15 @@ export async function POST(request: NextRequest) {
     mode = typeof body.mode === "string" ? body.mode : "";
     deploymentIntegration = typeof body.deploymentIntegration === "string" ? body.deploymentIntegration : undefined;
     runtimeAdapter = typeof body.runtimeAdapter === "string" ? body.runtimeAdapter : undefined;
-    adapterKind = String(body.adapterKind ?? (body.runtimeAdapter === "pm2" ? "pm2" : ""));
-    adapterTarget = String(body.adapterTarget ?? "");
+    adapterKind = String(body.adapterKind ?? (body.runtimeAdapter === "pm2" ? "pm2" : body.runtimeAdapter === "docker" ? "docker" : ""));
+    adapterTarget = String(body.adapterTarget ?? body.containerName ?? "");
     integration = String(body.integration ?? "github-actions");
 
     adapterExtras = {
+      ...(typeof body.containerName === "string" ? { containerName: body.containerName } : {}),
+      ...(typeof body.composeFile === "string" ? { composeFile: body.composeFile } : {}),
+      ...(typeof body.imageTag === "string" ? { imageTag: body.imageTag } : {}),
+      ...(typeof body.previousImageTag === "string" ? { previousImageTag: body.previousImageTag } : {}),
       ...(typeof body.layout === "string" ? { layout: body.layout } : {}),
       ...(typeof body.adapterLayout === "string" ? { layout: body.adapterLayout } : {}),
       ...(typeof body.cwd === "string" ? { cwd: body.cwd } : {}),
@@ -96,10 +100,10 @@ export async function POST(request: NextRequest) {
   const deploymentMode: DeploymentMode = resolveRepoMode({ mode: resolved.capabilities.rollback ? "standalone" : "augment" });
 
   if (deploymentMode === "standalone" || resolved.capabilities.rollback) {
-    adapterKind = adapterKind || (resolved.runtimeAdapter === "pm2" ? "pm2" : "pm2");
-    if (!adapterTarget) {
+    adapterKind = adapterKind || (resolved.runtimeAdapter === "docker" ? "docker" : "pm2");
+    if (!adapterTarget && !adapterExtras.containerName) {
       return NextResponse.json(
-        { error: "adapterKind and adapterTarget are required for standalone mode" },
+        { error: "adapterKind and adapterTarget (or containerName) are required for standalone mode" },
         { status: 400 }
       );
     }
@@ -117,10 +121,10 @@ export async function POST(request: NextRequest) {
     const existingFile = await getCarfConfigFile(owner, repo, token);
 
     const adapterConfig =
-      deploymentMode === "standalone" && adapterKind === "pm2"
+      deploymentMode === "standalone" && (adapterKind === "pm2" || adapterKind === "docker")
         ? AdapterConfigSchema.parse({
             kind: adapterKind as AdapterKind,
-            target: adapterTarget,
+            target: adapterTarget || (adapterExtras.containerName as string | undefined),
             ...adapterExtras,
           })
         : undefined;

@@ -25,6 +25,16 @@ interface RuntimeAdapterStepProps {
     buildCommand: string;
     layout: "releases" | "git";
   }) => void;
+  dockerConfig: {
+    containerName: string;
+    composeFile: string;
+    healthUrl: string;
+  };
+  onChangeDockerConfig: (config: {
+    containerName: string;
+    composeFile: string;
+    healthUrl: string;
+  }) => void;
   onBack: () => void;
   onContinue: () => void;
 }
@@ -46,6 +56,17 @@ interface DiscoveredApp {
   uptime?: number;
   cwd?: string;
   pid?: number;
+}
+
+interface ProcessResponse extends Partial<DiscoveredApp> {
+  pm_id?: number;
+  restart_time?: number;
+  pm2_env?: {
+    status?: string;
+    restart_time?: number;
+    pm_uptime?: number;
+    pm_cwd?: string;
+  };
 }
 
 const ADAPTER_OPTIONS: AdapterOption[] = [
@@ -76,25 +97,26 @@ const ADAPTER_OPTIONS: AdapterOption[] = [
     ],
   },
   {
+    id: "docker",
+    name: "Docker / Docker Compose",
+    tag: "Active · Automated Rollback",
+    tagColor: "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    icon: Box,
+    description: "Direct Docker daemon / Docker Compose adapter with container health monitoring and automated rollback.",
+    features: [
+      "Direct Docker daemon / Docker Compose runtime",
+      "Continuous health URL probing during observation window",
+      "Automated rollback to previous image tag or compose state",
+      "Zero host agent required",
+    ],
+  },
+  {
     id: "kubernetes",
     name: "Kubernetes",
     tag: "Roadmap · Preview",
     tagColor: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
     icon: Layers,
     description: "In development. Direct pod and deployment rollback controller for cluster environments.",
-    features: [
-      "Policy-guided threshold evaluation currently active",
-      "Live rollback adapter scheduled for next release",
-      "No host agent required",
-    ],
-  },
-  {
-    id: "docker",
-    name: "Docker / Docker Compose",
-    tag: "Roadmap · Preview",
-    tagColor: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
-    icon: Box,
-    description: "In development. Container image rollback and health check monitoring.",
     features: [
       "Policy-guided threshold evaluation currently active",
       "Live rollback adapter scheduled for next release",
@@ -123,6 +145,8 @@ export function RuntimeAdapterStep({
   onSelectAdapter,
   pm2Config,
   onChangePm2Config,
+  dockerConfig,
+  onChangeDockerConfig,
   onBack,
   onContinue,
 }: RuntimeAdapterStepProps) {
@@ -138,44 +162,42 @@ export function RuntimeAdapterStep({
       setLoadingProcesses(true);
       setPm2Error(null);
       try {
-        const res = await fetch(`/api/pm2/apps?installationId=${encodeURIComponent(installationId)}`);
+        const res = await fetch(`/api/pm2/processes?installationId=${encodeURIComponent(installationId)}`);
         if (!res.ok) {
-          throw new Error(`Failed to load PM2 processes: ${res.statusText}`);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}`);
         }
         const data = await res.json();
         if (active) {
-          const procs = Array.isArray(data) ? data : data.processes || data.apps || [];
-          setDiscoveredProcesses(procs);
+          const apps: DiscoveredApp[] = (data.processes || []).map((p: ProcessResponse) => ({
+            name: p.name || p.pm_id?.toString() || "unknown",
+            status: p.pm2_env?.status || p.status || "unknown",
+            restarts: p.pm2_env?.restart_time ?? p.restart_time,
+            uptime: p.pm2_env?.pm_uptime ?? p.uptime,
+            cwd: p.pm2_env?.pm_cwd ?? p.cwd,
+            pid: p.pid,
+          }));
+          setDiscoveredProcesses(apps);
         }
       } catch (err: unknown) {
         if (active) {
-          setPm2Error(err instanceof Error ? err.message : "Could not reach local PM2");
+          setPm2Error(
+            err instanceof Error
+              ? `Could not discover local PM2 processes: ${err.message}`
+              : "Could not discover PM2 processes on host"
+          );
         }
       } finally {
         if (active) setLoadingProcesses(false);
       }
     }
 
-    void fetchPm2Processes();
+    fetchPm2Processes();
+
     return () => {
       active = false;
     };
   }, [selectedAdapter, installationId]);
-
-  useEffect(() => {
-    if (selectedAdapter !== "pm2" || pm2Config.targetName || discoveredProcesses.length === 0) {
-      return;
-    }
-    const repoLower = selectedRepo?.name?.toLowerCase();
-    const matched = discoveredProcesses.find((p: DiscoveredApp) => p.name.toLowerCase() === repoLower);
-    if (matched) {
-      onChangePm2Config({
-        ...pm2Config,
-        targetName: matched.name,
-        cwd: matched.cwd || pm2Config.cwd,
-      });
-    }
-  }, [selectedAdapter, pm2Config, discoveredProcesses, selectedRepo?.name, onChangePm2Config]);
 
   return (
     <div className="space-y-6">
@@ -183,59 +205,77 @@ export function RuntimeAdapterStep({
         <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
           <span>Step 3</span>
           <span>•</span>
-          <span>Layer 3: Runtime / Control Adapter</span>
+          <span>Layer 3 Architecture</span>
         </div>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
           Choose Runtime Adapter
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Determine if CARF should execute automated rollbacks directly on the server runtime, or deliver policies to your deployment system.
+          Runtime adapters connect CARF Core policies directly to the runtime host where your code executes.
         </p>
       </div>
 
+      {/* Adapter Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {ADAPTER_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
           const isSelected = selectedAdapter === opt.id;
+          const Icon = opt.icon;
+
           return (
             <div
               key={opt.id}
               onClick={() => onSelectAdapter(opt.id)}
-              className={`cursor-pointer rounded-xl border p-5 transition-all relative flex flex-col justify-between ${
+              className={`group relative flex flex-col justify-between rounded-xl border p-5 transition-all cursor-pointer ${
                 isSelected
-                  ? "border-primary bg-primary/[0.04] shadow-sm ring-1 ring-primary"
-                  : "border-border bg-card hover:border-border/80 hover:bg-muted/20"
+                  ? "border-primary bg-primary/[0.03] shadow-sm ring-1 ring-primary"
+                  : "border-border bg-card hover:border-border/80 hover:bg-muted/30"
               }`}
             >
-              {isSelected && (
-                <div className="absolute top-4 right-4 text-primary">
-                  <CheckCircle2 className="size-5" />
-                </div>
-              )}
               <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex size-10 items-center justify-center rounded-lg border border-border bg-muted/40 text-primary">
-                    <Icon className="size-5" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`flex size-10 items-center justify-center rounded-lg border transition-colors ${
+                        isSelected
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-border bg-muted/50 text-muted-foreground group-hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className="size-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground">{opt.name}</h3>
+                      <span
+                        className={`inline-block mt-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${opt.tagColor}`}
+                      >
+                        {opt.tag}
+                      </span>
+                    </div>
                   </div>
-                  <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${opt.tagColor}`}>
-                    {opt.tag}
-                  </span>
+
+                  <div
+                    className={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                      isSelected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background"
+                    }`}
+                  >
+                    {isSelected && <CheckCircle2 className="size-3.5" />}
+                  </div>
                 </div>
-                <div className="mt-3">
-                  <h3 className="text-base font-bold text-foreground">{opt.name}</h3>
-                </div>
-                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+
+                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
                   {opt.description}
                 </p>
 
-                <ul className="mt-4 space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
-                  {opt.features.map((feat, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="text-emerald-500 font-bold">✓</span>
+                <div className="mt-4 space-y-1.5 border-t border-border/60 pt-3">
+                  {opt.features.map((feat, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <span className="text-primary font-bold mt-0.5">•</span>
                       <span>{feat}</span>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
 
               <div className="pt-4 mt-4 border-t border-border">
@@ -378,6 +418,59 @@ export function RuntimeAdapterStep({
         </div>
       )}
 
+      {/* Inline Docker Configuration when Docker is selected */}
+      {selectedAdapter === "docker" && (
+        <div className="rounded-xl border border-sky-500/30 bg-sky-500/[0.03] p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Box className="size-4 text-sky-500" />
+              <h3 className="text-sm font-semibold text-foreground">Docker Container &amp; Compose Details</h3>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Configure how CARF Core interacts with Docker or Docker Compose on this host.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-foreground">Container / Service Name</label>
+              <input
+                type="text"
+                value={dockerConfig.containerName}
+                onChange={(e) => onChangeDockerConfig({ ...dockerConfig, containerName: e.target.value })}
+                placeholder={selectedRepo?.name ? `${selectedRepo.name}-web-1` : "monix-web-1"}
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">Container name in `docker ps` or compose service name</p>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-foreground">Compose File Path (optional)</label>
+              <input
+                type="text"
+                value={dockerConfig.composeFile}
+                onChange={(e) => onChangeDockerConfig({ ...dockerConfig, composeFile: e.target.value })}
+                placeholder="docker-compose.yml"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">Path to compose file (leave empty if using standalone containers)</p>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-foreground">Health Check URL</label>
+              <input
+                type="text"
+                value={dockerConfig.healthUrl}
+                onChange={(e) => onChangeDockerConfig({ ...dockerConfig, healthUrl: e.target.value })}
+                placeholder="http://127.0.0.1:3100/api/health"
+                className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
+              />
+              <p className="mt-1 text-[11px] text-muted-foreground">HTTP endpoint polled during soak observation window</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Footer */}
       <div className="flex items-center justify-between border-t border-border pt-4">
         <button
@@ -394,7 +487,7 @@ export function RuntimeAdapterStep({
           onClick={onContinue}
           className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
         >
-          <span>Continue to Preview</span>
+          <span>Review Capabilities</span>
           <ArrowRight className="size-3.5" />
         </button>
       </div>
