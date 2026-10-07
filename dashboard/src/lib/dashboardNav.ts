@@ -6,13 +6,18 @@ export const DASHBOARD_NAV_ITEMS = [
 
 export const DASHBOARD_NAV_GROUPS = [
   {
-    id: "product",
-    label: "Product",
-    items: [DASHBOARD_NAV_ITEMS[0], DASHBOARD_NAV_ITEMS[1]],
+    id: "workspace",
+    label: "Workspace",
+    items: [DASHBOARD_NAV_ITEMS[0]],
+  },
+  {
+    id: "connections",
+    label: "Connections",
+    items: [DASHBOARD_NAV_ITEMS[1]],
   },
   {
     id: "configuration",
-    label: "Configuration",
+    label: "Account",
     items: [DASHBOARD_NAV_ITEMS[2]],
   },
 ] as const;

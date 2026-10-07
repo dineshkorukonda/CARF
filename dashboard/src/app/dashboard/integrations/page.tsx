@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { IntegrationGuide } from "./IntegrationGuide";
 import {
   Layers,
   CheckCircle2,
@@ -150,7 +151,7 @@ export default function IntegrationsPage() {
 
   // Manifest Generator Form States
   const [apiUrl, setApiUrl] = useState("https://api.carf.dev");
-  const [apiKey, setApiKey] = useState("carf_live_sec_9f82d1ab34e");
+  const [apiKey, setApiKey] = useState("YOUR_CARF_API_KEY");
   const [targetName, setTargetName] = useState("production-api");
   const [healthUrl, setHealthUrl] = useState("http://localhost:3000/healthz");
   const [branch, setBranch] = useState("main");
@@ -604,10 +605,10 @@ WantedBy=multi-user.target
             <span className="p-2 rounded-lg bg-primary/10 text-primary">
               <Layers className="size-5" />
             </span>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Interactive Integrations Center</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Integrations</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Explore architecture, generate tailored configurations, and simulate live rollouts for all 8 deployment & runtime targets.
+            Choose your stack, follow the setup guide, and prepare your deployment configuration.
           </p>
         </div>
 
@@ -632,13 +633,14 @@ WantedBy=multi-user.target
       </div>
 
       {/* Integration Selector Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      <div role="group" aria-label="Choose an integration" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
         {INTEGRATIONS.map((item) => {
           const isSelected = item.id === selectedIntegration;
           return (
             <button
               key={item.id}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => setSelectedIntegration(item.id)}
               className={`flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-all ${
                 isSelected
@@ -646,7 +648,7 @@ WantedBy=multi-user.target
                   : "border-border bg-card text-muted-foreground hover:text-foreground hover:border-border/80"
               }`}
             >
-              <span className="text-xs font-semibold truncate w-full">{item.title}</span>
+              <span className="text-sm font-semibold w-full">{item.title}</span>
               <span className="mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-muted/80 text-muted-foreground uppercase font-medium">
                 {item.badge}
               </span>
@@ -669,7 +671,7 @@ WantedBy=multi-user.target
                 <h2 className="text-xl font-bold text-foreground mt-0.5">{activeIntegration.title}</h2>
               </div>
               <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                Production Ready
+                Setup reference
               </span>
             </div>
             <p className="mt-2 text-xs text-muted-foreground leading-relaxed">{activeIntegration.description}</p>
@@ -688,21 +690,26 @@ WantedBy=multi-user.target
             </div>
           </div>
 
+          <IntegrationGuide id={selectedIntegration} docsLink={activeIntegration.docsLink} />
+
           {/* Dynamic Configuration Generator Form (Issue #212) */}
           <div className="p-5 rounded-xl border border-border bg-card flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Sliders className="size-4 text-primary" />
-                <h3 className="text-sm font-bold text-foreground">Dynamic Manifest Generator</h3>
+                <h3 className="text-sm font-bold text-foreground">Configuration examples</h3>
               </div>
               <span className="text-[11px] text-muted-foreground">Auto-updates manifests in real time</span>
             </div>
 
+            <p className="text-xs leading-relaxed text-muted-foreground">Customize these starting examples for your environment and validate them in staging. Keep credentials in your CI secret store; downloaded files may include the token entered below.</p>
+
             {/* Input Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">CARF Core API URL</label>
+                <label htmlFor="api-url" className="block text-[11px] font-semibold text-muted-foreground mb-1">CARF Core API URL</label>
                 <input
+                  id="api-url"
                   type="text"
                   value={apiUrl}
                   onChange={(e) => setApiUrl(e.target.value)}
@@ -711,8 +718,9 @@ WantedBy=multi-user.target
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Target Service / Workload</label>
+                <label htmlFor="target-name" className="block text-[11px] font-semibold text-muted-foreground mb-1">Target Service / Workload</label>
                 <input
+                  id="target-name"
                   type="text"
                   value={targetName}
                   onChange={(e) => setTargetName(e.target.value)}
@@ -721,8 +729,9 @@ WantedBy=multi-user.target
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Healthcheck Probe URL</label>
+                <label htmlFor="health-url" className="block text-[11px] font-semibold text-muted-foreground mb-1">Healthcheck Probe URL</label>
                 <input
+                  id="health-url"
                   type="text"
                   value={healthUrl}
                   onChange={(e) => setHealthUrl(e.target.value)}
@@ -731,8 +740,9 @@ WantedBy=multi-user.target
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Deployment Branch</label>
+                <label htmlFor="branch" className="block text-[11px] font-semibold text-muted-foreground mb-1">Deployment Branch</label>
                 <input
+                  id="branch"
                   type="text"
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
@@ -741,8 +751,9 @@ WantedBy=multi-user.target
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Repository Slug (owner/repo)</label>
+                <label htmlFor="repo-slug" className="block text-[11px] font-semibold text-muted-foreground mb-1">Repository Slug (owner/repo)</label>
                 <input
+                  id="repo-slug"
                   type="text"
                   value={repoSlug}
                   onChange={(e) => setRepoSlug(e.target.value)}
@@ -751,8 +762,9 @@ WantedBy=multi-user.target
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-muted-foreground mb-1">API Key / Token</label>
+                <label htmlFor="api-key" className="block text-[11px] font-semibold text-muted-foreground mb-1">API Key / Token</label>
                 <input
+                  id="api-key"
                   type="password"
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
@@ -844,12 +856,12 @@ WantedBy=multi-user.target
                 <h3 className="text-sm font-bold text-foreground">Interactive Integration Simulator</h3>
               </div>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                Live Playground
+                Demo only
               </span>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Simulate live request/response flows between your integration runner, CARF risk engine, and recovery adapters.
+              Preview sample request and response flows. This demo runs locally in your browser and does not contact your API, verify credentials, or change a deployment.
             </p>
 
             {/* Simulation Scenario Selector */}
@@ -897,7 +909,7 @@ WantedBy=multi-user.target
               ) : (
                 <>
                   <Play className="size-3.5 fill-current" />
-                  <span>Run Live Simulation</span>
+                  <span>Run Demo Simulation</span>
                 </>
               )}
             </button>
@@ -934,7 +946,7 @@ WantedBy=multi-user.target
               <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
                 <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1.5">
                   <Terminal className="size-3" />
-                  <span>Live Telemetry & Response Inspector</span>
+                  <span>Sample Responses</span>
                 </span>
                 {simLogs.length > 0 && (
                   <span className="text-[10px] font-semibold text-emerald-500">
@@ -946,7 +958,7 @@ WantedBy=multi-user.target
               <div className="p-3 text-[11px] font-mono space-y-3 max-h-80 overflow-y-auto">
                 {simLogs.length === 0 ? (
                   <p className="text-muted-foreground italic text-center py-6">
-                    Click &quot;Run Live Simulation&quot; to test your configuration end-to-end.
+                    Run the demo to see sample responses, then use the setup guide to verify your real connection.
                   </p>
                 ) : (
                   simLogs.map((log, idx) => (

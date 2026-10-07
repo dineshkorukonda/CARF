@@ -15,7 +15,7 @@ import {
   RotateCcw,
   History,
   Settings2,
-  Layers,
+  PlugZap,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
@@ -25,7 +25,7 @@ const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
 const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/dashboard": FolderGit2,
-  "/dashboard/integrations": Layers,
+  "/dashboard/integrations": PlugZap,
   "/dashboard/settings": Sliders,
 };
 
@@ -93,6 +93,8 @@ function NavLink({
   return (
     <Link
       href={href}
+      aria-label={String(children)}
+      aria-current={active ? "page" : undefined}
       title={collapsed ? String(children) : undefined}
       className={
         "flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium transition-colors " +
@@ -142,13 +144,13 @@ export function SidebarShell({
   return (
     <aside
       className={
-        "group/sidebar flex flex-col justify-between border-r border-sidebar-foreground/10 bg-sidebar text-sidebar-foreground transition-[width] duration-150 ease-out shrink-0 select-none " +
+        "group/sidebar flex flex-col justify-between overflow-y-auto border-r border-sidebar-foreground/10 bg-sidebar text-sidebar-foreground transition-[width] duration-150 ease-out shrink-0 select-none " +
         (collapsed ? "w-16" : "w-64")
       }
     >
       {/* Brand header */}
       <div className="flex flex-col gap-4">
-        <div className="flex h-14 items-center justify-between px-4 border-b border-sidebar-foreground/10">
+        <div className={"flex items-center border-b border-sidebar-foreground/10 " + (collapsed ? "flex-col gap-2 px-2 py-3" : "h-14 justify-between px-4")}>
           <Link
             href="/dashboard"
             className="flex items-center gap-2.5 font-bold tracking-tight text-sidebar-foreground"

@@ -10,7 +10,7 @@ This directory provides production-grade integration guides, manifest templates,
 | :--- | :--- | :--- | :--- | :--- |
 | [**GitHub Actions + PM2**](./github-actions-pm2.md) | CI/CD Pipeline | Augment | HTTP probe + Process restart tracking | GitHub Actions rollback job dispatch (`workflow_dispatch`) |
 | [**Argo Rollouts**](./argo-rollouts.md) | K8s Progressive | Augment | CARF AnalysisTemplate / Web probe | Native Argo Rollout abort & revision rollback |
-| [**Flagger Canary**](./flagger-canary.md) | Service Mesh | Augment | Flagger rollout webhooks (`/v1/report`) | Native Flagger canary phase rollback & traffic cutoff |
+| [**Flagger Canary**](./flagger.md) | Service Mesh | Augment | Flagger rollout webhooks (`/v1/report`) | Native Flagger canary phase rollback & traffic cutoff |
 | [**Generic CI / HTTP**](./generic-ci-http.md) | Universal Webhook | Augment | REST API telemetry (`/v1/report`) | Pipeline fail exit-code / webhook dispatch |
 | [**Kubernetes (kubectl)**](./kubernetes.md) | Container Orchestration | Standalone | Pod readiness & container restart probe | `kubectl rollout undo deployment/<name>` |
 | [**Docker Compose**](./docker-compose.md) | Container Runtime | Standalone | Docker container status & healthcheck probe | Recreate container with previous image tag |
