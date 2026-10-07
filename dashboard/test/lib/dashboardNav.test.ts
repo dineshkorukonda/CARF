@@ -5,6 +5,7 @@ import {
   projectCommitsHref,
   projectThresholdsHref,
   DASHBOARD_NAV_ITEMS,
+  DASHBOARD_NAV_GROUPS,
   THRESHOLD_DEMO_HREF,
   repoSetupHref,
   projectPageHref,
@@ -60,12 +61,12 @@ describe("projectThresholdsHref", () => {
 });
 
 describe("projectCommitsHref", () => {
-  it("returns the project live-status URL with repo context", () => {
-    expect(projectCommitsHref("42", "acme/api")).toBe("/dashboard/status/42?repo=acme%2Fapi");
+  it("opens commits within the selected project", () => {
+    expect(projectCommitsHref("acme", "api")).toBe("/dashboard/repos/acme/api?view=commits");
   });
 
-  it("returns null without a repo so callers cannot drop project context", () => {
-    expect(projectCommitsHref("42", "")).toBeNull();
+  it("encodes project names in the commits URL", () => {
+    expect(projectCommitsHref("acme", "my repo+v2")).toBe("/dashboard/repos/acme/my%20repo%2Bv2?view=commits");
   });
 });
 
@@ -99,15 +100,18 @@ describe("repo onboarding hrefs", () => {
     expect(THRESHOLD_DEMO_HREF).toBe("/dashboard/verify");
   });
 
-  it("keeps the global sidebar to repositories and GitHub App / Integrations", () => {
+  it("makes integrations a dedicated Connections destination", () => {
     expect(DASHBOARD_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Repositories",
-      "GitHub App / Integrations",
+      "Integrations",
+      "Settings",
     ]);
     expect(DASHBOARD_NAV_ITEMS.some((item) => item.label.includes("Demo"))).toBe(false);
     expect(DASHBOARD_NAV_ITEMS.map((item) => item.href)).toEqual([
       "/dashboard",
+      "/dashboard/integrations",
       "/dashboard/settings",
     ]);
+    expect(DASHBOARD_NAV_GROUPS.find((group) => group.id === "connections")?.items.map((item) => item.href)).toEqual(["/dashboard/integrations"]);
   });
 });
