@@ -34,13 +34,20 @@ describe("SetupWizard 3-layer architecture resolution", () => {
     expect(resolved.requiresAgent).toBe(false);
   });
 
+  it("resolves Docker to active capabilities with monitoring and rollback", () => {
+    const resolvedDocker = resolveCapabilities("github_actions", "docker");
+    expect(resolvedDocker.runtimeStatus).toBe("active");
+    expect(resolvedDocker.capabilities.monitoring).toBe(true);
+    expect(resolvedDocker.capabilities.rollback).toBe(true);
+  });
+
   it("marks roadmap adapters as preview without claiming live rollback", () => {
     const resolvedK8s = resolveCapabilities("argo_rollouts", "kubernetes");
     expect(resolvedK8s.runtimeStatus).toBe("preview");
     expect(resolvedK8s.capabilities.rollback).toBe(false);
 
-    const resolvedDocker = resolveCapabilities("generic_http", "docker");
-    expect(resolvedDocker.runtimeStatus).toBe("preview");
-    expect(resolvedDocker.capabilities.rollback).toBe(false);
+    const resolvedSystemd = resolveCapabilities("generic_http", "systemd");
+    expect(resolvedSystemd.runtimeStatus).toBe("roadmap");
+    expect(resolvedSystemd.capabilities.rollback).toBe(false);
   });
 });
