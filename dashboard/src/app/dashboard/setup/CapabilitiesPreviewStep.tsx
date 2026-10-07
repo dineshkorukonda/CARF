@@ -31,6 +31,11 @@ interface CapabilitiesPreviewStepProps {
     buildCommand: string;
     layout: "releases" | "git";
   };
+  dockerConfig: {
+    containerName: string;
+    composeFile: string;
+    healthUrl: string;
+  };
   onBack: () => void;
 }
 
@@ -40,6 +45,7 @@ export function CapabilitiesPreviewStep({
   deploymentIntegration,
   runtimeAdapter,
   pm2Config,
+  dockerConfig,
   onBack,
 }: CapabilitiesPreviewStepProps) {
   const [linking, setLinking] = useState(false);
@@ -51,6 +57,7 @@ export function CapabilitiesPreviewStep({
 
   const resolved = resolveCapabilities(deploymentIntegration, runtimeAdapter);
   const isPm2 = runtimeAdapter === "pm2";
+  const isDocker = runtimeAdapter === "docker";
 
   const carfYamlPreview = `# .carf.yml — CARF 3-Layer Architecture Configuration
 deploymentIntegration: "${deploymentIntegration}"
@@ -63,8 +70,11 @@ ${
   target: "${pm2Config.targetName || repo.name}"
   cwd: "${pm2Config.cwd}"
   healthUrl: "${pm2Config.healthUrl}"
-  layout: "${pm2Config.layout}"${pm2Config.buildCommand.trim() ? `
-  buildCommand: ${JSON.stringify(pm2Config.buildCommand.trim())}` : ""}`
+  layout: "${pm2Config.layout}"${pm2Config.buildCommand.trim() ? `\n  buildCommand: ${JSON.stringify(pm2Config.buildCommand.trim())}` : ""}`
+    : runtimeAdapter === "docker"
+    ? `adapter:
+  kind: docker
+  target: "${dockerConfig.containerName || repo.name}"${dockerConfig.composeFile ? `\n  composeFile: "${dockerConfig.composeFile}"` : ""}${dockerConfig.healthUrl ? `\n  healthUrl: "${dockerConfig.healthUrl}"` : ""}`
     : ""
 }`.trim();
 
@@ -89,6 +99,14 @@ ${
               ...(pm2Config.buildCommand.trim() ? { buildCommand: pm2Config.buildCommand.trim() } : {}),
               layout: pm2Config.layout,
             }
+          : runtimeAdapter === "docker"
+          ? {
+              adapterKind: "docker",
+              adapterTarget: dockerConfig.containerName || repo.name,
+              containerName: dockerConfig.containerName || repo.name,
+              composeFile: dockerConfig.composeFile || undefined,
+              healthUrl: dockerConfig.healthUrl || undefined,
+            }
           : {}),
       };
 
@@ -104,7 +122,7 @@ ${
       }
 
       setConnected(true);
-      if (data.installToken && !isPm2) {
+      if (data.installToken && !isPm2 && !isDocker) {
         setInstallToken(data.installToken);
       }
     } catch (err: unknown) {
@@ -130,7 +148,7 @@ ${
         <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
           <span>Step 4</span>
           <span>•</span>
-          <span>Layer Resolution & Confirmation</span>
+          <span>Layer Resolution &amp; Confirmation</span>
         </div>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
           Live Capabilities Preview
@@ -142,11 +160,11 @@ ${
         </p>
       </div>
 
-      {error && (
+      {error ? (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
           {error}
         </div>
-      )}
+      ) : null}
 
       {/* Capabilities Matrix Card */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -159,7 +177,7 @@ ${
             </span>
             <div className="mt-1.5 flex items-center gap-1.5 font-bold text-xs text-foreground">
               <span className="size-2 rounded-full bg-emerald-500" />
-              <span>Policy & Risk Engine</span>
+              <span>Policy &amp; Risk Engine</span>
             </div>
             <p className="mt-1 text-[11px] text-muted-foreground">
               Diff analysis, classification, and dynamic error-rate thresholding.
@@ -198,6 +216,8 @@ ${
             <p className="mt-1 text-[11px] text-muted-foreground">
               {isPm2
                 ? "Direct local PM2 adapter with live rollback."
+                : isDocker
+                ? "Direct Docker / Compose adapter with live rollback."
                 : resolved.requiresAgent
                 ? "Host agent with live rollback."
                 : "Zero host agent required."}
@@ -210,7 +230,7 @@ ${
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-              <span className="text-foreground font-medium">Risk Vector & Churn Scoring</span>
+              <span className="text-foreground font-medium">Risk Vector &amp; Churn Scoring</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -300,12 +320,14 @@ ${
           <p className="text-xs text-muted-foreground">
             {isPm2
               ? "PM2 configuration is saved. Open project Settings to verify the runtime and configure GitHub Actions. Automatic deployment starts after the CI-gated workflow is installed."
+              : isDocker
+              ? "Docker configuration is saved. Open project Settings to verify the container runtime and configure GitHub Actions. Automatic deployment and rollback monitoring are now active."
               : resolved.requiresAgent
               ? "The configuration was committed to .carf.yml. Now install the CARF Host Agent on your target server to begin live observability."
               : "The configuration was committed to .carf.yml. Policy-only integration is active with zero server agent footprint required."}
           </p>
 
-          {installToken && !isPm2 && (
+          {installToken && !isPm2 && !isDocker && (
             <div className="space-y-2 rounded-lg border border-border bg-card p-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-semibold text-foreground">Host Agent One-Line Installer</span>
@@ -352,8 +374,8 @@ ${
             disabled={linking}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            {linking ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-            <span>{linking ? "Connecting..." : "Commit & Connect Repository"}</span>
+            {linking && <Loader2 className="size-3.5 animate-spin" />}
+            <span>{linking ? "Connecting..." : "Commit .carf.yml & Link"}</span>
           </button>
         </div>
       )}
