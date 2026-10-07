@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Clock,
   ArrowRight,
+  PlugZap,
 } from "lucide-react";
 import {
   deriveRepoStatus,
@@ -24,6 +25,7 @@ import {
 import { resolveFromLegacy } from "../../lib/capabilities";
 import { commitPageHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
+import { Button } from "../../components/ui/button";
 
 interface RepoItem {
   id: number;
@@ -148,12 +150,15 @@ export function RepoListView({
             3-Layer Deployment Intelligence: CARF Core policy, deployment integrations, and runtime observability.
           </p>
         </div>
-        <Link
-          href="/dashboard/setup"
-          className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-        >
-          Add Repository
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button nativeButton={false} variant="outline" size="sm" render={<Link href="/dashboard/integrations" />}>
+            <PlugZap className="size-3.5" />
+            Integrations
+          </Button>
+          <Button nativeButton={false} size="sm" render={<Link href="/dashboard/setup" />}>
+            Add Repository
+          </Button>
+        </div>
       </div>
 
       {activityError ? (

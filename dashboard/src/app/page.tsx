@@ -224,10 +224,6 @@ export default async function HomePage() {
                 <span>{account ? "Go to Dashboard" : "Get Started Free"}</span>
                 <ArrowRight className="size-4 ml-1.5" />
               </Button>
-              <Button size="lg" variant="outline" render={<Link href="/dashboard/integrations" />}>
-                <Layers className="size-4 mr-1.5 text-primary" />
-                <span>Explore Integrations Center</span>
-              </Button>
             </div>
 
             {/* Pipeline Phase Strip */}
