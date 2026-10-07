@@ -6,10 +6,10 @@
  * - Runtime Adapter (process execution & health feedback)
  *
  * Enforces:
- * 1. Only live adapters (PM2) provide active monitoring and automated rollback.
- * 2. Roadmap/preview adapters (Kubernetes, Docker, systemd) do not claim live rollback capabilities.
+ * 1. Live adapters (PM2, Docker) provide active monitoring and automated rollback.
+ * 2. Roadmap/preview adapters (Kubernetes, systemd) do not claim live rollback capabilities.
  * 3. Backward compatibility mapping from legacy `mode` (standalone/augment).
- * 4. Local PM2 runtime connects directly without requiring a CARF host agent.
+ * 4. Local PM2 and Docker runtimes connect directly without requiring a CARF host agent.
  */
 
 export const DEPLOYMENT_INTEGRATIONS = [
@@ -142,9 +142,9 @@ export const RUNTIME_METADATA: Record<
   },
   docker: {
     label: "Docker Engine / Compose",
-    status: "preview",
-    requiresAgent: true,
-    description: "Container health monitoring via Docker daemon API and previous image re-tagging (Roadmap).",
+    status: "active",
+    requiresAgent: false,
+    description: "Active container health monitoring via Docker daemon and automated rollback to previous image tag or compose state.",
   },
   systemd: {
     label: "systemd Service",
@@ -171,16 +171,19 @@ export function resolveCapabilities(
   const policy = true;
 
   // Active monitoring is enabled only when runtime adapter has live monitoring capability.
-  // Currently, only PM2 is implemented for active live telemetry monitoring.
-  const monitoring = runtimeAdapter === "pm2";
+  // PM2 and Docker are actively implemented for live telemetry monitoring.
+  const monitoring = runtimeAdapter === "pm2" || runtimeAdapter === "docker";
 
   // Automated rollback is enabled only when runtime adapter has live execution capability.
-  // PM2 is currently the only active runtime rollback adapter.
-  const rollback = runtimeAdapter === "pm2";
+  // PM2 and Docker are active runtime rollback adapters.
+  const rollback = runtimeAdapter === "pm2" || runtimeAdapter === "docker";
 
   let description = "Policy-only gating in delivery pipeline.";
   if (rollback) {
-    description = "Full closed-loop automated rollback and live telemetry via PM2.";
+    description =
+      runtimeAdapter === "docker"
+        ? "Full closed-loop automated rollback and container health monitoring via Docker."
+        : "Full closed-loop automated rollback and live telemetry via PM2.";
   } else if (runtimeMeta.status !== "active") {
     description = `Policy gating active; ${runtimeMeta.label} runtime integration is currently in ${runtimeMeta.status}.`;
   }
@@ -233,8 +236,8 @@ export function resolveFromLegacy(input?: LegacyConfigInput | null): ResolvedCap
   const adapterKind = input.adapter?.kind ?? (typeof stored.kind === "string" ? stored.kind : null);
   const hasTarget = typeof stored.target === "string" && stored.target.length > 0;
 
-  if (mode === "standalone" || adapterKind === "pm2" || hasTarget) {
-    return resolveCapabilities("github_actions", "pm2");
+  if (mode === "standalone" || adapterKind === "pm2" || adapterKind === "docker" || hasTarget) {
+    return resolveCapabilities("github_actions", adapterKind === "docker" ? "docker" : "pm2");
   }
 
   if (mode === "augment" || stored.integration === "github-actions") {

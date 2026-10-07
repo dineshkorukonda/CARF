@@ -22,8 +22,8 @@ describe("AdapterKindSchema / AVAILABLE_ADAPTER_KINDS / LIVE_ADAPTER_KINDS", () 
     }
   });
 
-  it("PM2 is the sole active production adapter", () => {
-    expect(LIVE_ADAPTER_KINDS).toEqual(["pm2"]);
+  it("PM2 and Docker are active production adapters", () => {
+    expect(LIVE_ADAPTER_KINDS).toEqual(["pm2", "docker"]);
   });
 
   it("rejects an unknown adapter kind", () => {
@@ -38,6 +38,16 @@ describe("AdapterKindSchema / AVAILABLE_ADAPTER_KINDS / LIVE_ADAPTER_KINDS", () 
 describe("AdapterConfigSchema", () => {
   it("accepts a well-formed adapter config", () => {
     const result = AdapterConfigSchema.safeParse({ kind: "pm2", target: "api" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a well-formed docker adapter config", () => {
+    const result = AdapterConfigSchema.safeParse({
+      kind: "docker",
+      containerName: "monix-web-1",
+      composeFile: "docker-compose.yml",
+      healthUrl: "http://127.0.0.1:3100/api/health",
+    });
     expect(result.success).toBe(true);
   });
 

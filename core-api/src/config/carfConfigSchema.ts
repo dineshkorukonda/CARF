@@ -23,14 +23,14 @@ export type ThresholdChangeType = z.infer<typeof ThresholdChangeTypeSchema>;
 const ClassificationRuleSchema = z
   .object({
     type: ClassificationChangeTypeSchema,
-    patterns: z.array(z.string()).min(1),
+    patterns: z.array(z.string().min(1)).min(1),
   })
   .strict();
 
 const ThresholdTypeOverrideSchema = z
   .object({
     baseThreshold: z.number().positive().optional(),
-    baseWindow: z.number().positive().optional(),
+    baseWindow: z.number().int().positive().optional(),
   })
   .strict();
 
@@ -75,10 +75,16 @@ export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
     status: "active",
     description: "PM2 process manager cluster reload (actively verified)",
   },
+  docker: {
+    kind: "docker",
+    name: "Docker",
+    status: "active",
+    description: "Docker container and Compose management (actively verified)",
+  },
 };
 
 /**
- * Deployment Integrations: Systems CARF integrates with during deployment.
+ * 3-Layer Architecture Configuration Schemas
  */
 export const DeploymentIntegrationSchema = z.enum([
   "github_actions",
@@ -88,9 +94,6 @@ export const DeploymentIntegrationSchema = z.enum([
 ]);
 export type DeploymentIntegrationConfig = z.infer<typeof DeploymentIntegrationSchema>;
 
-/**
- * Runtime / Control Adapters: Application runtime targets.
- */
 export const RuntimeAdapterSchema = z.enum([
   "none",
   "pm2",
@@ -101,12 +104,13 @@ export const RuntimeAdapterSchema = z.enum([
 export type RuntimeAdapterConfig = z.infer<typeof RuntimeAdapterSchema>;
 
 /**
- * `mode: "standalone"` with `adapter.kind: "pm2"` is wired to a `runStandaloneLoop()`
- * kickoff by `src/webhookOrchestrator.ts`'s `handleWebhookCommit()`.
- * PM2 is the only supported standalone adapter.
+ * Supported runtime adapters for automated rollback.
  */
 export const AdapterLayoutSchema = z.enum(["releases", "git"]);
 export type AdapterLayout = z.infer<typeof AdapterLayoutSchema>;
+
+export const AdapterKindSchema = z.enum(["pm2", "docker"]);
+export type AdapterKind = z.infer<typeof AdapterKindSchema>;
 
 export const Pm2TargetConfigSchema = z
   .object({
@@ -115,18 +119,19 @@ export const Pm2TargetConfigSchema = z
       .min(1)
       .regex(
         ADAPTER_TARGET_REGEX,
-        "target name must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+        "name must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
       ),
-    healthUrl: z.string().optional(),
+    healthUrl: z.string().url().optional(),
     startupGraceSeconds: z.number().int().nonnegative().optional(),
+    probeCount: z.number().int().positive().optional(),
   })
   .strict();
 export type Pm2TargetConfig = z.infer<typeof Pm2TargetConfigSchema>;
 
 export const AdapterSchema = z
   .object({
-    kind: z.literal("pm2"),
-    /** Single PM2 process name (alias for targets: [target]) */
+    kind: AdapterKindSchema,
+    /** Single process or container name (alias for targets: [target]) */
     target: z
       .string()
       .min(1)
@@ -135,6 +140,13 @@ export const AdapterSchema = z
         "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
       )
       .optional(),
+    /** Container name alias for Docker adapter */
+    containerName: z.string().optional(),
+    /** Docker compose manifest path */
+    composeFile: z.string().optional(),
+    /** Image tag to deploy or rollback */
+    imageTag: z.string().optional(),
+    previousImageTag: z.string().optional(),
     /** Multiple PM2 process names (strings or target objects) */
     targets: z
       .array(
@@ -144,49 +156,57 @@ export const AdapterSchema = z
             .min(1)
             .regex(
               ADAPTER_TARGET_REGEX,
-              "targets must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
+              "each target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
             ),
           Pm2TargetConfigSchema,
         ])
       )
       .min(1)
       .optional(),
-    /** Deployment layout: "releases" (symlink) or "git" (in-place checkout) */
-    layout: AdapterLayoutSchema.optional(),
-    /** Root directory containing release directories for "releases" layout. Default: /var/www/releases */
-    releasesRoot: z.string().optional(),
-    /** Symlink path for "releases" layout. Default: /var/www/current */
-    currentSymlink: z.string().optional(),
-    /** Shared paths (files or directories) preserved across releases */
-    sharedPaths: z.array(z.string().min(1)).optional(),
-    /** Working directory for "git" layout */
+    /** Working directory of the target app on host */
     cwd: z.string().optional(),
-    /** Reinstall or build command to run after git checkout on rollback (for "git" layout) */
+    /** Deployment directory layout */
+    layout: AdapterLayoutSchema.optional(),
+    /** Absolute path to releases root directory (required when layout: "releases") */
+    releasesRoot: z.string().optional(),
+    /** Absolute path to current symlink (required when layout: "releases") */
+    currentSymlink: z.string().optional(),
+    /** Paths to symlink into every release (optional, layout: "releases") */
+    sharedPaths: z.array(z.string()).optional(),
+    /** Optional shell command to run after git checkout (layout: "git" only) */
     buildCommand: z.string().optional(),
-    /** Optional HTTP health check URL or endpoint */
-    healthUrl: z.string().optional(),
-    /** Startup grace period in seconds before readiness evaluation. Default: 60 */
+    /** Seconds to wait after restart before first health probe */
     startupGraceSeconds: z.number().int().nonnegative().optional(),
-    /** Number of HTTP probes per poll interval */
+    /** HTTP health check URL probed before and after reload */
+    healthUrl: z.string().url().optional(),
+    /** Number of consecutive successful probes required to declare healthy */
     probeCount: z.number().int().positive().optional(),
   })
   .strict()
-  .refine((data) => data.target !== undefined || (data.targets !== undefined && data.targets.length > 0), {
-    message: "adapter requires either 'target' or 'targets' to be specified",
-    path: ["target"],
-  });
+  .refine(
+    (data) =>
+      data.target !== undefined ||
+      data.containerName !== undefined ||
+      (data.targets !== undefined && data.targets.length > 0),
+    {
+      message: "adapter requires either 'target', 'containerName', or 'targets' to be specified",
+      path: ["target"],
+    }
+  );
 
 export const CarfConfigSchema = z
   .object({
     classification: ClassificationSchema.optional(),
     threshold: ThresholdSchema.optional(),
-    // 3-Layer Architecture (new source of truth)
+    mode: z.enum(["augment", "standalone"]).optional(),
     deploymentIntegration: DeploymentIntegrationSchema.optional(),
     runtimeAdapter: RuntimeAdapterSchema.optional(),
-    // Legacy fields preserved for backward compatibility
-    mode: z.enum(["standalone", "augment"]).optional(),
     adapter: AdapterSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine((data) => !(data.mode === "standalone" && data.adapter === undefined), {
+    message: "adapter configuration is required when mode is 'standalone'",
+    path: ["adapter"],
+  });
 
 export type CarfConfig = z.infer<typeof CarfConfigSchema>;

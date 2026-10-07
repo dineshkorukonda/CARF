@@ -5,6 +5,7 @@ import type { InstallationTokenClient } from "./adapters/github/installationToke
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
 import { PM2Adapter } from "./adapters/pm2.js";
+import { DockerAdapter } from "./adapters/docker.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient, type RolloutOutcomeRecord } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
@@ -39,7 +40,7 @@ export interface WebhookOrchestratorDeps {
   carfConfig: CarfConfig | undefined;
   logger: OrchestratorLogger;
   prismaClient?: PipelinePrismaClient;
-  /** Testable seam for building RollbackAdapter. Defaults to PM2Adapter. */
+  /** Testable seam for building RollbackAdapter. Defaults to PM2Adapter or DockerAdapter. */
   rollbackAdapterFactory?: (adapterConfig: AdapterConfig, baseSha: string) => RollbackAdapter;
   /** Testable seam; defaults to the real runStandaloneLoop. */
   standaloneLoopRunner?: typeof runStandaloneLoop;
@@ -80,7 +81,16 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
       probeCount: adapterConfig.probeCount,
     });
   }
-  throw new Error(`Adapter kind "${(adapterConfig as { kind: string }).kind}" is unsupported. PM2 is the only supported adapter.`);
+  if (adapterConfig.kind === "docker") {
+    return new DockerAdapter(adapterConfig.previousImageTag || baseSha, {
+      containerName: adapterConfig.target || adapterConfig.containerName,
+      composeFile: adapterConfig.composeFile,
+      healthUrl: adapterConfig.healthUrl,
+      probeCount: adapterConfig.probeCount,
+      startupGraceSeconds: adapterConfig.startupGraceSeconds,
+    });
+  }
+  throw new Error(`Adapter kind "${(adapterConfig as { kind: string }).kind}" is unsupported.`);
 }
 
 
@@ -90,7 +100,7 @@ function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: st
  * persist + compute threshold), then branches on .carf.yml's `mode`:
  *   - Augment (or no mode / no .carf.yml at all): stops here. GET /v1/threshold
  *     (src/routes/threshold.ts) serves the persisted result separately.
- *   - Standalone with adapter.kind "pm2": additionally kicks off runStandaloneLoop() in the background
+ *   - Standalone with adapter.kind "pm2" or "docker": additionally kicks off runStandaloneLoop() in the background
  *     (not awaited -- the loop can run for the full threshold window, up to DEFAULT_CONFIG's
  *     largest baseWindow, which would hang the webhook's HTTP response if awaited).
  *   - Standalone with no adapter configured at all: logs an error and skips the loop.
@@ -225,7 +235,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         connectionMode = resolveRepoMode(conn);
         connectionCapabilities = resolveFromLegacy(conn);
         monitoringPaused = Boolean(conn.monitoringPaused);
-        if (connectionCapabilities.runtimeAdapter === "pm2") {
+        if (connectionCapabilities.runtimeAdapter === "pm2" || connectionCapabilities.runtimeAdapter === "docker") {
           connectionAdapter = resolveRepoAdapterConfig(conn.storedConfig, conn.pm2Process, connectionAdapter);
         }
       }
@@ -253,7 +263,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   // RepoConnection.mode is authoritative when a connection exists.
   // Augment repositories must never start a Standalone observation loop.
   const effectiveMode = connectionMode ?? carfConfig?.mode;
-  if (deps.deferGithubActionsDeployment && effectiveMode === "standalone" && resolved.runtimeAdapter === "pm2" && resolved.deploymentIntegration === "github_actions") {
+  if (deps.deferGithubActionsDeployment && effectiveMode === "standalone" && (resolved.runtimeAdapter === "pm2" || resolved.runtimeAdapter === "docker") && resolved.deploymentIntegration === "github_actions") {
     deps.logger.info({ owner: target.owner, repo: target.repo, sha: target.headSha }, "waiting for GitHub Actions CI before deployment");
     return;
   }

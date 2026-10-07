@@ -76,6 +76,20 @@ describe("CarfConfigSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts valid docker adapter configuration", () => {
+    const result = CarfConfigSchema.safeParse({
+      adapter: {
+        kind: "docker",
+        target: "monix-web-1",
+        composeFile: "docker-compose.yml",
+        healthUrl: "http://localhost:3100/api/health",
+        probeCount: 3,
+        startupGraceSeconds: 15,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("rejects removed adapter kinds (kubernetes, gitops, dockerCompose, dockerSwarm)", () => {
     expect(CarfConfigSchema.safeParse({ adapter: { kind: "kubernetes", target: "my-app" } }).success).toBe(false);
     expect(CarfConfigSchema.safeParse({ adapter: { kind: "gitops", target: "my-app" } }).success).toBe(false);

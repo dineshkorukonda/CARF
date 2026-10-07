@@ -89,6 +89,16 @@ export function SetupWizard({
     layout: initialPm2.layout || "git",
   });
 
+  const [dockerConfig, setDockerConfig] = useState<{
+    containerName: string;
+    composeFile: string;
+    healthUrl: string;
+  }>({
+    containerName: "",
+    composeFile: "docker-compose.yml",
+    healthUrl: "http://127.0.0.1:3000/api/health",
+  });
+
   // Connected repository names set for fast lookup
   const connectedRepoNames = new Set(
     (connections || []).map((c) => `${c.owner}/${c.repo}`.toLowerCase())
@@ -128,108 +138,105 @@ export function SetupWizard({
             Configure 3-layer architecture: CARF Core policy, deployment integrations, and runtime adapters.
           </p>
         </div>
+      </div>
 
-        {/* Global Progress Indicators */}
-        <div className="flex items-center gap-2 sm:gap-3 text-xs">
-          <div
-            className={`flex items-center gap-1 font-semibold ${
-              step >= 1 ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`flex size-5 items-center justify-center rounded-full text-[10px] ${
-                step > 1
-                  ? "bg-primary text-primary-foreground"
-                  : step === 1
-                  ? "border border-primary text-primary"
-                  : "border border-border text-muted-foreground"
-              }`}
-            >
-              {step > 1 ? <CheckCircle2 className="size-3" /> : "1"}
-            </span>
-            <span className="hidden sm:inline">Repo</span>
-          </div>
+      {/* Wizard Step Progression Bar */}
+      <div className="grid grid-cols-4 gap-2">
+        <div
+          className={`flex items-center gap-2 border-b-2 pb-2 text-xs font-medium transition-colors ${
+            step === 1
+              ? "border-primary text-primary"
+              : step > 1
+              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+            {step > 1 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "1"}
+          </span>
+          <span className="truncate">Repository</span>
+        </div>
 
-          <div className="h-px w-4 sm:w-5 bg-border" />
+        <div
+          className={`flex items-center gap-2 border-b-2 pb-2 text-xs font-medium transition-colors ${
+            step === 2
+              ? "border-primary text-primary"
+              : step > 2
+              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+            {step > 2 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "2"}
+          </span>
+          <span className="truncate">Deployment</span>
+        </div>
 
-          <div
-            className={`flex items-center gap-1 font-semibold ${
-              step >= 2 ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`flex size-5 items-center justify-center rounded-full text-[10px] ${
-                step > 2
-                  ? "bg-primary text-primary-foreground"
-                  : step === 2
-                  ? "border border-primary text-primary"
-                  : "border border-border text-muted-foreground"
-              }`}
-            >
-              {step > 2 ? <CheckCircle2 className="size-3" /> : "2"}
-            </span>
-            <span className="hidden sm:inline">Deployment</span>
-          </div>
+        <div
+          className={`flex items-center gap-2 border-b-2 pb-2 text-xs font-medium transition-colors ${
+            step === 3
+              ? "border-primary text-primary"
+              : step > 3
+              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+            {step > 3 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "3"}
+          </span>
+          <span className="truncate">Runtime</span>
+        </div>
 
-          <div className="h-px w-4 sm:w-5 bg-border" />
-
-          <div
-            className={`flex items-center gap-1 font-semibold ${
-              step >= 3 ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`flex size-5 items-center justify-center rounded-full text-[10px] ${
-                step > 3
-                  ? "bg-primary text-primary-foreground"
-                  : step === 3
-                  ? "border border-primary text-primary"
-                  : "border border-border text-muted-foreground"
-              }`}
-            >
-              {step > 3 ? <CheckCircle2 className="size-3" /> : "3"}
-            </span>
-            <span className="hidden sm:inline">Runtime</span>
-          </div>
-
-          <div className="h-px w-4 sm:w-5 bg-border" />
-
-          <div
-            className={`flex items-center gap-1 font-semibold ${
-              step === 4 ? "text-primary" : "text-muted-foreground"
-            }`}
-          >
-            <span
-              className={`flex size-5 items-center justify-center rounded-full text-[10px] ${
-                step === 4
-                  ? "border border-primary text-primary"
-                  : "border border-border text-muted-foreground"
-              }`}
-            >
-              4
-            </span>
-            <span className="hidden sm:inline">Capabilities</span>
-          </div>
+        <div
+          className={`flex items-center gap-2 border-b-2 pb-2 text-xs font-medium transition-colors ${
+            step === 4
+              ? "border-primary text-primary"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+            4
+          </span>
+          <span className="truncate">Preview &amp; Connect</span>
         </div>
       </div>
 
-      {/* STEP 1: SELECT REPOSITORY */}
+      {/* STEP 1: CHOOSE REPO */}
       {step === 1 && (
         <RepositorySelectionStep
           repos={initialRepos}
+          hasGithubApp={Boolean(githubInstallation)}
+          connectedRepoNames={connectedRepoNames}
           selectedRepoFullName={selectedRepoFullName}
           onSelectRepo={(fullName) => {
             setSelectedRepoFullName(fullName);
-            const repoName = fullName.split("/")[1] || fullName;
-            setPm2Config((prev) => ({
-              ...prev,
-              targetName: prev.targetName || repoName,
-              cwd: prev.cwd || `/opt/${repoName}`,
-            }));
+            const repoConn = findRepoConnection(connections || [], fullName);
+            if (repoConn) {
+              const res = resolveFromLegacy(repoConn);
+              setDeploymentIntegration(res.deploymentIntegration);
+              setRuntimeAdapter(res.runtimeAdapter);
+              const pm2 = pm2FieldsFromStoredConfig(repoConn.storedConfig);
+              if (pm2.targetName) {
+                setPm2Config((prev) => ({
+                  ...prev,
+                  targetName: pm2.targetName || prev.targetName,
+                  cwd: pm2.cwd || prev.cwd,
+                  healthUrl: pm2.healthUrl || prev.healthUrl,
+                  buildCommand: pm2.buildCommand || prev.buildCommand,
+                  layout: pm2.layout || prev.layout,
+                }));
+              }
+            } else {
+              setDeploymentIntegration("github_actions");
+              setRuntimeAdapter("none");
+              setPm2Config((prev) => ({
+                ...prev,
+                targetName: fullName.split("/")[1] || "",
+                cwd: `/opt/${fullName.split("/")[1] || "app"}`,
+              }));
+            }
           }}
           onContinue={() => setStep(2)}
-          hasGithubApp={Boolean(githubInstallation)}
-          connectedRepoNames={connectedRepoNames}
         />
       )}
 
@@ -253,6 +260,8 @@ export function SetupWizard({
           onSelectAdapter={(adapter) => setRuntimeAdapter(adapter)}
           pm2Config={pm2Config}
           onChangePm2Config={(cfg) => setPm2Config(cfg)}
+          dockerConfig={dockerConfig}
+          onChangeDockerConfig={(cfg) => setDockerConfig(cfg)}
           onBack={() => setStep(2)}
           onContinue={() => setStep(4)}
         />
@@ -266,6 +275,7 @@ export function SetupWizard({
           deploymentIntegration={deploymentIntegration}
           runtimeAdapter={runtimeAdapter}
           pm2Config={pm2Config}
+          dockerConfig={dockerConfig}
           onBack={() => setStep(3)}
         />
       )}

@@ -9,7 +9,7 @@ import { z } from "zod";
  * through untouched by carfConfigWriter.ts rather than parsed strictly, so this mirror
  * lagging slightly behind core-api's never corrupts a repo's existing `.carf.yml`.
  */
-export const AdapterKindSchema = z.enum(["pm2"]);
+export const AdapterKindSchema = z.enum(["pm2", "docker"]);
 export type AdapterKind = z.infer<typeof AdapterKindSchema>;
 
 export type AdapterStatus = "active" | "preview" | "deprecated";
@@ -27,6 +27,13 @@ export const ADAPTER_METADATA: Record<AdapterKind, AdapterDescriptor> = {
   pm2: {
     kind: "pm2",
     label: "PM2 Process Manager (Node / VPS)",
+    status: "active",
+    statusBadge: "Active",
+    disabled: false,
+  },
+  docker: {
+    kind: "docker",
+    label: "Docker Engine / Compose",
     status: "active",
     statusBadge: "Active",
     disabled: false,
@@ -61,6 +68,10 @@ export const AdapterConfigSchema = z
         "target must contain only alphanumeric characters, forward slashes, dots, underscores, or dashes"
       )
       .optional(),
+    containerName: z.string().optional(),
+    composeFile: z.string().optional(),
+    imageTag: z.string().optional(),
+    previousImageTag: z.string().optional(),
     targets: z
       .array(
         z.union([
@@ -87,10 +98,16 @@ export const AdapterConfigSchema = z
     probeCount: z.number().int().positive().optional(),
   })
   .strict()
-  .refine((data) => data.target !== undefined || (data.targets !== undefined && data.targets.length > 0), {
-    message: "adapter requires either 'target' or 'targets' to be specified",
-    path: ["target"],
-  });
+  .refine(
+    (data) =>
+      data.target !== undefined ||
+      data.containerName !== undefined ||
+      (data.targets !== undefined && data.targets.length > 0),
+    {
+      message: "adapter requires either 'target', 'containerName', or 'targets' to be specified",
+      path: ["target"],
+    }
+  );
 export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
 
 export const DeploymentIntegrationSchema = z.enum([
@@ -116,11 +133,13 @@ export type Mode = z.infer<typeof ModeSchema>;
 /** All adapter kinds known to dashboard UI */
 export const AVAILABLE_ADAPTER_KINDS: readonly AdapterKind[] = [
   "pm2",
+  "docker",
 ];
 
 /** Actively verified production adapter kinds */
 export const LIVE_ADAPTER_KINDS: readonly AdapterKind[] = [
   "pm2",
+  "docker",
 ];
 
 /** Mirrors ClassificationChangeTypeSchema (tier1.ts's ChangeType minus "unclassified"). */
