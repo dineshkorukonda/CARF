@@ -31,6 +31,22 @@ describe("POST /webhooks/github", () => {
     await app.close();
   });
 
+  it.each(["opened", "synchronize", "reopened", "edited"])("accepts a signed %s PR update", async (action) => {
+    const body = JSON.stringify({ ...pushPayload, action, pull_request: { base: { sha: "base" }, head: { sha: "head" } } });
+    const response = await app.inject({ method: "POST", url: "/webhooks/github", payload: body,
+      headers: { "content-type": "application/json", "x-github-event": "pull_request", "x-hub-signature-256": sign(body) } });
+    expect(response.statusCode).toBe(202);
+    expect(onValidWebhook).toHaveBeenCalledWith(expect.objectContaining({ event: "pull_request", baseSha: "base", headSha: "head" }));
+  });
+
+  it("acknowledges a closed PR without classifying it again", async () => {
+    const body = JSON.stringify({ ...pushPayload, action: "closed", pull_request: { base: { sha: "base" }, head: { sha: "head" } } });
+    const response = await app.inject({ method: "POST", url: "/webhooks/github", payload: body,
+      headers: { "content-type": "application/json", "x-github-event": "pull_request", "x-hub-signature-256": sign(body) } });
+    expect(response.json()).toEqual({ status: "ignored" });
+    expect(onValidWebhook).not.toHaveBeenCalled();
+  });
+
   it("rejects a request with a missing signature header", async () => {
     const body = JSON.stringify(pushPayload);
     const response = await app.inject({

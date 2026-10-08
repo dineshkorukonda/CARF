@@ -14,6 +14,8 @@ import {
 import { applyModeAdapterPatch, carfConfigsEqual } from "../../../../lib/carfConfigWriter";
 import {
   AdapterConfigSchema,
+  AnalysisTriggerSchema,
+  type AnalysisTrigger,
   type AdapterKind,
 } from "../../../../lib/carfConfigSchema";
 import { generateInstallToken } from "../../../../lib/agentToken";
@@ -35,6 +37,7 @@ export async function POST(request: NextRequest) {
   let adapterKind = "";
   let adapterTarget = "";
   let integration = "";
+  let analysisTrigger: AnalysisTrigger | undefined;
   let adapterExtras: Record<string, unknown> = {};
 
   try {
@@ -48,6 +51,11 @@ export async function POST(request: NextRequest) {
     adapterKind = String(body.adapterKind ?? (body.runtimeAdapter === "pm2" ? "pm2" : body.runtimeAdapter === "docker" ? "docker" : ""));
     adapterTarget = String(body.adapterTarget ?? body.containerName ?? "");
     integration = String(body.integration ?? "github-actions");
+    if (body.analysisTrigger !== undefined) {
+      const parsed = AnalysisTriggerSchema.safeParse(body.analysisTrigger);
+      if (!parsed.success) return NextResponse.json({ error: "Invalid analysis trigger" }, { status: 400 });
+      analysisTrigger = parsed.data;
+    }
 
     adapterExtras = {
       ...(typeof body.containerName === "string" ? { containerName: body.containerName } : {}),
@@ -131,6 +139,7 @@ export async function POST(request: NextRequest) {
 
     const nextYaml = applyModeAdapterPatch(existingFile?.content ?? null, {
       mode: deploymentMode,
+      analysisTrigger,
       deploymentIntegration: resolved.deploymentIntegration,
       runtimeAdapter: resolved.runtimeAdapter,
       adapter: adapterConfig,
@@ -148,6 +157,7 @@ export async function POST(request: NextRequest) {
     if (deploymentMode === "augment") {
       const storedConfig = {
         mode: "augment" as const,
+        analysisTrigger: (load(nextYaml) as { analysisTrigger?: AnalysisTrigger }).analysisTrigger ?? "both",
         deploymentIntegration: resolved.deploymentIntegration,
         runtimeAdapter: resolved.runtimeAdapter,
         integration,
@@ -207,6 +217,7 @@ export async function POST(request: NextRequest) {
     const pm2Process = adapterTarget || null;
     const storedConfig = {
       mode: "standalone" as const,
+      analysisTrigger: (load(nextYaml) as { analysisTrigger?: AnalysisTrigger }).analysisTrigger ?? "both",
       ...AdapterConfigSchema.parse((load(nextYaml) as Record<string, unknown>).adapter),
       deploymentIntegration: resolved.deploymentIntegration,
       runtimeAdapter: resolved.runtimeAdapter,

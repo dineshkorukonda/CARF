@@ -23,6 +23,7 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
   ["api/auth/github", ["GET"], () => import("../../src/app/api/auth/github/route")],
   ["api/compat-check", ["POST"], () => import("../../src/app/api/compat-check/route")],
   ["api/config/save", ["POST"], () => import("../../src/app/api/config/save/route")],
+  ["api/config/analysis", ["GET", "POST"], () => import("../../src/app/api/config/analysis/route")],
   ["api/config/save-rules", ["POST"], () => import("../../src/app/api/config/save-rules/route")],
   ["api/github-app/install/callback", ["GET"], () => import("../../src/app/api/github-app/install/callback/route")],
   ["api/eval/run", ["POST"], () => import("../../src/app/api/eval/run/route")],

@@ -66,6 +66,22 @@ describe("fetchBlobContent", () => {
 });
 
 describe("acquireDiff", () => {
+  it("uses the common ancestor for a PR whose base branch has advanced", async () => {
+    const client = mockClient({
+      compareCommits: vi.fn().mockResolvedValue({ mergeBaseSha: "ancestor", files: [{ filename: "src/a.ts", status: "modified" }] }),
+      getContent: vi.fn().mockImplementation((_o, _r, _p, ref) => Promise.resolve(ref)),
+    });
+    expect(await acquireDiff(client, "owner", "repo", "advanced-base", "pr-head", "token", true)).toEqual([
+      { path: "src/a.ts", before: "ancestor", after: "pr-head" },
+    ]);
+    expect(client.getContent).not.toHaveBeenCalledWith("owner", "repo", "src/a.ts", "advanced-base", "token");
+  });
+
+  it("fails closed when a PR comparison omits its merge base", async () => {
+    const client = mockClient({ compareCommits: vi.fn().mockResolvedValue({ files: [] }) });
+    await expect(acquireDiff(client, "owner", "repo", "base", "head", "token", true)).rejects.toThrow("missing the PR merge base");
+    expect(client.getContent).not.toHaveBeenCalled();
+  });
   it("orchestrates changed-file listing + before/after blob fetches into classifyCommit()'s input shape", async () => {
     const client = mockClient({
       compareCommits: vi.fn().mockResolvedValue({

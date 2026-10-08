@@ -1,6 +1,19 @@
 import { dump, load } from "js-yaml";
 import { describe, expect, it } from "vitest";
-import { applyClassificationThresholdPatch, applyModeAdapterPatch, applyThreeLayerConfigPatch, InvalidCarfConfigError } from "../../src/lib/carfConfigWriter";
+import { applyAnalysisTriggerPatch, applyClassificationThresholdPatch, applyModeAdapterPatch, applyThreeLayerConfigPatch, InvalidCarfConfigError } from "../../src/lib/carfConfigWriter";
+
+describe("analysis trigger configuration", () => {
+  it("updates only the analysis choice and preserves runtime and classification settings", () => {
+    const config = { mode: "standalone", adapter: { kind: "pm2", target: "web", buildCommand: "npm run build" }, threshold: { decay: 0.6 }, custom: { preserved: true } };
+    expect(load(applyAnalysisTriggerPatch(dump(config), "pull_requests"))).toEqual({ ...config, analysisTrigger: "pull_requests" });
+  });
+  it("preserves the choice through later mode edits", () => {
+    expect(load(applyModeAdapterPatch("analysisTrigger: pull_requests\nmode: augment\n", { mode: "augment" }))).toEqual({ mode: "augment", analysisTrigger: "pull_requests" });
+  });
+  it.each(["commits", "pull_requests", "both"] as const)("persists %s during project setup", (analysisTrigger) => {
+    expect(load(applyModeAdapterPatch(null, { mode: "augment", analysisTrigger }))).toEqual({ mode: "augment", analysisTrigger });
+  });
+});
 
 describe("applyModeAdapterPatch", () => {
   it("preserves rollback build and probe settings during a partial target edit", () => {

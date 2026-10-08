@@ -46,6 +46,7 @@ function parsePush(body: Record<string, unknown>): DeployTarget | null {
 }
 
 function parsePullRequest(body: Record<string, unknown>): DeployTarget | null {
+  if (!["opened", "synchronize", "reopened", "ready_for_review", "edited"].includes(String(body.action))) return null;
   const { owner, repo } = extractRepo(body);
   const installationId = extractInstallationId(body);
   const pullRequest = body.pull_request as { base?: { sha?: string }; head?: { sha?: string } } | undefined;

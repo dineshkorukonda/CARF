@@ -73,6 +73,7 @@ const app = buildApp({
         logger: app.log,
         rolloutMonitor,
         deferGithubActionsDeployment: true,
+        respectAnalysisTrigger: true,
       }),
   },
   refreshCommits: {

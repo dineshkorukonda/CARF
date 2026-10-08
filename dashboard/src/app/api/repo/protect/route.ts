@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { load } from "js-yaml";
+import { AnalysisTriggerSchema, type AnalysisTrigger } from "../../../../lib/carfConfigSchema";
 import { getCurrentAccount } from "../../../../lib/auth";
 import { getInstallationForAccount } from "../../../../lib/accountService";
 import { prisma } from "../../../../lib/prisma";
@@ -27,10 +29,16 @@ export async function POST(request: NextRequest) {
   let repo = "";
   let preset: ProtectionPreset = "standard";
   let includeWorkflow = true;
+  let analysisTrigger: AnalysisTrigger | undefined;
 
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const body = await request.json();
+    if (body.analysisTrigger !== undefined) {
+      const parsed = AnalysisTriggerSchema.safeParse(body.analysisTrigger);
+      if (!parsed.success) return NextResponse.json({ error: "Invalid analysis trigger" }, { status: 400 });
+      analysisTrigger = parsed.data;
+    }
     installationId = String(body.installationId || "");
     owner = String(body.owner || "");
     repo = String(body.repo || "");
@@ -42,6 +50,11 @@ export async function POST(request: NextRequest) {
     }
   } else {
     const formData = await request.formData();
+    if (formData.has("analysisTrigger")) {
+      const parsed = AnalysisTriggerSchema.safeParse(formData.get("analysisTrigger"));
+      if (!parsed.success) return NextResponse.json({ error: "Invalid analysis trigger" }, { status: 400 });
+      analysisTrigger = parsed.data;
+    }
     installationId = String(formData.get("installationId") || "");
     owner = String(formData.get("owner") || "");
     repo = String(formData.get("repo") || "");
@@ -67,7 +80,11 @@ export async function POST(request: NextRequest) {
 
     // 1. Check existing .carf.yml and commit
     const existingConfig = await getCarfConfigFile(owner, repo, token);
-    const carfYaml = generateCarfYaml(preset);
+    if (!analysisTrigger && existingConfig) {
+      const config = load(existingConfig.content) as { analysisTrigger?: unknown } | null;
+      if (config?.analysisTrigger !== undefined) analysisTrigger = AnalysisTriggerSchema.parse(config.analysisTrigger);
+    }
+    const carfYaml = generateCarfYaml(preset, analysisTrigger);
     await putCarfConfigFile(
       owner,
       repo,
@@ -84,7 +101,7 @@ export async function POST(request: NextRequest) {
       try {
         const workflowPath = ".github/workflows/carf.yml";
         const existingWorkflow = await getRepoFile(owner, repo, workflowPath, token);
-        const workflowYaml = generateWatchdogWorkflowYaml();
+        const workflowYaml = generateWatchdogWorkflowYaml(analysisTrigger);
         await putRepoFile(
           owner,
           repo,

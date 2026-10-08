@@ -7,7 +7,7 @@ import { signGithubAppJwt } from "../../../../adapters/github/appInstallClient";
 import { createInstallationToken } from "../../../../adapters/github/installationTokenClient";
 import { getCarfConfigFile, putCarfConfigFile, GitHubContentsError } from "../../../../adapters/github/contentsClient";
 import { applyModeAdapterPatch, carfConfigsEqual } from "../../../../lib/carfConfigWriter";
-import type { AdapterKind } from "../../../../lib/carfConfigSchema";
+import { AnalysisTriggerSchema, type AnalysisTrigger, type AdapterKind } from "../../../../lib/carfConfigSchema";
 
 /**
  * Commits mode/adapter to `.carf.yml`. Always returns JSON.
@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
   let mode = "";
   let adapterKind = "";
   let adapterTarget = "";
+  let analysisTrigger: AnalysisTrigger | undefined;
 
   const contentType = request.headers.get("content-type") || "";
   try {
@@ -37,6 +38,11 @@ export async function POST(request: NextRequest) {
       mode = String(body.mode ?? "");
       adapterKind = String(body.adapterKind ?? "");
       adapterTarget = String(body.adapterTarget ?? "");
+      if (body.analysisTrigger !== undefined) {
+        const parsed = AnalysisTriggerSchema.safeParse(body.analysisTrigger);
+        if (!parsed.success) return NextResponse.json({ error: "Invalid analysis trigger" }, { status: 400 });
+        analysisTrigger = parsed.data;
+      }
     } else {
       const form = await request.formData();
       installationId = String(form.get("installationId") ?? "");
@@ -45,6 +51,11 @@ export async function POST(request: NextRequest) {
       mode = String(form.get("mode") ?? "");
       adapterKind = String(form.get("adapterKind") ?? "");
       adapterTarget = String(form.get("adapterTarget") ?? "");
+      if (form.has("analysisTrigger")) {
+        const parsed = AnalysisTriggerSchema.safeParse(form.get("analysisTrigger"));
+        if (!parsed.success) return NextResponse.json({ error: "Invalid analysis trigger" }, { status: 400 });
+        analysisTrigger = parsed.data;
+      }
     }
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
@@ -62,6 +73,7 @@ export async function POST(request: NextRequest) {
 
     const nextYaml = applyModeAdapterPatch(existingFile?.content ?? null, {
       mode: mode === "standalone" ? "standalone" : "augment",
+      analysisTrigger,
       adapter:
         mode === "standalone" ? { kind: adapterKind as AdapterKind, target: adapterTarget } : undefined,
     });
