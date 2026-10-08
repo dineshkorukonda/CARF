@@ -12,6 +12,7 @@ import {
   LogOut,
   LayoutDashboard,
   GitCommitHorizontal,
+  GitPullRequest,
   RotateCcw,
   History,
   Settings2,
@@ -19,7 +20,8 @@ import {
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import type { InstallationRow } from "../../lib/accountService";
-import { DASHBOARD_NAV_GROUPS, PROJECT_SECTIONS, projectSectionHref, type ProjectSection } from "../../lib/dashboardNav";
+import { DASHBOARD_NAV_GROUPS, projectSectionsForAnalysis, projectSectionHref, type ProjectSection } from "../../lib/dashboardNav";
+import { AnalysisTriggerSchema, type AnalysisTrigger } from "../../lib/carfConfigSchema";
 
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
@@ -32,6 +34,7 @@ const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
 const PROJECT_ICONS = {
   overview: LayoutDashboard,
   commits: GitCommitHorizontal,
+  pull_requests: GitPullRequest,
   rollouts: RotateCcw,
   activity: History,
   settings: Settings2,
@@ -42,6 +45,22 @@ function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
   const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
   const isProject = segments[0] === "dashboard" && (segments[1] === "repos" || segments[1] === "commits");
+  const identity = isProject && segments.length >= 4 ? `${segments[2]}/${segments[3]}` : "";
+  const [selection, setSelection] = useState<{ identity: string; trigger: AnalysisTrigger } | null>(null);
+  useEffect(() => {
+    if (!identity) return;
+    const controller = new AbortController();
+    const [owner, repo] = identity.split("/").map(decodeURIComponent);
+    const read = () => fetch(`/api/repo/analysis-mode?${new URLSearchParams({ owner: owner!, repo: repo! })}`, { signal: controller.signal, cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Settings unavailable");
+        const data = await response.json();
+        setSelection({ identity, trigger: AnalysisTriggerSchema.parse(data.analysisTrigger) });
+      }).catch(() => { if (!controller.signal.aborted) setSelection({ identity, trigger: "both" }); });
+    void read();
+    window.addEventListener("carf-analysis-settings-saved", read);
+    return () => { controller.abort(); window.removeEventListener("carf-analysis-settings-saved", read); };
+  }, [identity]);
   if (!isProject || segments.length < 4) return null;
   const owner = decodeURIComponent(segments[2]!);
   const repo = decodeURIComponent(segments[3]!);
@@ -56,16 +75,16 @@ function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
         </div>
       )}
       <nav aria-label="Project" className="flex flex-col gap-0.5 px-3">
-        {PROJECT_SECTIONS.map((section) => {
+        {projectSectionsForAnalysis(selection?.identity === identity ? selection.trigger : "both").map((section) => {
           const Icon = PROJECT_ICONS[section];
           const active = (selected === "metrics" ? "overview" : selected) === section;
           return (
-            <Link key={section} href={projectSectionHref(owner, repo, section)} title={collapsed ? section : undefined}
+            <Link key={section} href={projectSectionHref(owner, repo, section)} title={collapsed ? section === "pull_requests" ? "Pull requests" : section : undefined}
               aria-current={active ? "page" : undefined}
               className={"flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium capitalize transition-colors " +
                 (active ? "bg-sidebar-foreground text-sidebar" : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")}>
               <Icon className="size-4 shrink-0" />
-              {!collapsed && <span>{section}</span>}
+              {!collapsed && <span>{section === "pull_requests" ? "Pull requests" : section}</span>}
             </Link>
           );
         })}

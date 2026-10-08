@@ -51,6 +51,8 @@ import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } f
 import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { AnalysisTriggerSettings } from "../../../../components/AnalysisTriggerSettings";
+import { PullRequestHistory } from "../../../../components/PullRequestHistory";
+import type { AnalysisTrigger } from "../../../../lib/carfConfigSchema";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
 import { RetryCiPanel } from "../../../../components/RetryCiPanel";
 import { ObservationCountdown } from "../../../../components/ObservationCountdown";
@@ -131,6 +133,7 @@ export interface RepoConnectionDetails {
 }
 
 interface RepoDetailViewProps {
+  analysisTrigger?: AnalysisTrigger | null;
   view: ProjectSection;
   owner: string;
   repo: string;
@@ -154,6 +157,7 @@ export function RepoDetailView({
   commits: initialCommits,
   auditLogs,
   activityError,
+  analysisTrigger,
 }: RepoDetailViewProps) {
   const dates = useDashboardDates();
   const resolved = resolveFromLegacy({
@@ -840,7 +844,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <p className="mt-1 font-mono text-xs text-muted-foreground">{liveRollouts[0]?.commitSha.slice(0, 7) ?? "Awaiting deployment"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
-              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Latest analyzed commit</p>
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Latest head policy</p>
               {commits[0] ? <Link href={commitPageHref(owner, repo, commits[0].sha)} className="mt-2 block font-mono text-lg font-semibold text-primary hover:underline">{commits[0].sha.slice(0, 7)}</Link> : <p className="mt-2 text-lg font-semibold text-foreground">None yet</p>}
               <p className="mt-1 text-xs text-muted-foreground">{commits[0]?.threshold ? `${(commits[0].threshold.finalThreshold * 100).toFixed(2)}% ceiling · ${commits[0].threshold.finalWindow}s window` : "Policy pending"}</p>
             </div>
@@ -855,7 +859,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <p className="mt-1 text-xs text-muted-foreground">{connection?.verifiedAt ? `Verified ${dates.date(connection.verifiedAt)}` : "Connection needs verification"}</p>
             </div>
           </div>
-          <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
+          {analysisTrigger === "pull_requests" ? <PullRequestHistory key={`${owner}/${repo}`} owner={owner} repo={repo} compact /> : <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
             <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
               <h2 className="text-sm font-semibold text-foreground">Recent activity</h2>
               <Link href={projectSectionHref(owner, repo, "commits")} className="text-xs font-semibold text-primary hover:underline">All commits</Link>
@@ -873,6 +877,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               </div>
             )}
           </div>
+          }
           <Link href={projectSectionHref(owner, repo, "settings")} className="flex items-center justify-between rounded-xl border border-border bg-card px-5 py-3 text-xs text-muted-foreground shadow-xs hover:bg-muted/40">
             <span>GitHub Actions {resolved.deploymentIntegration === "github_actions" ? "connected" : "not configured"} · {isPm2 ? `PM2 ${pm2Status?.processName ?? connection?.pm2Process ?? "unconfigured"}` : resolved.runtimeLabel}</span>
             <span className="font-semibold text-primary">Manage integration</span>
@@ -1558,6 +1563,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       </div>}
 
       {/* ─── COMMITS & CHANGE CLASSIFICATION TABLE (Standalone & Augment) ─── */}
+      {view === "pull_requests" && <PullRequestHistory key={`${owner}/${repo}`} owner={owner} repo={repo} />}
       {view === "commits" && <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
           <div>
