@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const result = await listRepositoryPullRequests(owner, repo, token);
     const commits = await prisma.commit.findMany({
       where: { installationId, owner: { equals: owner, mode: "insensitive" }, repo: { equals: repo, mode: "insensitive" }, sha: { in: result.pullRequests.map((pr) => pr.headSha) } },
-      select: { sha: true, threshold: { select: { finalThreshold: true, finalWindow: true, activeTypes: true } } },
+      select: { sha: true, changeVector: { select: { infra: true, dependency: true, config: true, code: true, data: true, codeComplexity: true } }, threshold: { select: { finalThreshold: true, finalWindow: true, activeTypes: true } } },
     });
     return NextResponse.json({ pullRequests: attachPullRequestPolicies(result.pullRequests, commits), limited: result.limited }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
