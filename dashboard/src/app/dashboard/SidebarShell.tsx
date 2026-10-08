@@ -44,7 +44,7 @@ function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
-  const isProject = segments[0] === "dashboard" && (segments[1] === "repos" || segments[1] === "commits");
+  const isProject = segments[0] === "dashboard" && (segments[1] === "repos" || segments[1] === "commits" || segments[1] === "pull-requests");
   const identity = isProject && segments.length >= 4 ? `${segments[2]}/${segments[3]}` : "";
   const [selection, setSelection] = useState<{ identity: string; trigger: AnalysisTrigger } | null>(null);
   useEffect(() => {
@@ -64,7 +64,7 @@ function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
   if (!isProject || segments.length < 4) return null;
   const owner = decodeURIComponent(segments[2]!);
   const repo = decodeURIComponent(segments[3]!);
-  const selected = segments[1] === "commits" ? "commits" : searchParams.get("view") ?? "overview";
+  const selected = segments[1] === "pull-requests" ? "pull_requests" : segments[1] === "commits" ? "commits" : searchParams.get("view") ?? "overview";
 
   return (
     <div className="border-t border-sidebar-foreground/10 pt-4">

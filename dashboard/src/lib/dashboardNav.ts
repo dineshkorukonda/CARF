@@ -86,3 +86,7 @@ export function projectCommitsHref(owner: string, repo: string): string {
 export function commitPageHref(owner: string, repo: string, sha: string): string {
   return `/dashboard/commits/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(sha)}`;
 }
+
+export function pullRequestPageHref(owner: string, repo: string, number: number): string {
+  return `/dashboard/pull-requests/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${number}`;
+}

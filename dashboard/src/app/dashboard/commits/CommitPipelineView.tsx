@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Circle,
   GitCommitHorizontal,
+  GitPullRequest,
   Layers,
   Activity,
   Gauge,
@@ -35,6 +36,7 @@ import { Badge } from "../../../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 
 export interface CommitPipelineData {
+  pullRequest?: { number: number; status: string; headRef: string; baseRef: string };
   message: string | null;
   author: string | null;
   owner: string;
@@ -89,7 +91,7 @@ function stepIcon(status: PipelineStep["status"]) {
 
 export function CommitPipelineView(data: CommitPipelineData) {
   const dates = useDashboardDates();
-  const [openStep, setOpenStep] = useState<string>("rollback");
+  const [openStep, setOpenStep] = useState<string>(data.pullRequest ? "tier1" : "rollback");
   const decision = rollbackDecision({
     hasVector: Boolean(data.vector),
     rolloutStatus: data.rollout?.status ?? null,
@@ -103,7 +105,15 @@ export function CommitPipelineView(data: CommitPipelineData) {
     hasThreshold: Boolean(data.threshold),
     rolloutStatus: data.rollout?.status ?? null,
   });
+  const visibleSteps = steps
+    .filter((step) => !data.pullRequest || step.id !== "rollback")
+    .map((step) => {
+      if (!data.pullRequest) return step;
+      if (step.id === "intake") return { ...step, title: "Pull request intake" };
+      return data.vector ? step : { ...step, status: "pending" as const };
+    });
   const githubUrl = `https://github.com/${data.owner}/${data.repo}/commit/${data.sha}`;
+  const sourceUrl = data.pullRequest ? "https://github.com/" + data.owner + "/" + data.repo + "/pull/" + data.pullRequest.number : githubUrl;
   const mix = data.vector ? explainMix(data.vector) : [];
   const complexity = data.vector ? explainComplexity(data.vector.codeComplexity) : null;
   const walk =
@@ -114,17 +124,17 @@ export function CommitPipelineView(data: CommitPipelineData) {
   return (
     <div className="mx-auto max-w-7xl space-y-5 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <Link
-            href={projectSectionHref(data.owner, data.repo, "commits")}
+            href={projectSectionHref(data.owner, data.repo, data.pullRequest ? "pull_requests" : "commits")}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="size-3" />
             {data.owner}/{data.repo}
           </Link>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <GitCommitHorizontal className="size-5 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">{data.message ?? data.sha.slice(0, 7)}</h1>
+            {data.pullRequest ? <GitPullRequest className="size-5 text-primary" /> : <GitCommitHorizontal className="size-5 text-primary" />}
+            <h1 className="min-w-0 break-words text-xl font-bold text-foreground">{data.pullRequest && "#" + data.pullRequest.number + " "}{data.message ?? data.sha.slice(0, 7)}</h1>
           </div>
           <p className="mt-1 font-mono text-[11px] text-muted-foreground">
             {data.sha.slice(0, 7)} · {data.author ?? "Author unavailable"} · base {data.baseSha.slice(0, 7)} ·{" "}
@@ -132,7 +142,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2"><a
-          href={githubUrl}
+          href={sourceUrl}
           target="_blank"
           rel="noreferrer"
           className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
@@ -141,12 +151,12 @@ export function CommitPipelineView(data: CommitPipelineData) {
         </a><a href={`https://github.com/${data.owner}/${data.repo}/actions`} target="_blank" rel="noreferrer" className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs hover:bg-muted">GitHub Actions</a></div>
       </div>
 
-      <div className={`rounded-xl border p-5 ${DECISION_STYLE[decision.kind]}`}>
+      {data.pullRequest ? <div className="rounded-xl border border-border bg-card p-5"><Badge variant="outline">{data.pullRequest.status}</Badge><h2 className="mt-2 text-lg font-semibold">{data.pullRequest.headRef} → {data.pullRequest.baseRef}</h2><p className="mt-1 text-xs text-muted-foreground">{data.threshold ? "Policy available for the current PR head." : "No policy saved for the current PR head. Analysis may be pending or the changes may have no classification signal."} PR analysis calculates risk; deployments and live observation run through CI.</p></div> : <div className={`rounded-xl border p-5 ${DECISION_STYLE[decision.kind]}`}>
         <p className="text-[11px] font-semibold uppercase tracking-wide opacity-75">Rollout outcome</p>
         <h2 className="mt-1 text-lg font-semibold">{decision.title}</h2>
         <p className="mt-1 text-xs">{decision.detail}</p>
         {data.rollout?.status === "ROLLED_BACK" && <p className="mt-2 text-xs font-semibold">Recovery {data.rollout.rollbackVerified === true ? "verified" : data.rollout.rollbackVerified === false ? "not verified" : "verification pending"}</p>}
-      </div>
+      </div>}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Change types</p><p className="mt-2 text-sm font-semibold text-foreground capitalize">{data.threshold?.activeTypes.join(", ") || "No classified signal"}</p></div>
@@ -154,19 +164,19 @@ export function CommitPipelineView(data: CommitPipelineData) {
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Observation window</p><p className="mt-2 font-mono text-lg font-semibold text-foreground">{data.threshold ? `${data.threshold.finalWindow}s` : "—"}</p></div>
       </div>
 
-      <Card className="py-4">
+      {!data.pullRequest && <Card className="py-4">
         <CardHeader className="pb-0"><CardTitle className="text-sm">Observed error rate</CardTitle><CardDescription className="text-xs">Samples recorded while CARF monitored this rollout, compared with its policy ceiling.</CardDescription></CardHeader>
         <CardContent className="mt-3">
           {data.rollout?.samples.length ? <div className="h-56 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={data.rollout.samples.map((sample) => ({ time: dates.time(sample.ts), errorRate: sample.errorRate * 100, ceiling: data.rollout!.threshold * 100 }))}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" /><XAxis dataKey="time" tick={{ fontSize: 10 }} /><YAxis unit="%" tick={{ fontSize: 10 }} /><Tooltip /><Line type="monotone" dataKey="errorRate" name="Error rate (%)" stroke="#ef4444" dot={false} /><Line type="stepAfter" dataKey="ceiling" name="Ceiling (%)" stroke="#6366f1" strokeDasharray="4 4" dot={false} />
           </LineChart></ResponsiveContainer></div> : <p className="text-xs text-muted-foreground">No observation samples recorded for this commit.</p>}
         </CardContent>
-      </Card>
+      </Card>}
 
-      <p className="text-[11px] text-muted-foreground">Explore how CARF classified this commit and reached its decision.</p>
+      <p className="text-[11px] text-muted-foreground">Explore how CARF classified this {data.pullRequest ? "pull request" : "commit"} and calculated its policy.</p>
       <div className="overflow-x-auto pb-1">
         <ol className="flex min-w-max items-stretch">
-          {steps.map((step, index) => {
+          {visibleSteps.map((step, index) => {
             const selected = openStep === step.id;
             return (
               <li key={step.id} className="flex items-stretch">
@@ -185,7 +195,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
                     <span className="text-[11px] font-semibold leading-tight text-foreground">{step.title}</span>
                   </div>
                 </button>
-                {index < steps.length - 1 ? (
+                {index < visibleSteps.length - 1 ? (
                   <div className="flex w-8 shrink-0 items-center justify-center text-muted-foreground/50">
                     <ChevronRight className="size-4" />
                   </div>
@@ -199,13 +209,13 @@ export function CommitPipelineView(data: CommitPipelineData) {
       {openStep === "intake" ? (
         <Card className="py-4">
           <CardHeader className="pb-0">
-            <CardTitle className="text-sm">Commit intake</CardTitle>
-            <CardDescription className="text-[11px]">Webhook stored this SHA in Postgres so the rest of the pipeline can attach a vector and threshold.</CardDescription>
+            <CardTitle className="text-sm">{data.pullRequest ? "Pull request intake" : "Commit intake"}</CardTitle>
+            <CardDescription className="text-[11px]">{data.pullRequest ? "Current PR revision from GitHub. Saved analysis is matched to this exact head SHA." : "Webhook stored this SHA in Postgres so the rest of the pipeline can attach a vector and threshold."}</CardDescription>
           </CardHeader>
           <CardContent className="mt-3 space-y-1 font-mono text-xs text-foreground">
             <p>SHA {data.sha}</p>
             <p>Base {data.baseSha}</p>
-            <p>Recorded {dates.dateTime(data.createdAt)}</p>
+            <p>{data.pullRequest ? "Updated" : "Recorded"} {dates.dateTime(data.createdAt)}</p>
           </CardContent>
         </Card>
       ) : null}
@@ -218,8 +228,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
               Classifier 1 — what changed
             </CardTitle>
             <CardDescription className="text-[11px]">
-              Mix is classified-file share on this SHA. File rows are GitHub compare {data.baseSha.slice(0, 7)}…
-              {data.sha.slice(0, 7)}. Unclassified paths can show in the table without a mix bar.
+              Mix is classified-file share on this SHA. {data.pullRequest ? "File rows show the PR diff from GitHub (up to 3,000 files)." : "File rows show the GitHub comparison against the base revision."} Unclassified paths can show in the table without a mix bar.
             </CardDescription>
           </CardHeader>
           <CardContent className="mt-3">
@@ -243,7 +252,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No change vector — every file was unclassified or skipped.</p>
+              <p className="text-xs text-muted-foreground">No change vector stored. Analysis may be pending or the changes may have no classification signal.</p>
             )}
 
             {data.filesError ? (
@@ -358,7 +367,7 @@ export function CommitPipelineView(data: CommitPipelineData) {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">Threshold was not stored for this commit.</p>
+              <p className="text-xs text-muted-foreground">No threshold stored for this revision.</p>
             )}
           </CardContent>
         </Card>
