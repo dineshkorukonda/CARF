@@ -87,3 +87,17 @@ pull request destinations. **Refresh pull requests** retrieves the 50 most recen
 updated PRs and saved policies without deploying or triggering analysis. Older PRs
 remain accessible through the GitHub link. A permission/read failure is shown as
 an error rather than an empty history.
+
+## PR dashboard pages
+
+The Pull requests page follows the Commits history layout: state filters, search,
+change-type filtering, policy pills, and expandable risk summaries. Select a PR title
+to open `/dashboard/pull-requests/<owner>/<repo>/<number>`.
+
+The PR inspector shares the commit inspector's classification, complexity, changed-file,
+and threshold explanation panels. It displays PR status and branches. Deployments and
+live rollback observation remain in CI and the Rollouts pages. Missing current-head
+analysis stays visible without borrowing a prior revision's policy.
+
+Changed files come from GitHub's paginated PR files endpoint, including merged PRs.
+[GitHub limits this endpoint to 3,000 files](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files).
