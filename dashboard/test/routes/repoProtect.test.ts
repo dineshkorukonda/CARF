@@ -61,6 +61,15 @@ const INSTALLATION = {
 };
 
 describe("POST /api/repo/protect", () => {
+  it.each(["commits", "pull_requests", "both"])("preserves the existing %s selection when protecting a project", async (analysisTrigger) => {
+    getCarfConfigFile.mockResolvedValue({ sha: "existing", content: `mode: augment\nanalysisTrigger: ${analysisTrigger}\n` });
+    const response = await protectRepo(new NextRequest(`${BASE_URL}/api/repo/protect`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installationId: INSTALLATION.installationId, owner: "acme", repo: "widgets" }) }));
+    expect(response.status).toBe(200);
+    expect(putCarfConfigFile.mock.calls[0]![2]).toContain(`analysisTrigger: ${analysisTrigger}`);
+    const workflow = putRepoFile.mock.calls[0]![3] as string;
+    expect(workflow.includes("  push:")).toBe(analysisTrigger !== "pull_requests");
+    expect(workflow.includes("  pull_request:")).toBe(analysisTrigger !== "commits");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     getCurrentAccount.mockResolvedValue(ACCOUNT);

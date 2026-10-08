@@ -6,6 +6,8 @@ This directory provides production-grade integration guides, manifest templates,
 
 ## Supported Integrations Matrix
 
+For pre-merge policy lookups, see [GitHub Actions pull request workflows](./github-actions-pr.md).
+
 | Target Adapter | Type | Mode | Health Telemetry | Automated Rollback Mechanism |
 | :--- | :--- | :--- | :--- | :--- |
 | [**GitHub Actions + PM2**](./github-actions-pm2.md) | CI/CD Pipeline | Augment | HTTP probe + Process restart tracking | GitHub Actions rollback job dispatch (`workflow_dispatch`) |

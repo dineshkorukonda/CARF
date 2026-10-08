@@ -53,6 +53,7 @@ vi.mock("../../src/adapters/github/contentsClient", async (importOriginal) => {
 
 const { POST: save } = await import("../../src/app/api/config/save/route");
 const { POST: saveRules } = await import("../../src/app/api/config/save-rules/route");
+const { GET: readAnalysis, POST: saveAnalysis } = await import("../../src/app/api/config/analysis/route");
 
 const ACCOUNT = { id: "account-1", email: "u@e.com", passwordHash: "h", createdAt: new Date() };
 const INSTALLATION = {
@@ -113,6 +114,61 @@ beforeEach(() => {
   mintInstallationToken.mockResolvedValue("ghs_token");
   getCarfConfigFile.mockResolvedValue(null);
   putCarfConfigFile.mockResolvedValue(undefined);
+});
+
+describe("/api/config/analysis", () => {
+  beforeEach(() => {
+    getCurrentAccount.mockResolvedValue(ACCOUNT);
+    getInstallationForAccount.mockResolvedValue(INSTALLATION);
+  });
+  const target = { installationId: INSTALLATION.installationId, owner: "acme", repo: "widgets" };
+  function analysisRequest(analysisTrigger: unknown) {
+    return new NextRequest(`${BASE_URL}/api/config/analysis`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...target, analysisTrigger }) });
+  }
+  function readRequest() { return new NextRequest(`${BASE_URL}/api/config/analysis?${new URLSearchParams(target)}`); }
+
+  it("returns the legacy default when no config exists", async () => {
+    expect(await (await readAnalysis(readRequest())).json()).toEqual({ analysisTrigger: "both" });
+  });
+  it.each(["commits", "pull_requests", "both"])("round-trips %s without changing runtime settings", async (analysisTrigger) => {
+    getCarfConfigFile.mockResolvedValue({ sha: "existing", content: "mode: standalone\nadapter:\n  kind: pm2\n  target: web\n  buildCommand: npm run build\n" });
+    expect((await saveAnalysis(analysisRequest(analysisTrigger))).status).toBe(200);
+    const saved = putCarfConfigFile.mock.calls[0]![2] as string;
+    expect(saved).toContain(`analysisTrigger: ${analysisTrigger}`);
+    expect(saved).toContain("buildCommand: npm run build");
+    getCarfConfigFile.mockResolvedValue({ sha: "new", content: saved });
+    expect(await (await readAnalysis(readRequest())).json()).toEqual({ analysisTrigger });
+  });
+  it("does not commit an unchanged choice", async () => {
+    getCarfConfigFile.mockResolvedValue({ sha: "existing", content: "# keep this comment\nanalysisTrigger: commits\nmode: augment\n" });
+    expect((await saveAnalysis(analysisRequest("commits"))).status).toBe(200);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
+  it("rejects invalid choices before writing", async () => {
+    expect((await saveAnalysis(analysisRequest("invalid"))).status).toBe(400);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
+  it.each(["read", "save"])("requires authentication to %s", async (action) => {
+    getCurrentAccount.mockResolvedValue(null);
+    expect((await (action === "read" ? readAnalysis(readRequest()) : saveAnalysis(analysisRequest("both")))).status).toBe(401);
+    expect(getCarfConfigFile).not.toHaveBeenCalled();
+  });
+  it("requires installation ownership", async () => {
+    getInstallationForAccount.mockResolvedValue(null);
+    expect((await saveAnalysis(analysisRequest("both"))).status).toBe(403);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
+  it("reports read failures without replacing the existing config", async () => {
+    getCarfConfigFile.mockRejectedValue(new Error("offline"));
+    expect((await saveAnalysis(analysisRequest("both"))).status).toBe(502);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
+  it("rejects a malformed existing YAML mapping", async () => {
+    getCarfConfigFile.mockResolvedValue({ sha: "existing", content: "- invalid\n" });
+    expect((await saveAnalysis(analysisRequest("both"))).status).toBe(400);
+    expect((await readAnalysis(readRequest())).status).toBe(400);
+    expect(putCarfConfigFile).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/config/save", () => {
