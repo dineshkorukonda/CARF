@@ -73,3 +73,17 @@ record for a repository/head SHA. There is no separate PR history or per-base po
 version in this integration. Fork PRs are skipped by the example because GitHub does
 not provide repository secrets to their workflows; do not switch to
 `pull_request_target` and execute untrusted PR code to work around that restriction.
+
+The dashboard lists real GitHub PRs under **Pull requests**, with numbers, titles,
+authors, source/target branches, and open/draft/merged/closed states. Each row shows
+the saved policy for its exact current head SHA and links to head analysis. Policies
+continue to share the existing SHA-based records; the dashboard does not claim a
+separate per-PR policy version. Updating a PR head removes an older head's policy
+from that row until a current policy is available.
+
+PR-only projects use this view in navigation and overview; existing commit-history
+links redirect to the PR view. Projects set to both retain separate commits and
+pull request destinations. **Refresh pull requests** retrieves the 50 most recently
+updated PRs and saved policies without deploying or triggering analysis. Older PRs
+remain accessible through the GitHub link. A permission/read failure is shown as
+an error rather than an empty history.
