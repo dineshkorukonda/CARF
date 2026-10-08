@@ -194,9 +194,12 @@ export const AdapterSchema = z
     }
   );
 
+export const AnalysisTriggerSchema = z.enum(["commits", "pull_requests", "both"]);
+
 export const CarfConfigSchema = z
   .object({
     classification: ClassificationSchema.optional(),
+    analysisTrigger: AnalysisTriggerSchema.optional(),
     threshold: ThresholdSchema.optional(),
     mode: z.enum(["augment", "standalone"]).optional(),
     deploymentIntegration: DeploymentIntegrationSchema.optional(),

@@ -66,6 +66,8 @@ export interface WebhookOrchestratorDeps {
   deferGithubActionsDeployment?: boolean;
   /** Opt-in only from a CI-verified managed workflow that supplies a rollback job. */
   rollbackViaActions?: boolean;
+  /** Apply the project's event selection only to automatic webhook deliveries. */
+  respectAnalysisTrigger?: boolean;
 }
 
 function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
@@ -128,15 +130,6 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   const token = await deps.installationTokenClient.getInstallationToken(target.installationId);
-  const changedFiles = await acquireDiff(
-    deps.githubApiClient,
-    target.owner,
-    target.repo,
-    target.baseSha,
-    target.headSha,
-    token
-  );
-
   let activeCarfConfig = deps.carfConfig;
   try {
     const rawRepoConfig = await fetchBlobContent(
@@ -144,7 +137,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       target.owner,
       target.repo,
       ".carf.yml",
-      target.headSha,
+      target.event === "pull_request" ? target.baseSha : target.headSha,
       token
     );
     if (rawRepoConfig) {
@@ -157,6 +150,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
           "loaded repo-specific .carf.yml config from commit"
         );
       } else {
+        if (deps.respectAnalysisTrigger) throw new Error("Invalid repository .carf.yml; automatic analysis skipped");
         deps.logger.info(
           { owner: target.owner, repo: target.repo, issues: validated.error.issues },
           "malformed .carf.yml in repository commit, falling back to server default"
@@ -164,10 +158,23 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
       }
     }
   } catch (error) {
+    if (deps.respectAnalysisTrigger) throw error;
     deps.logger.info({ error, owner: target.owner, repo: target.repo }, "failed to fetch .carf.yml from repository, falling back");
   }
 
   const repoSlug = `${target.owner}/${target.repo}`;
+  const analysisTrigger = activeCarfConfig?.analysisTrigger ?? "both";
+  if (deps.respectAnalysisTrigger && (
+    (analysisTrigger === "commits" && target.event === "pull_request") ||
+    (analysisTrigger === "pull_requests" && target.event === "push")
+  )) {
+    deps.logger.info({ repoSlug, event: target.event, analysisTrigger }, "skipping automatic analysis for unselected event");
+    return;
+  }
+  const changedFiles = await acquireDiff(
+    deps.githubApiClient, target.owner, target.repo, target.baseSha, target.headSha, token,
+    target.event === "pull_request"
+  );
   let result;
   try {
     result = await processCommit(target.headSha, repoSlug, changedFiles, {
@@ -183,13 +190,13 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         { sha: target.headSha, fileCount: changedFiles.length },
         "no classification signal, skipping threshold"
       );
-      if (deps.observeLive === true) throw new Error("Commit has no classification signal; deployment skipped");
+      if (deps.observeLive === true && target.event === "push") throw new Error("Commit has no classification signal; deployment skipped");
       return;
     }
     throw error;
   }
 
-  if (deps.observeLive === false) {
+  if (deps.observeLive === false || target.event === "pull_request") {
     deps.logger.info(
       { sha: target.headSha, owner: target.owner, repo: target.repo },
       "classified commit without starting a live rollback watch"

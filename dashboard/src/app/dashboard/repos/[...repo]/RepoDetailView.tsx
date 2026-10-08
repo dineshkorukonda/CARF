@@ -50,6 +50,7 @@ import {
 import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } from "../../../../lib/deploymentMode";
 import { resolveFromLegacy } from "../../../../lib/capabilities";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
+import { AnalysisTriggerSettings } from "../../../../components/AnalysisTriggerSettings";
 import { useLiveRolloutPolling } from "../../../../lib/useLiveRolloutPolling";
 import { RetryCiPanel } from "../../../../components/RetryCiPanel";
 import { ObservationCountdown } from "../../../../components/ObservationCountdown";
@@ -1180,6 +1181,9 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
       )}
 
       {/* ─── AUGMENT: POLICY & INTEGRATION CARD ─── */}
+      {view === "settings" && (
+        <AnalysisTriggerSettings key={`${installationId}/${owner}/${repo}`} installationId={installationId} owner={owner} repo={repo} />
+      )}
       {view === "settings" && resolved.deploymentIntegration === "github_actions" && connection?.id && (
         <GitHubActionsIntegrationPanel repositoryId={connection.id} defaultBranch={defaultBranch} />
       )}

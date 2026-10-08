@@ -16,9 +16,10 @@ import type { InstallationApiKeyPrismaClient } from "../src/auth/installationApi
 function fakeGithubApiClient(): GitHubApiClient {
   return {
     compareCommits: vi.fn().mockResolvedValue({
+      mergeBaseSha: "merge-base",
       files: [{ filename: "src/foo.ts", status: "modified" }],
     }),
-    getContent: vi.fn().mockResolvedValue("export const a = 1;\n"),
+    getContent: vi.fn().mockImplementation((_o, _r, path) => path === ".carf.yml" ? Promise.reject({ status: 404 }) : Promise.resolve("export const a = 1;\n")),
   };
 }
 
@@ -184,6 +185,49 @@ function flushMicrotasks(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe("handleWebhookCommit", () => {
+  it.each([
+    { trigger: "commits", event: "push", classified: true },
+    { trigger: "commits", event: "pull_request", classified: false },
+    { trigger: "pull_requests", event: "push", classified: false },
+    { trigger: "pull_requests", event: "pull_request", classified: true },
+    { trigger: "both", event: "push", classified: true },
+    { trigger: "both", event: "pull_request", classified: true },
+  ] as const)("$trigger selection handles $event (classified=$classified)", async ({ trigger, event, classified }) => {
+    const deps = baseDeps({ carfConfig: { analysisTrigger: trigger }, respectAnalysisTrigger: true });
+    await handleWebhookCommit({ ...target, event }, deps);
+    expect(deps.githubApiClient.compareCommits).toHaveBeenCalledTimes(classified ? 1 : 0);
+    expect(deps.prismaClient!.threshold.upsert).toHaveBeenCalledTimes(classified ? 1 : 0);
+  });
+
+  it.each(["push", "pull_request"] as const)("defaults to both events for legacy projects (%s)", async (event) => {
+    const deps = baseDeps({ respectAnalysisTrigger: true });
+    await handleWebhookCommit({ ...target, event }, deps);
+    expect(deps.prismaClient!.threshold.upsert).toHaveBeenCalled();
+  });
+
+  it("allows explicit CI/on-demand commit policy requests in PR-only projects", async () => {
+    const deps = baseDeps({ carfConfig: { analysisTrigger: "pull_requests" }, observeLive: false });
+    await handleWebhookCommit(target, deps);
+    expect(deps.prismaClient!.threshold.upsert).toHaveBeenCalled();
+  });
+
+  it("uses the base configuration for PR selection, so a PR cannot opt itself in", async () => {
+    const client = fakeGithubApiClient();
+    client.getContent = vi.fn().mockImplementation((_o, _r, path, ref) => Promise.resolve(path === ".carf.yml" ? `analysisTrigger: ${ref === target.baseSha ? "commits" : "both"}` : "export const a = 1;"));
+    const deps = baseDeps({ githubApiClient: client, respectAnalysisTrigger: true, carfConfig: { analysisTrigger: "both" } });
+    await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
+    expect(client.getContent).toHaveBeenCalledWith(target.owner, target.repo, ".carf.yml", target.baseSha, "token-abc");
+    expect(client.compareCommits).not.toHaveBeenCalled();
+  });
+
+  it.each(["invalid", "unavailable"])("does not bypass project selection when configuration is %s", async (failure) => {
+    const client = fakeGithubApiClient();
+    client.getContent = failure === "invalid" ? vi.fn().mockResolvedValue("analysisTrigger: invalid") : vi.fn().mockRejectedValue({ status: 503 });
+    const deps = baseDeps({ githubApiClient: client, respectAnalysisTrigger: true });
+    await expect(handleWebhookCommit(target, deps)).rejects.toBeDefined();
+    expect(client.compareCommits).not.toHaveBeenCalled();
+    expect(deps.prismaClient!.threshold.upsert).not.toHaveBeenCalled();
+  });
   it("uses the process chosen in the dashboard rather than the stale YAML target", async () => {
     const outcomes = new FakeRolloutOutcomePrismaClient();
     outcomes.connection = { mode: "standalone", pm2Process: "selected-app", storedConfig: { target: "old-app", layout: "git", cwd: "/opt/selected", buildCommand: "npm run build" } };
@@ -343,20 +387,21 @@ describe("handleWebhookCommit", () => {
     expect(update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "FAILED", rolledBack: true, rollbackVerified: true }) }));
   });
 
-  it("Standalone + pm2 adapter on a pull_request event logs an error and does not call the loop runner (baseSha isn't a safe rollback release there)", async () => {
+  it.each(["pm2", "docker"] as const)("classifies PRs without deploying or monitoring a %s runtime even with observeLive enabled", async (kind) => {
     const standaloneLoopRunner = vi.fn();
     const deps = baseDeps({
-      carfConfig: { mode: "standalone", adapter: { kind: "pm2", target: "web" } },
+      carfConfig: { mode: "standalone", adapter: { kind, target: "web" } },
+      observeLive: true,
       standaloneLoopRunner,
     });
 
     await handleWebhookCommit({ ...target, event: "pull_request" }, deps);
 
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
-    expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ adapter: { kind: "pm2", target: "web" }, event: "pull_request" }),
-      expect.stringContaining("push event")
-    );
+    expect(deps.prismaClient!.threshold.upsert).toHaveBeenCalled();
+    expect(deps.githubApiClient.getContent).toHaveBeenCalledWith(target.owner, target.repo, "src/foo.ts", "merge-base", "token-abc");
+    expect((deps.rolloutOutcomePrismaClient as FakeRolloutOutcomePrismaClient).repoConnection.findUnique).not.toHaveBeenCalled();
+    expect((deps.rolloutOutcomePrismaClient as FakeRolloutOutcomePrismaClient).rolloutOutcome.upsert).not.toHaveBeenCalled();
   });
 
   it("Standalone + missing adapter logs an error and does not call the loop runner (persistence already succeeded)", async () => {

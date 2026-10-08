@@ -2,6 +2,8 @@ import { dump, load } from "js-yaml";
 import { isDeepStrictEqual } from "node:util";
 import {
   AdapterConfigSchema,
+  AnalysisTriggerSchema,
+  type AnalysisTrigger,
   ClassificationSchema,
   DeploymentIntegrationSchema,
   ModeSchema,
@@ -48,6 +50,7 @@ function serialize(config: Record<string, unknown>): string {
 }
 
 export interface ModeAdapterPatch {
+  analysisTrigger?: AnalysisTrigger;
   mode?: Mode;
   deploymentIntegration?: DeploymentIntegrationConfig;
   runtimeAdapter?: RuntimeAdapterConfig;
@@ -63,6 +66,10 @@ export interface ModeAdapterPatch {
  */
 export function applyModeAdapterPatch(existingYaml: string | null, patch: ModeAdapterPatch): string {
   const next = parseExistingConfig(existingYaml);
+
+  if (patch.analysisTrigger !== undefined) {
+    next.analysisTrigger = AnalysisTriggerSchema.parse(patch.analysisTrigger);
+  }
 
   if (patch.deploymentIntegration) {
     next.deploymentIntegration = DeploymentIntegrationSchema.parse(patch.deploymentIntegration);
@@ -95,6 +102,7 @@ export function applyModeAdapterPatch(existingYaml: string | null, patch: ModeAd
 }
 
 export interface ThreeLayerConfigPatch {
+  analysisTrigger?: AnalysisTrigger;
   deploymentIntegration: DeploymentIntegrationConfig;
   runtimeAdapter: RuntimeAdapterConfig;
   adapter?: AdapterConfig;
@@ -103,6 +111,12 @@ export interface ThreeLayerConfigPatch {
 
 export function applyThreeLayerConfigPatch(existingYaml: string | null, patch: ThreeLayerConfigPatch): string {
   return applyModeAdapterPatch(existingYaml, patch);
+}
+
+export function applyAnalysisTriggerPatch(existingYaml: string | null, trigger: AnalysisTrigger): string {
+  const next = parseExistingConfig(existingYaml);
+  next.analysisTrigger = AnalysisTriggerSchema.parse(trigger);
+  return serialize(next);
 }
 
 export interface ClassificationThresholdPatch {

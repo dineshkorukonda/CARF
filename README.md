@@ -2,6 +2,8 @@
 
 CARF dynamically computes risk-calibrated error-rate thresholds and soak durations from commit diffs, replacing one-size-fits-all static rollback thresholds.
 
+Pull request updates also classify the full PR diff before merge. See the [PR workflow guide](docs/integrations/github-actions-pr.md) to fetch the policy in GitHub Actions using the PR head SHA.
+
 ## How It Works
 
 1. **Commit Analysis**: Evaluates diffs using deterministic file-path classification and Tree-sitter AST structural complexity parsing.
