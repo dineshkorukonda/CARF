@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
@@ -14,6 +14,7 @@ import { RepositorySelectionStep } from "./RepositorySelectionStep";
 import { DeploymentIntegrationStep } from "./DeploymentIntegrationStep";
 import { RuntimeAdapterStep } from "./RuntimeAdapterStep";
 import { CapabilitiesPreviewStep } from "./CapabilitiesPreviewStep";
+import { AnalysisTriggerSchema, type AnalysisTrigger } from "../../../lib/carfConfigSchema";
 
 export interface InstallationItem {
   id: string;
@@ -66,6 +67,23 @@ export function SetupWizard({
   // Global wizard steps: 1 = Select Repo, 2 = Deployment Integration, 3 = Runtime Adapter, 4 = Capabilities Preview
   const [step, setStep] = useState<1 | 2 | 3 | 4>(seedRepo ? 2 : 1);
   const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(seedRepo);
+  const [analysisTrigger, setAnalysisTrigger] = useState<AnalysisTrigger>("both");
+  const [analysisLoading, setAnalysisLoading] = useState(Boolean(existingConn));
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const conn = findRepoConnection(connections || [], selectedRepoFullName);
+    if (!conn) return;
+    const controller = new AbortController();
+    fetch(`/api/config/analysis?${new URLSearchParams({ installationId: conn.installationId, owner: conn.owner, repo: conn.repo })}`, { signal: controller.signal })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load analysis settings");
+        setAnalysisTrigger(AnalysisTriggerSchema.parse(data.analysisTrigger));
+      }).catch((err) => { if (!controller.signal.aborted) setAnalysisError(err instanceof Error ? err.message : "Could not load analysis settings"); })
+      .finally(() => { if (!controller.signal.aborted) setAnalysisLoading(false); });
+    return () => controller.abort();
+  }, [connections, selectedRepoFullName]);
 
   const [deploymentIntegration, setDeploymentIntegration] = useState<DeploymentIntegration>(
     initialResolved?.deploymentIntegration ?? "github_actions"
@@ -211,6 +229,9 @@ export function SetupWizard({
           onSelectRepo={(fullName) => {
             setSelectedRepoFullName(fullName);
             const repoConn = findRepoConnection(connections || [], fullName);
+            setAnalysisError(null);
+            setAnalysisTrigger("both");
+            setAnalysisLoading(Boolean(repoConn));
             if (repoConn) {
               const res = resolveFromLegacy(repoConn);
               setDeploymentIntegration(res.deploymentIntegration);
@@ -245,6 +266,10 @@ export function SetupWizard({
         <DeploymentIntegrationStep
           selectedRepo={selectedRepo}
           selectedIntegration={deploymentIntegration}
+          analysisTrigger={analysisTrigger}
+          onAnalysisTriggerChange={setAnalysisTrigger}
+          analysisLoading={analysisLoading}
+          analysisError={analysisError}
           onSelectIntegration={(integration) => setDeploymentIntegration(integration)}
           onBack={() => setStep(1)}
           onContinue={() => setStep(3)}
@@ -273,6 +298,7 @@ export function SetupWizard({
           repo={selectedRepo}
           installationId={primaryInstallationId}
           deploymentIntegration={deploymentIntegration}
+          analysisTrigger={analysisTrigger}
           runtimeAdapter={runtimeAdapter}
           pm2Config={pm2Config}
           dockerConfig={dockerConfig}

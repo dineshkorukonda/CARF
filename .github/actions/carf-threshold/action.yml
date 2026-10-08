@@ -12,9 +12,12 @@ inputs:
       trailing slash.
     required: true
   commit:
-    description: "Commit SHA to fetch the threshold for."
+    description: "Commit SHA to fetch the threshold for (defaults to the PR head on pull requests)."
     required: false
-    default: ${{ github.sha }}
+    default: ${{ github.event.pull_request.head.sha || github.sha }}
+  api-key:
+    description: "Installation API key for authenticated threshold lookup."
+    required: false
   fail-on-missing:
     description: >-
       Fail the step if core-api hasn't computed a threshold for this commit yet (e.g.
@@ -42,21 +45,36 @@ runs:
   steps:
     - id: fetch
       shell: bash
+      env:
+        CARF_API_URL: ${{ inputs.api-url }}
+        CARF_COMMIT: ${{ inputs.commit }}
+        CARF_API_KEY: ${{ inputs.api-key }}
+        CARF_FAIL_ON_MISSING: ${{ inputs.fail-on-missing }}
       run: |
         set -euo pipefail
 
-        url="${{ inputs.api-url }}/v1/threshold?commit=${{ inputs.commit }}"
-        response="$(curl -sS -w '\n%{http_code}' "$url")"
+        url="${CARF_API_URL%/}/v1/threshold"
+        headers=()
+        if [ -n "$CARF_API_KEY" ]; then
+          headers=(-H "Authorization: Bearer $CARF_API_KEY")
+        fi
+        # Webhook classification can finish after the workflow starts.
+        for attempt in 1 2 3 4 5 6; do
+          response="$(curl -sS --get --data-urlencode "commit=$CARF_COMMIT" "${headers[@]}" -w '\n%{http_code}' "$url")"
+          status="$(echo "$response" | tail -n1)"
+          if [ "$status" != "404" ] || [ "$attempt" = "6" ]; then break; fi
+          sleep 5
+        done
         status="$(echo "$response" | tail -n1)"
         body="$(echo "$response" | sed '$d')"
 
         if [ "$status" != "200" ]; then
           echo "found=false" >> "$GITHUB_OUTPUT"
-          if [ "${{ inputs.fail-on-missing }}" = "true" ]; then
-            echo "::error::CARF threshold check failed for commit ${{ inputs.commit }} (HTTP $status): $body"
+          if [ "$CARF_FAIL_ON_MISSING" = "true" ]; then
+            echo "::error::CARF threshold check failed for commit $CARF_COMMIT (HTTP $status): $body"
             exit 1
           else
-            echo "::warning::CARF threshold not available for commit ${{ inputs.commit }} (HTTP $status), continuing"
+            echo "::warning::CARF threshold not available for commit $CARF_COMMIT (HTTP $status), continuing"
             exit 0
           fi
         fi

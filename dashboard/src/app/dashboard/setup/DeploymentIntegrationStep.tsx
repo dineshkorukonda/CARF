@@ -4,10 +4,16 @@ import React from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, GitBranch, Terminal, Layers, Webhook } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { DeploymentIntegration } from "../../../lib/capabilities";
+import type { AnalysisTrigger } from "../../../lib/carfConfigSchema";
+import { AnalysisTriggerSelect } from "../../../components/AnalysisTriggerSelect";
 
 interface DeploymentIntegrationStepProps {
   selectedRepo: InstallationRepo | null;
   selectedIntegration: DeploymentIntegration;
+  analysisTrigger: AnalysisTrigger;
+  onAnalysisTriggerChange: (trigger: AnalysisTrigger) => void;
+  analysisLoading?: boolean;
+  analysisError?: string | null;
   onSelectIntegration: (integration: DeploymentIntegration) => void;
   onBack: () => void;
   onContinue: () => void;
@@ -81,6 +87,10 @@ const INTEGRATION_OPTIONS: IntegrationOption[] = [
 export function DeploymentIntegrationStep({
   selectedRepo,
   selectedIntegration,
+  analysisTrigger,
+  onAnalysisTriggerChange,
+  analysisLoading,
+  analysisError,
   onSelectIntegration,
   onBack,
   onContinue,
@@ -105,6 +115,11 @@ export function DeploymentIntegrationStep({
         </p>
       </div>
 
+      <div className="border-b border-border pb-5">
+        <AnalysisTriggerSelect value={analysisTrigger} onChange={onAnalysisTriggerChange} disabled={analysisLoading || Boolean(analysisError)} />
+        {analysisLoading && <p role="status" className="mt-2 text-xs text-muted-foreground">Loading saved analysis settings…</p>}
+        {analysisError && <p role="alert" className="mt-2 text-xs text-destructive">{analysisError} Reload to try again.</p>}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {INTEGRATION_OPTIONS.map((opt) => {
           const Icon = opt.icon;
@@ -184,6 +199,7 @@ export function DeploymentIntegrationStep({
         <button
           type="button"
           onClick={onContinue}
+          disabled={analysisLoading || Boolean(analysisError)}
           className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
         >
           <span>Next: Runtime Adapter</span>

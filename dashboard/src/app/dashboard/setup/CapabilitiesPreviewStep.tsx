@@ -18,11 +18,13 @@ import {
   type RuntimeAdapter,
 } from "../../../lib/capabilities";
 import { projectPageHref } from "../../../lib/dashboardNav";
+import type { AnalysisTrigger } from "../../../lib/carfConfigSchema";
 
 interface CapabilitiesPreviewStepProps {
   repo: InstallationRepo;
   installationId: string;
   deploymentIntegration: DeploymentIntegration;
+  analysisTrigger: AnalysisTrigger;
   runtimeAdapter: RuntimeAdapter;
   pm2Config: {
     targetName: string;
@@ -43,6 +45,7 @@ export function CapabilitiesPreviewStep({
   repo,
   installationId,
   deploymentIntegration,
+  analysisTrigger,
   runtimeAdapter,
   pm2Config,
   dockerConfig,
@@ -61,6 +64,7 @@ export function CapabilitiesPreviewStep({
 
   const carfYamlPreview = `# .carf.yml — CARF 3-Layer Architecture Configuration
 deploymentIntegration: "${deploymentIntegration}"
+analysisTrigger: "${analysisTrigger}"
 runtimeAdapter: "${runtimeAdapter}"
 mode: "${resolved.capabilities.rollback ? "standalone" : "augment"}"
 ${
@@ -88,6 +92,7 @@ ${
         owner: repo.owner.login,
         repo: repo.name,
         deploymentIntegration,
+        analysisTrigger,
         runtimeAdapter,
         mode: resolved.capabilities.rollback ? "standalone" : "augment",
         ...(runtimeAdapter === "pm2"

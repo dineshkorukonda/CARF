@@ -51,16 +51,22 @@ export async function acquireDiff(
   repo: string,
   baseSha: string,
   headSha: string,
-  token: string
+  token: string,
+  useMergeBase = false
 ): Promise<CodeFile[]> {
-  const changedFiles = await getChangedFiles(client, owner, repo, baseSha, headSha, token);
+  const comparison = await client.compareCommits(owner, repo, baseSha, headSha, token);
+  if (useMergeBase && !comparison.mergeBaseSha) {
+    throw new Error("GitHub comparison is missing the PR merge base");
+  }
+  const beforeSha = useMergeBase ? comparison.mergeBaseSha! : baseSha;
+  const changedFiles = comparison.files.map((f) => ({ path: f.filename, status: f.status, previousPath: f.previous_filename }));
 
   return Promise.all(
     changedFiles.map(async (file) => {
       const path = file.path;
       const beforePath = file.status === "renamed" && file.previousPath ? file.previousPath : path;
       const [before, after] = await Promise.all([
-        file.status === "added" ? "" : fetchBlobContent(client, owner, repo, beforePath, baseSha, token),
+        file.status === "added" ? "" : fetchBlobContent(client, owner, repo, beforePath, beforeSha, token),
         file.status === "removed" ? "" : fetchBlobContent(client, owner, repo, path, headSha, token),
       ]);
       return { path, before: before ?? "", after: after ?? "" };

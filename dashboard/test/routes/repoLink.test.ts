@@ -59,6 +59,12 @@ const INSTALLATION = {
 };
 
 describe("POST /api/repo/link", () => {
+  it.each(["commits", "pull_requests", "both"])("saves the %s choice in project setup", async (analysisTrigger) => {
+    const response = await linkRepo(new NextRequest(`${BASE_URL}/api/repo/link`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installationId: INSTALLATION.installationId, owner: "acme", repo: "widgets", mode: "augment", analysisTrigger }) }));
+    expect(response.status).toBe(200);
+    expect(putCarfConfigFile.mock.calls[0]![2]).toContain(`analysisTrigger: ${analysisTrigger}`);
+    expect(repoConnectionUpsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ storedConfig: expect.objectContaining({ analysisTrigger }) }) }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     getCurrentAccount.mockResolvedValue(ACCOUNT);

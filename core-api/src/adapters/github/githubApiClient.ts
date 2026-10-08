@@ -6,6 +6,7 @@ export interface CompareFile {
 
 export interface CompareResult {
   files: CompareFile[];
+  mergeBaseSha?: string;
 }
 
 export interface HttpError {

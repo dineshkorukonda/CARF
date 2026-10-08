@@ -19,6 +19,13 @@ const pullRequestPayload = {
 };
 
 describe("parseWebhookPayload", () => {
+  it.each(["opened", "synchronize", "reopened", "ready_for_review", "edited"])("classifies PR action %s", (action) => {
+    expect(parseWebhookPayload("pull_request", { ...pullRequestPayload, action })?.headSha).toBe("head222");
+  });
+
+  it.each(["closed", "labeled", "unlabeled", "assigned", "converted_to_draft", undefined])("ignores PR action %s", (action) => {
+    expect(parseWebhookPayload("pull_request", { ...pullRequestPayload, action })).toBeNull();
+  });
   it("extracts owner/repo/baseSha/headSha/installationId from a push payload", () => {
     const result = parseWebhookPayload("push", pushPayload);
     expect(result).toEqual({

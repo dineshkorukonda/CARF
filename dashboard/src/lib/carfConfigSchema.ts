@@ -191,9 +191,13 @@ export const ClassificationSchema = z
   .strict();
 export type ClassificationConfig = z.infer<typeof ClassificationSchema>;
 
+export const AnalysisTriggerSchema = z.enum(["commits", "pull_requests", "both"]);
+export type AnalysisTrigger = z.infer<typeof AnalysisTriggerSchema>;
+
 export const CarfConfigSchema = z
   .object({
     classification: ClassificationSchema.optional(),
+    analysisTrigger: AnalysisTriggerSchema.optional(),
     threshold: ThresholdSchema.optional(),
     deploymentIntegration: DeploymentIntegrationSchema.optional(),
     runtimeAdapter: RuntimeAdapterSchema.optional(),

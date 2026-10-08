@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { CarfConfigSchema } from "../../src/config/carfConfigSchema.js";
 
 describe("CarfConfigSchema", () => {
+  it.each(["commits", "pull_requests", "both"])("accepts analysisTrigger %s", (analysisTrigger) => {
+    expect(CarfConfigSchema.parse({ analysisTrigger }).analysisTrigger).toBe(analysisTrigger);
+  });
+  it("rejects an unknown analysis trigger", () => {
+    expect(CarfConfigSchema.safeParse({ analysisTrigger: "anything" }).success).toBe(false);
+  });
   it("accepts an empty object (every top-level key optional)", () => {
     const result = CarfConfigSchema.safeParse({});
     expect(result.success).toBe(true);

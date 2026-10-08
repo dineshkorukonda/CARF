@@ -13,6 +13,10 @@ function fakeFetch(response: { ok: boolean; status: number; json?: unknown; text
 
 describe("HttpGithubApiClient", () => {
   describe("compareCommits", () => {
+    it("exposes the common ancestor needed for PR before-content", async () => {
+      const client = new HttpGithubApiClient(fakeFetch({ ok: true, status: 200, json: { files: [], merge_base_commit: { sha: "ancestor" } } }));
+      expect(await client.compareCommits("acme", "widgets", "base", "head", "token")).toEqual({ files: [], mergeBaseSha: "ancestor" });
+    });
     it("GETs the compare endpoint with Bearer auth and maps files to { filename, status }", async () => {
       const fetchFn = fakeFetch({
         ok: true,
