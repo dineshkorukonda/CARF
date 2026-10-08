@@ -58,12 +58,17 @@ export function repoSetupHref(owner: string, repo: string, opts?: { edit?: boole
 export const PROJECT_SECTIONS = [
   "overview",
   "commits",
+  "pull_requests",
   "rollouts",
   "activity",
   "settings",
 ] as const;
 
 export type ProjectSection = (typeof PROJECT_SECTIONS)[number];
+
+export function projectSectionsForAnalysis(trigger: "commits" | "pull_requests" | "both") {
+  return PROJECT_SECTIONS.filter((section) => !(section === "commits" && trigger === "pull_requests") && !(section === "pull_requests" && trigger === "commits"));
+}
 
 export function projectPageHref(owner: string, repo: string): string {
   return `/dashboard/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;

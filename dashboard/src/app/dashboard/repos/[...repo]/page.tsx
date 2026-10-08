@@ -5,6 +5,8 @@ import { prisma } from "../../../../lib/prisma";
 import { commitActivitySelect, rolloutActivitySelect } from "../../../../lib/repoActivitySelect";
 import { readOrEmpty } from "../../../../lib/repoActivity";
 import { findRepoConnectionSafe } from "../../../../lib/repoConnectionService";
+import { readProjectAnalysisTrigger } from "../../../../lib/projectAnalysis";
+import { projectSectionHref } from "../../../../lib/dashboardNav";
 import { PROJECT_SECTIONS, type ProjectSection } from "../../../../lib/dashboardNav";
 import {
   RepoDetailView,
@@ -119,6 +121,13 @@ export default async function RepoDetailPage(props: {
   ]);
 
   const connection = connectionRead.value;
+  let analysisTrigger: "commits" | "pull_requests" | "both" | null = null;
+  try {
+    analysisTrigger = await readProjectAnalysisTrigger(connection?.installationId || installations[0]!.installationId, owner, repoName);
+  } catch { /* Keep both destinations available when settings cannot be read. */ }
+  if (view === "commits" && analysisTrigger === "pull_requests") {
+    redirect(projectSectionHref(owner, repoName, "pull_requests"));
+  }
   const rollouts = rolloutsRead.value;
   const commits = commitsRead.value;
   const auditLogs = auditRead.value;
@@ -138,6 +147,7 @@ export default async function RepoDetailPage(props: {
       auditLogs={auditLogs as unknown as AuditLogItem[]}
       activityError={activityError}
       view={view}
+      analysisTrigger={analysisTrigger}
     />
   );
 }

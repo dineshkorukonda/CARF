@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AnalysisTriggerSchema, type AnalysisTrigger } from "../lib/carfConfigSchema";
 import { AnalysisTriggerSelect } from "./AnalysisTriggerSelect";
 import { Button } from "./ui/button";
 
 export function AnalysisTriggerSettings({ installationId, owner, repo }: { installationId: string; owner: string; repo: string }) {
+  const router = useRouter();
   const [trigger, setTrigger] = useState<AnalysisTrigger>("both");
   const [saved, setSaved] = useState<AnalysisTrigger | null>(null);
   const [busy, setBusy] = useState(true);
@@ -33,6 +35,8 @@ export function AnalysisTriggerSettings({ installationId, owner, repo }: { insta
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not save analysis settings");
       setSaved(trigger); setMessage("Analysis settings saved to .carf.yml.");
+      window.dispatchEvent(new Event("carf-analysis-settings-saved"));
+      router.refresh();
     } catch (err) { setError(err instanceof Error ? err.message : "Could not save analysis settings"); }
     finally { setBusy(false); }
   }
