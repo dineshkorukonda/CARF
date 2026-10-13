@@ -16,9 +16,13 @@ describe("shared PR and commit inspector", () => {
     expect(html).toContain("#217"); expect(html).toContain("src/server.ts"); expect(html).toContain("2.00%");
     expect(html).toContain("/dashboard/repos/acme/app?view=pull_requests"); expect(html).toContain("https://github.com/acme/app/pull/217");
     expect(html).toContain("Pull request intake"); expect(html).toContain("Threshold engine"); expect(html).not.toContain("Rollback decision"); expect(html).not.toContain("Observed error rate");
+    expect(html).toContain("How these scores are calculated");
+    expect(html).toContain("Classifier 1: which parts of the system changed?");
+    expect(html).toContain("Classifier 2: how much did code structure change?");
   });
   it("preserves the commit inspector's rollout and observation panels", () => {
     const html = renderToStaticMarkup(React.createElement(CommitPipelineView, data));
     expect(html).toContain("Rollback decision"); expect(html).toContain("Observed error rate"); expect(html).toContain("/dashboard/repos/acme/app?view=commits");
+    expect(html).toContain("How these scores are calculated");
   });
 });

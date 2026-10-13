@@ -43,9 +43,9 @@ export interface MixWhy {
 const MIX_WHY: Record<VectorMixKey, string> = {
   infra: "Share of classified files that look like deploy/runtime (Dockerfile, compose, Terraform, k8s/helm).",
   dependency: "Share of classified files that are lockfiles or manifests (package.json, go.mod, Cargo.toml, …).",
-  config: "Share of classified files that are config (.carf.yml, yaml/toml/env, *.config.ts). CI workflow YAML often lands here.",
+  config: "Share of classified files that are recognized configuration (YAML, environment, properties, or framework config). CI workflow YAML often lands here.",
   code: "Share of classified files that are application source or tests. Tests are folded into code, not a sixth mix bar.",
-  data: "Share of classified files that are SQL or migration paths.",
+  data: "Share of classified files in recognized database migration paths.",
 };
 
 export function explainMix(vector: ExplainVector): MixWhy[] {
@@ -65,16 +65,16 @@ export function explainComplexity(codeComplexity: number): {
   steps: string[];
 } {
   const scoreOutOf100 = codeComplexity * 100;
-  const atCeiling = codeComplexity >= 0.999;
+  const atCeiling = codeComplexity >= 1;
   return {
     scoreOutOf100,
     why: atCeiling
-      ? "This commit is at the complexity ceiling. Classifier 2 scored code/test files (tree-sitter AST diff, or the line-delta stub if AST is off). That raw score is divided by 50 and capped at 1.0, so 100/100 means the raw score was at least 50 — a large structural or line change, not a 100% mix of code."
-      : `Classifier 2 only looks at files classifier 1 typed as code or test. The raw AST/line score is divided by 50 (the engine ceiling) and clamped to 0–1, then shown as 0–100. ${(scoreOutOf100).toFixed(1)}/100 means the raw score was about ${(codeComplexity * DEFAULT_THRESHOLD_EXPLAIN.complexityCeiling).toFixed(0)} before the cap.`,
+      ? "This revision is at the complexity ceiling. Classifier 2 compares code/test structure using Tree-sitter. The raw score is divided by 50 and capped at 1, so 100/100 means the raw score was at least 50. It does not mean a 100% probability of failure."
+      : `Classifier 2 only analyzes files classifier 1 typed as code or test. The raw structural score is divided by 50 and clamped to 0–1, then shown as 0–100. ${scoreOutOf100.toFixed(1)}/100 corresponds to approximately ${(codeComplexity * DEFAULT_THRESHOLD_EXPLAIN.complexityCeiling).toFixed(2)} raw points. This is a structural-change measure, not a probability of failure.`,
     steps: [
       "Classifier 1 picks which paths are code or test.",
-      "Classifier 2 diffs those files (functions changed, signatures, nesting, cyclomatic delta — or a line-delta stand-in).",
-      `Normalize: stored codeComplexity = min(1, raw / ${DEFAULT_THRESHOLD_EXPLAIN.complexityCeiling}).`,
+      "Tree-sitter compares before/after function structure: file score = max(0, functions changed + 2 × parameter-list changes + 1.5 × nesting delta + cyclomatic delta). Recognized test paths contribute 10% of their score; file scores are summed.",
+      `Normalize: stored codeComplexity = clamp(raw / ${DEFAULT_THRESHOLD_EXPLAIN.complexityCeiling}, 0, 1).`,
       `This number is not a sixth mix bar. It only tightens the error-rate ceiling by multiplying it by (1 − ${DEFAULT_THRESHOLD_EXPLAIN.complexityDecay} × complexity). It does not change the soak window.`,
     ],
   };
@@ -133,7 +133,7 @@ export function explainThreshold(
   const reconstructedWindow =
     contributions.length === 0
       ? Number.POSITIVE_INFINITY
-      : Math.min(...contributions.map((c) => c.windowContribution));
+      : Math.max(...contributions.map((c) => c.windowContribution));
 
   const storedMatchesDefaultWalk =
     Number.isFinite(stored.finalThreshold) &&
@@ -169,12 +169,12 @@ export function explainThreshold(
       : [
           "Soak window uses the same decay on default windows: infra 60s, dependency 180s, config 300s, code 900s, data 600s.",
           windowParts.join(". "),
-          `The shortest window wins: ${Math.round(reconstructedWindow)}s. Complexity does not change the window.`,
+          `The longest window wins: ${Math.round(reconstructedWindow)}s. Complexity does not change the window.`,
           `Stored ${stored.finalWindow}s.`,
         ].join(" ");
 
   const storedActive = stored.activeTypes.length > 0 ? stored.activeTypes.join(", ") : "none";
-  const activeWhy = `Active types are mix bars greater than 0% on this SHA (${storedActive}). Only those types enter the min() for ceiling and window. Zero mix (for example infra 0%) is ignored.`;
+  const activeWhy = `Active types are mix bars greater than 0% on this SHA (${storedActive}). Only those types enter the minimum for the ceiling and maximum for the window. Zero mix (for example infra 0%) is ignored.`;
 
   return {
     activeTypes,
