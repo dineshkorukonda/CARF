@@ -34,6 +34,7 @@ import {
 import type { CompareFile } from "../../../adapters/github/compareClient";
 import { Badge } from "../../../components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
+import { ScoreExplanation } from "../../../components/ScoreExplanation";
 
 export interface CommitPipelineData {
   pullRequest?: { number: number; status: string; headRef: string; baseRef: string };
@@ -163,6 +164,8 @@ export function CommitPipelineView(data: CommitPipelineData) {
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Error ceiling</p><p className="mt-2 font-mono text-lg font-semibold text-foreground">{data.threshold ? `${(data.threshold.finalThreshold * 100).toFixed(2)}%` : "—"}</p></div>
         <div className="rounded-xl border border-border bg-card p-4"><p className="text-[11px] uppercase text-muted-foreground">Observation window</p><p className="mt-2 font-mono text-lg font-semibold text-foreground">{data.threshold ? `${data.threshold.finalWindow}s` : "—"}</p></div>
       </div>
+
+      <ScoreExplanation />
 
       {!data.pullRequest && <Card className="py-4">
         <CardHeader className="pb-0"><CardTitle className="text-sm">Observed error rate</CardTitle><CardDescription className="text-xs">Samples recorded while CARF monitored this rollout, compared with its policy ceiling.</CardDescription></CardHeader>
