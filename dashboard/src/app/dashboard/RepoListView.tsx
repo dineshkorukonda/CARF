@@ -275,6 +275,10 @@ export function RepoListView({
                   r.repo?.toLowerCase() === repo.name.toLowerCase()
               );
               const latestRollout = repoRollouts[0];
+              const recentCommits = commits
+                .filter((c) => repoIdentityKey(c.owner, c.repo) === repoIdentityKey(repo.owner, repo.name))
+                .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                .slice(0, 3);
               const derivedStatus = deriveRepoStatus({
                 isConfigured: Boolean(repoConn),
                 isVerified: Boolean(repoConn?.verifiedAt),
@@ -295,22 +299,22 @@ export function RepoListView({
               return (
                 <article
                   key={repo.id}
-                  className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs"
+                  className="flex min-w-0 flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs"
                 >
                   <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-sm text-foreground">{repo.full_name}</p>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
+                    <div className="flex min-w-0 flex-wrap items-start gap-3">
+                      <div className="min-w-0 flex-1 basis-48">
+                        <p className="font-semibold text-sm text-foreground [overflow-wrap:anywhere]">{repo.full_name}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
                           Branch <span className="font-mono text-foreground">{repo.default_branch}</span>
                         </p>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                        <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-primary">
+                      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+                        <span className="max-w-full rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-primary [overflow-wrap:anywhere]">
                           {resolved.integrationLabel.toUpperCase()}
                         </span>
                         <span
-                          className={`rounded border px-2 py-0.5 text-[10px] font-bold tracking-wider ${
+                          className={`max-w-full rounded border px-2 py-0.5 text-[10px] font-bold tracking-wider [overflow-wrap:anywhere] ${
                             resolved.runtimeStatus === "active"
                               ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300"
                               : "border-muted-foreground/30 bg-muted/40 text-muted-foreground"
@@ -321,7 +325,7 @@ export function RepoListView({
                       </div>
                     </div>
 
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-xs [overflow-wrap:anywhere] sm:grid-cols-2 [&>div]:min-w-0">
                       <div>
                         <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Deployment</dt>
                         <dd className="font-semibold text-foreground">{resolved.integrationLabel}</dd>
@@ -331,7 +335,7 @@ export function RepoListView({
                         <dd className="font-semibold text-foreground">
                           {resolved.runtimeLabel}
                           {resolved.runtimeStatus === "active" && (
-                            <span className="ml-1 text-[10px] text-emerald-500 font-bold">● Active</span>
+                            <span className="ml-1 inline-block whitespace-nowrap text-[10px] text-emerald-500 font-bold">● Active</span>
                           )}
                         </dd>
                       </div>
@@ -389,17 +393,19 @@ export function RepoListView({
                       </div>
                     </div>
 
-                    {repoRollouts.length > 0 && (
-                      <div className="border-t border-border pt-3">
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span className="font-semibold uppercase tracking-wider text-[11px]">Recent Rollouts</span>
-                          <span className="text-[11px]">Latest: {latestRollout?.status ?? "None"}</span>
-                        </div>
+                    <div className="border-t border-border pt-3">
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground">
+                        <span className="font-semibold uppercase tracking-wider text-[11px]">
+                          {repoRollouts.length > 0 ? "Recent Rollouts" : "Recent Commits"}
+                        </span>
+                        {latestRollout && <span className="text-[11px]">Latest: {latestRollout.status}</span>}
+                      </div>
+                      {repoRollouts.length > 0 ? (
                         <ul className="mt-2 space-y-1.5">
                           {repoRollouts.slice(0, 3).map((r) => (
                             <li
                               key={r.id}
-                              className="flex items-center justify-between rounded-md bg-muted/30 px-2.5 py-1.5 text-xs"
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs"
                             >
                               <div className="flex items-center gap-2">
                                 <Link
@@ -428,8 +434,23 @@ export function RepoListView({
                             </li>
                           ))}
                         </ul>
-                      </div>
-                    )}
+                      ) : recentCommits.length > 0 ? (
+                        <ul className="mt-2 space-y-1.5">
+                          {recentCommits.map((commit) => (
+                            <li key={commit.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs">
+                              <Link href={commitPageHref(repo.owner, repo.name, commit.sha)} className="font-mono text-[11px] text-primary hover:underline">
+                                {commit.sha.slice(0, 7)}
+                              </Link>
+                              <span className="text-[11px] text-muted-foreground">{dates.date(commit.createdAt)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {activityError ? "Recent activity is unavailable." : "No activity recorded yet. New commits will appear here."}
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
