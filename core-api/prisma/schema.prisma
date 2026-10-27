@@ -209,6 +209,9 @@ model RolloutOutcome {
   previousSha      String?
   rollbackExecutor String   @default("server")
   deployedAt       DateTime?
+  deployedRevision String?
+  // Legacy report duration retained for historical rows.
+  durationMs       Int?
   rollbackRequestedAt DateTime?
   rollbackStartedAt DateTime?
   threshold        Float
@@ -262,7 +265,7 @@ model RepoConnection {
   installTokenPrefix    String?
   agentLastHeartbeat    DateTime?
   agentVersion          String?
-  agentRevoked          Boolean?       @default(false)
+  agentRevoked          Boolean        @default(false)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
 

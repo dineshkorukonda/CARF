@@ -1,51 +1,13 @@
-# Kubernetes (kubectl) Runtime Adapter Guide
+# Kubernetes runtime (preview)
 
-The Kubernetes adapter enables automated rollback execution directly against Kubernetes `Deployment` resources via `kubectl rollout undo` and pod readiness monitoring.
+Kubernetes library adapter methods and reference manifests/scripts exist. Managed standalone selection is not enabled: AdapterKindSchema accepts only pm2 and docker. Choosing a Kubernetes runtime in metadata does not create a controller or enable automatic rollback.
 
----
-
-## Capabilities
-
-- **Automatic Rollback**: `kubectl rollout undo deployment/<name> -n <namespace>`
-- **Readiness Verification**: Probes pod ready condition and restart counts.
-- **Rollback Verification**: Probes post-rollback pods to ensure error rates recover to 0.0.
-
----
-
-## Configuration (`.carf.yml`)
+Example `.carf.yml` for an external pipeline:
 
 ```yaml
-version: "1.0"
-mode: "standalone"
-
-target:
-  runtime: "kubernetes"
-  deployment: "order-service"
-  namespace: "production"
-  health_url: "http://order-service.production.svc.cluster.local/healthz"
-
-rules:
-  window_seconds: 300
-  base_ceiling: 0.04
+mode: augment
+deploymentIntegration: generic_http
+runtimeAdapter: kubernetes
 ```
 
----
-
-## RBAC Permissions
-
-CARF requires a ServiceAccount with permissions to inspect and rollback deployments:
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  namespace: production
-  name: carf-rollback-role
-rules:
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "watch", "update", "patch"]
-- apiGroups: [""]
-  resources: ["pods"]
-  verbs: ["get", "list", "watch"]
-```
+Use authenticated CARF policy reads in your pipeline. That pipeline must deploy, observe Pod readiness and restart behavior, run kubectl rollout undo when needed, and verify the recovered image and service traffic. Reference artifacts live in environments/kubernetes. Contract tests do not establish live cluster recovery.

@@ -21,6 +21,9 @@ ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "trigger" "RolloutTrigger"
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "readyAt" TIMESTAMP(3);
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "previousSha" TEXT;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "deployedAt" TIMESTAMP(3);
+ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "deployedRevision" TEXT;
+ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "durationMs" INTEGER;
+ALTER TABLE "RolloutOutcome" ALTER COLUMN "durationMs" DROP NOT NULL;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackExecutor" TEXT NOT NULL DEFAULT 'server';
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackRequestedAt" TIMESTAMP(3);
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackStartedAt" TIMESTAMP(3);

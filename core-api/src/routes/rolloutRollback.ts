@@ -4,10 +4,11 @@ import type { FastifyInstance, FastifySchema } from "fastify";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
 import { prisma as defaultPrisma } from "../db/client.js";
 import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
-import { PM2Adapter } from "../adapters/pm2.js";
+import { buildRuntimeAdapter } from "../adapters/runtimeFactory.js";
 import { loadCarfConfig } from "../config/carfConfig.js";
 import { resolveRepoAdapterConfig } from "../config/repoAdapterConfig.js";
 import { dispatchRollbackAlert } from "../alerts/dispatch.js";
+import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "../auth/localRuntime.js";
 
 export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClient, StandaloneLoopLockPrismaClient {
   rolloutOutcome: {
@@ -24,6 +25,7 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
       threshold: number;
       window: number;
       previousSha?: string | null;
+      deployedRevision?: string | null;
       rollbackExecutor?: string;
       rollbackRequestedAt?: Date | null;
       rollbackStartedAt?: Date | null;
@@ -80,6 +82,7 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
 }
 
 export interface RolloutRollbackRouteOptions {
+  localInstallationId?: string;
   prismaClient?: RolloutRollbackPrismaClient;
   adapterFactory?: (previousSha: string, targetName?: string) => RollbackAdapter;
 }
@@ -201,6 +204,9 @@ export async function registerRolloutRollbackRoute(
 
       const owner = rollout.owner ?? "";
       const repo = rollout.repo ?? "";
+      if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+        return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
+      }
       const automatic = request.body?.automatic === true;
       const actor = automatic ? "github_actions" : request.body?.actor || "session_user";
       if (!automatic && rollout.status === "PENDING" && rollout.rollbackRequestedAt) {
@@ -242,18 +248,10 @@ export async function registerRolloutRollbackRoute(
         (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
         "";
 
-      const defaultFactory = (sha: string) =>
-        new PM2Adapter(sha, {
-          releasesRoot: carfConfig?.adapter?.releasesRoot,
-          currentSymlink: carfConfig?.adapter?.currentSymlink,
-          cwd: carfConfig?.adapter?.cwd,
-          buildCommand: carfConfig?.adapter?.buildCommand,
-          layout: carfConfig?.adapter?.layout,
-          healthUrl: carfConfig?.adapter?.healthUrl,
-          startupGraceSeconds: carfConfig?.adapter?.startupGraceSeconds,
-          sharedPaths: carfConfig?.adapter?.sharedPaths,
-          probeCount: carfConfig?.adapter?.probeCount,
-        });
+      const defaultFactory = (revision: string) => {
+        if (!adapterConfig) throw new Error("Repository has no supported runtime adapter");
+        return buildRuntimeAdapter(adapterConfig, revision);
+      };
 
       const buildAdapter = options.adapterFactory ?? defaultFactory;
       if (rollout.status === "ROLLED_BACK" && rollout.rollbackVerified === true) {
@@ -269,19 +267,19 @@ export async function registerRolloutRollbackRoute(
       let claimed = false;
       try {
         const adapter = guardAdapter(buildAdapter(previousSha, targetName), lease);
-          if (!adapter.getCurrentRevision || !adapter.rollbackWithVerification || !prismaClient.rolloutOutcome.updateMany) {
-            return reply.code(409).send({ error: "Rollback requires revision checks and verified recovery" });
-          }
-          const currentSha = await adapter.getCurrentRevision(false);
-          if (currentSha !== rollout.commitSha && currentSha !== previousSha) {
-            return reply.code(409).send({ error: "A different revision is deployed; refusing a stale rollback" });
-          }
-          const claim = await prismaClient.rolloutOutcome.updateMany({
-            where: { id: rollout.id, status: rollout.status, rollbackStartedAt: null },
-            data: { rollbackStartedAt: new Date() },
-          });
-          if (claim.count !== 1) return reply.code(409).send({ error: "Rollback is already claimed" });
-          claimed = true;
+        if (!adapter.getCurrentRevision || !adapter.rollbackWithVerification || !prismaClient.rolloutOutcome.updateMany) {
+          return reply.code(409).send({ error: "Rollback requires revision checks and verified recovery" });
+        }
+        const currentSha = await adapter.getCurrentRevision(false);
+        if (currentSha !== (rollout.deployedRevision ?? rollout.commitSha) && currentSha !== previousSha) {
+          return reply.code(409).send({ error: "A different revision is deployed; refusing a stale rollback" });
+        }
+        const claim = await prismaClient.rolloutOutcome.updateMany({
+          where: { id: rollout.id, status: rollout.status, rollbackStartedAt: null },
+          data: { rollbackStartedAt: new Date() },
+        });
+        if (claim.count !== 1) return reply.code(409).send({ error: "Rollback is already claimed" });
+        claimed = true;
         let rollbackVerified: boolean | undefined = undefined;
         if (typeof adapter.rollbackWithVerification === "function") {
           const res = await adapter.rollbackWithVerification(targetName, carfConfig?.adapter?.startupGraceSeconds ?? 60);

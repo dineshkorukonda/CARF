@@ -15,7 +15,7 @@ const TEST_KEY_HASH = hashApiKey(TEST_API_KEY);
 describe("webhook JSON parser must not leave /v1/pm2/verify with a string body", () => {
   it("parses a JSON verify payload after the webhook content-type parser is registered", async () => {
     const app = Fastify();
-    await registerPm2Route(app, {
+    await registerPm2Route(app, { localInstallationId: "inst-100",
       prismaClient: {
         installationApiKey: {
           findUnique: vi.fn(async ({ where }: { where: { keyHash: string } }) =>

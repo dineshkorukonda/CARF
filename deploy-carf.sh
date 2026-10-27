@@ -43,9 +43,9 @@ bunx prisma generate
 echo "==> Building dashboard..."
 bun run build
 
-echo "==> Repairing rollout schema (RolloutAuditLog, etc.)..."
+echo "==> Applying canonical database migrations..."
 cd "$ROOT/core-api"
-bun run db:repair-rollout-schema || echo "WARN: schema repair failed; dashboard will fail-soft missing tables"
+bun run db:migrate:deploy
 
 echo "==> Restarting $CORE_APP and $DASH_APP..."
 pm2 restart "$CORE_APP" --update-env

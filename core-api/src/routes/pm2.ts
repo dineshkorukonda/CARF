@@ -7,6 +7,7 @@ import { findPm2Process } from "../adapters/pm2Process.js";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
 import { prisma as defaultPrisma } from "../db/client.js";
 import { configuredPm2Targets, type RuntimeConnection } from "../auth/pm2Access.js";
+import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "../auth/localRuntime.js";
 
 interface Pm2PrismaClient extends InstallationAuthPrismaClient {
   repoConnection: { findMany(args: { where: { installationId: string } }): Promise<RuntimeConnection[]> };
@@ -85,6 +86,7 @@ interface RawPm2Process {
 }
 
 export interface Pm2RouteOptions {
+  localInstallationId?: string;
   executor?: CommandExecutor | ExecFn;
   prismaClient?: Pm2PrismaClient;
   fsAccess?: (path: string, mode?: number) => Promise<void>;
@@ -197,6 +199,9 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     if (!installationId) {
       return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
     }
+    if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+      return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
+    }
 
     const adapter = new PM2Adapter("", { exec: executor });
     const result = await adapter.discover();
@@ -209,6 +214,9 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     const installationId = await resolveInstallationFromAuthHeader(prismaClient, request.headers.authorization);
     if (!installationId) {
       return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
+    }
+    if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+      return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
     }
 
     try {
@@ -260,6 +268,9 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     const installationId = await resolveInstallationFromAuthHeader(prismaClient, request.headers.authorization);
     if (!installationId) {
       return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
+    }
+    if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+      return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
     }
 
     const body = request.body;

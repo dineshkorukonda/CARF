@@ -11,7 +11,7 @@ interface MatrixRunRecord {
   failureTestPassed: boolean;
   rollbackTestPassed: boolean;
   recoveryVerified: boolean;
-  status: "LIVE-TESTED" | "INTEGRATION-TESTED";
+  status: "CONTRACT-TESTED";
   logs: string[];
 }
 
@@ -74,7 +74,7 @@ describe("Phase 8 — Full Target Environments & Adapters Integration Matrix", (
         failureTestPassed: !preRollbackHealth.healthy,
         rollbackTestPassed: true,
         recoveryVerified: recovery.rollbackVerified,
-        status: "LIVE-TESTED",
+        status: "CONTRACT-TESTED",
         logs,
       };
     });
@@ -100,7 +100,7 @@ describe("Phase 8 — Full Target Environments & Adapters Integration Matrix", (
                   StartedAt: new Date().toISOString(),
                 },
                 RestartCount: containerRunning ? 0 : 5,
-                Config: { Image: containerRunning ? previousImage : "carf-sample-app:broken" },
+                Config: { Image: containerRunning ? previousImage : "carf-sample-app:broken", Labels: { "com.docker.compose.service": "sample-app" } },
               },
             ]),
             stderr: "",
@@ -137,7 +137,7 @@ describe("Phase 8 — Full Target Environments & Adapters Integration Matrix", (
         failureTestPassed: !failedHealth.healthy,
         rollbackTestPassed: true,
         recoveryVerified: recovery.rollbackVerified,
-        status: "INTEGRATION-TESTED",
+        status: "CONTRACT-TESTED",
         logs,
       };
     });
@@ -197,7 +197,7 @@ describe("Phase 8 — Full Target Environments & Adapters Integration Matrix", (
         failureTestPassed: !failedHealth.healthy,
         rollbackTestPassed: true,
         recoveryVerified: recovery.rollbackVerified,
-        status: "INTEGRATION-TESTED",
+        status: "CONTRACT-TESTED",
         logs,
       };
     });
@@ -256,7 +256,7 @@ describe("Phase 8 — Full Target Environments & Adapters Integration Matrix", (
         failureTestPassed: initialStatus.phase === "failed",
         rollbackTestPassed: true,
         recoveryVerified: true,
-        status: "INTEGRATION-TESTED",
+        status: "CONTRACT-TESTED",
         logs,
       };
     });
@@ -322,7 +322,7 @@ describe("Phase 8 — Full Target Environments & Adapters Integration Matrix", (
         failureTestPassed: failedStatus.phase === "failed",
         rollbackTestPassed: true,
         recoveryVerified: recoveredStatus.phase === "healthy",
-        status: "INTEGRATION-TESTED",
+        status: "CONTRACT-TESTED",
         logs,
       };
     });

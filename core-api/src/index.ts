@@ -20,7 +20,8 @@ import { githubApiClient, getInstallationTokenClient } from "./adapters/github/c
 import { handleWebhookCommit } from "./webhookOrchestrator.js";
 
 import { prisma } from "./db/client.js";
-import { PM2Adapter } from "./adapters/pm2.js";
+import { buildRuntimeAdapter } from "./adapters/runtimeFactory.js";
+import { localRuntimeAllowed } from "./auth/localRuntime.js";
 import { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import type { RolloutOutcomePrismaClient } from "./adapters/rolloutOutcome.js";
 import { startSampleRetentionJob, type SampleRetentionJob } from "./retention/sampleRetention.js";
@@ -97,7 +98,7 @@ rolloutMonitor = new RolloutMonitor({
   logger: app.log,
   onRollbackAlert: (event) => dispatchRollbackAlert(process.env.CARF_ALERT_WEBHOOK_URL, event),
   adapterFactory: async (outcome) => {
-    if (!outcome.owner || !outcome.repo || !outcome.installationId) return undefined;
+    if (!outcome.owner || !outcome.repo || !outcome.installationId || !localRuntimeAllowed(outcome.installationId)) return undefined;
     const [connection, commit] = await Promise.all([
       prisma.repoConnection.findUnique({ where: { installationId_owner_repo: { installationId: outcome.installationId, owner: outcome.owner, repo: outcome.repo } } }),
       prisma.commit.findFirst({ where: { installationId: outcome.installationId, owner: outcome.owner, repo: outcome.repo, sha: outcome.commitSha } }),
@@ -106,23 +107,7 @@ rolloutMonitor = new RolloutMonitor({
     if (!previousSha || /^0+$/.test(previousSha)) return undefined;
     const adapterConfig = resolveRepoAdapterConfig(connection?.storedConfig, connection?.pm2Process, carfConfig?.adapter);
     if (!adapterConfig) return undefined;
-    const firstTarget = adapterConfig.targets?.[0];
-    const targetName =
-      adapterConfig.target ??
-      (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
-      "";
-    return new PM2Adapter(previousSha, {
-      target: targetName,
-      releasesRoot: adapterConfig.releasesRoot,
-      currentSymlink: adapterConfig.currentSymlink,
-      cwd: adapterConfig.cwd,
-      buildCommand: adapterConfig.buildCommand,
-      layout: adapterConfig.layout,
-      healthUrl: adapterConfig.healthUrl,
-      startupGraceSeconds: adapterConfig.startupGraceSeconds,
-      sharedPaths: adapterConfig.sharedPaths,
-      probeCount: adapterConfig.probeCount,
-    });
+    return buildRuntimeAdapter(adapterConfig, previousSha);
   },
 });
 

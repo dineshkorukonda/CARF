@@ -7,7 +7,7 @@ import { execSync } from "node:child_process";
 const isProduction = process.env.VERCEL_ENV === "production";
 
 if (isProduction) {
-  execSync("npx prisma migrate deploy", { stdio: "inherit" });
+  execSync("npx prisma migrate deploy --schema=../core-api/prisma/schema.prisma", { stdio: "inherit" });
 }
 
 execSync("npx next build", { stdio: "inherit" });
