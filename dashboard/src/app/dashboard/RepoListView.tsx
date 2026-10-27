@@ -193,7 +193,7 @@ export function RepoListView({
   }, [dates, standaloneRollouts]);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Repositories</h1>
@@ -396,7 +396,7 @@ export function RepoListView({
                             : "border-muted-foreground/30 bg-muted/40 text-muted-foreground"
                         }`}
                       >
-                        {resolved.runtimeLabel.toUpperCase()}
+                        {resolved.runtimeAdapter === "none" ? "POLICY ONLY" : resolved.runtimeLabel.toUpperCase()}
                       </span>
                     </div>
 
@@ -602,7 +602,7 @@ export function RepoListView({
                               : "border-muted-foreground/30 bg-muted/40 text-muted-foreground"
                           }`}
                         >
-                          {resolved.runtimeLabel.toUpperCase()}
+                          {resolved.runtimeAdapter === "none" ? "POLICY ONLY" : resolved.runtimeLabel.toUpperCase()}
                         </span>
                       </div>
                     </div>
