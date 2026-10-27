@@ -1,6 +1,6 @@
 # Audit remediation and deployment requirements
 
-Issues #222 through #228 track the audit fixes. Apply the PR stack in order. The changes have not been deployed to production by this work.
+Issues #222 through #228 track the audit fixes. All audit PRs target main directly; merge PRs #230 through #236 in numeric order. The changes have not been deployed to production by this work.
 
 ## Database and host rollout
 
@@ -26,4 +26,4 @@ Full suites: core-api 635 passed (two intentionally skipped), dashboard 519 pass
 
 No Docker CLI, service mesh, Argo/Flagger controller, or live Prometheus target was available for lifecycle acceptance. Their mocked/static coverage is identified separately in the support matrix. No production deployment, credential rotation, or cluster mutation was performed.
 
-Cross-platform agent CI exposed a Windows checkout failure: CRLF conversion made the Vitest/Vite ESM loader reject the agent's shebang. Converting the source to CRLF reproduced the exact failure locally. Git attributes now preserve LF for executable JavaScript modules and shell scripts; the Windows/Linux Node 22/24 matrix verifies checkout behavior.
+Cross-platform agent CI exposed a Windows checkout failure: CRLF conversion made the Vitest/Vite ESM loader reject the agent's shebang. Converting the source to CRLF reproduced the exact failure locally. Git attributes now preserve LF for executable JavaScript modules and shell scripts; an earlier Windows/Linux Node 22/24 run verified checkout behavior. Current automated agent checks run on Linux with Node 22 and 24 only.
