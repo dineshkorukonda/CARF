@@ -259,7 +259,7 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
   });
 
-  it("issues an installation API key on first webhook for a new installationId, and logs it once (issue #65)", async () => {
+  it("issues an installation API key without logging its plaintext credential", async () => {
     const apiKeyPrismaClient = new FakeInstallationApiKeyPrismaClient();
     const deps = baseDeps({ apiKeyPrismaClient });
 
@@ -267,9 +267,12 @@ describe("handleWebhookCommit", () => {
 
     expect(apiKeyPrismaClient.rows.has("inst-1")).toBe(true);
     expect(deps.logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ installationId: "inst-1", apiKey: expect.stringMatching(/^carf_/) }),
+      { installationId: "inst-1" },
       expect.stringContaining("issued a new installation API key")
     );
+    const logs = JSON.stringify((deps.logger.info as ReturnType<typeof vi.fn>).mock.calls);
+    expect(logs).not.toContain('"apiKey":');
+    expect(logs).not.toMatch(/carf_[A-Za-z0-9_-]{20,}/);
   });
 
   it("does not re-issue or re-log a key on a second webhook for an installation that already has one", async () => {
