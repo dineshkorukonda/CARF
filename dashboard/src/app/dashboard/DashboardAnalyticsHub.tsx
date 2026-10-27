@@ -389,7 +389,7 @@ export function DashboardAnalyticsHub({
           {/* Visual Breakdown Grid */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             {/* Churn Vectors (7 cols) */}
-            <div className="lg:col-span-7 rounded-xl border border-border bg-muted/10 p-4 space-y-3">
+            <div className="lg:col-span-7 min-w-0 rounded-xl border border-border bg-muted/10 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xs font-semibold text-foreground">AST Churn Composition</h3>
@@ -461,7 +461,7 @@ export function DashboardAnalyticsHub({
             </div>
 
             {/* Risk Tier Donut / Legend (5 cols) */}
-            <div className="lg:col-span-5 rounded-xl border border-border bg-muted/10 p-4 space-y-3">
+            <div className="lg:col-span-5 min-w-0 rounded-xl border border-border bg-muted/10 p-4 space-y-3">
               <div>
                 <h3 className="text-xs font-semibold text-foreground">Risk Tier Classification</h3>
                 <p className="text-[11px] text-muted-foreground">
