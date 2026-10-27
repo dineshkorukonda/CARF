@@ -16,6 +16,7 @@ import {
   Sliders,
   Check,
 } from "lucide-react";
+import { INTEGRATION_CATEGORIES } from "../../../lib/terminology";
 
 type IntegrationType =
   | "github_actions"
@@ -31,7 +32,7 @@ interface IntegrationConfig {
   id: IntegrationType;
   title: string;
   badge: string;
-  category: "CI/CD & Actions" | "Kubernetes Progressive" | "Host Runtime" | "Telemetry & SLO";
+  category: (typeof INTEGRATION_CATEGORIES)[keyof typeof INTEGRATION_CATEGORIES];
   description: string;
   prerequisites: string[];
   docsLink: string;
@@ -42,7 +43,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "github_actions",
     title: "GitHub Actions + PM2",
     badge: "Official Action",
-    category: "CI/CD & Actions",
+    category: INTEGRATION_CATEGORIES.deployment,
     description: "Automated pre-deployment risk gating, live soak monitoring, and automated Actions rollback for Node.js / PM2 apps.",
     prerequisites: [
       "CARF GitHub App installed with Read & Write access",
@@ -56,7 +57,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "argo_rollouts",
     title: "Argo Rollouts",
     badge: "Kubernetes CRD",
-    category: "Kubernetes Progressive",
+    category: INTEGRATION_CATEGORIES.deployment,
     description: "Cloud-native progressive canary analysis and blue/green automated rollbacks via CARF AnalysisTemplate.",
     prerequisites: [
       "Kubernetes cluster with Argo Rollouts controller v1.5+",
@@ -69,7 +70,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "flagger",
     title: "Flagger Canary",
     badge: "Service Mesh / Ingress",
-    category: "Kubernetes Progressive",
+    category: INTEGRATION_CATEGORIES.deployment,
     description: "Automate progressive traffic shifting and automated canary promotion or rollback using Flagger webhooks.",
     prerequisites: [
       "Flagger operator installed (Istio, Linkerd, Contour, or NGINX)",
@@ -82,7 +83,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "generic_http",
     title: "Generic CI & HTTP API",
     badge: "Universal Webhook",
-    category: "CI/CD & Actions",
+    category: INTEGRATION_CATEGORIES.deployment,
     description: "Integrate GitLab CI, Jenkins, Bitbucket Pipelines, or custom bash scripts via standard REST endpoints.",
     prerequisites: [
       "HTTP client (curl, wget, or fetch) in CI runner",
@@ -95,7 +96,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "kubernetes",
     title: "Kubernetes kubectl",
     badge: "Native K8s",
-    category: "Host Runtime",
+    category: INTEGRATION_CATEGORIES.runtime,
     description: "In-cluster or agent-managed rollbacks using native kubectl rollout restart, undo, and pod readiness checks.",
     prerequisites: [
       "kubectl CLI configured with cluster context",
@@ -108,7 +109,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "docker",
     title: "Docker Compose",
     badge: "Container Runtime",
-    category: "Host Runtime",
+    category: INTEGRATION_CATEGORIES.runtime,
     description: "Container runtime adapter inspecting container health status, restarts, and executing image tag rollbacks.",
     prerequisites: [
       "Docker daemon socket / compose v2 installed on host",
@@ -121,7 +122,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "systemd",
     title: "Linux systemd",
     badge: "Linux Services",
-    category: "Host Runtime",
+    category: INTEGRATION_CATEGORIES.runtime,
     description: "Native Linux service unit management with systemctl active status, journald error check, and git revision rollback.",
     prerequisites: [
       "Linux host running systemd / systemctl",
@@ -134,7 +135,7 @@ const INTEGRATIONS: IntegrationConfig[] = [
     id: "prometheus",
     title: "Prometheus PromQL",
     badge: "Telemetry Source",
-    category: "Telemetry & SLO",
+    category: INTEGRATION_CATEGORIES.health,
     description: "Authoritative health metric evaluation querying Prometheus or VictoriaMetrics instant query API with PromQL.",
     prerequisites: [
       "Prometheus or VictoriaMetrics server with HTTP v1 API",
@@ -154,8 +155,8 @@ export default function IntegrationsPage() {
   const [apiKey, setApiKey] = useState("YOUR_CARF_API_KEY");
   const [targetName, setTargetName] = useState("production-api");
   const [healthUrl, setHealthUrl] = useState("http://localhost:3000/healthz");
-  const [branch, setBranch] = useState("main");
-  const [repoSlug, setRepoSlug] = useState("acme/production-service");
+  const [branch] = useState("main");
+  const [repoSlug] = useState("acme/production-service");
   const [activeManifestTab, setActiveManifestTab] = useState<"carf_yml" | "pipeline">("carf_yml");
 
   // Simulator States
@@ -259,64 +260,61 @@ target:
   runtime: "systemd"
   service: "${targetName}.service"
   health_url: "${healthUrl}"
-  working_directory: "/var/www/${targetName}"
+rules:
+  window_seconds: 300
+  base_ceiling: 0.05
+`;
+      case "generic_http":
+        return `# .carf.yml - Generic CI Webhook Adapter
+version: "1.0"
+mode: "augment"
+target:
+  runtime: "generic"
+  name: "${targetName}"
 rules:
   window_seconds: 240
   base_ceiling: 0.04
 `;
       case "prometheus":
-        return `# .carf.yml - Prometheus Telemetry Health Source
+        return `# .carf.yml - Prometheus SLO Verification
 version: "1.0"
 mode: "augment"
-telemetry:
-  source: "prometheus"
+health_provider: "prometheus"
+prometheus:
   endpoint: "http://prometheus:9090"
-  query: 'sum(rate(http_requests_total{service="${targetName}",status=~"5.."}[1m])) / sum(rate(http_requests_total{service="${targetName}"}[1m]))'
+  query: "sum(rate(http_requests_total{status=~'5..'}[2m])) / sum(rate(http_requests_total[2m]))"
 rules:
   window_seconds: 300
-  base_ceiling: 0.02
-`;
-      case "generic_http":
-      default:
-        return `# .carf.yml - Generic HTTP CI Integration
-version: "1.0"
-mode: "augment"
-target:
-  name: "${targetName}"
-  health_url: "${healthUrl}"
-rules:
-  window_seconds: 300
-  base_ceiling: 0.05
+  base_ceiling: 0.01
 `;
     }
   }
 
-  function generatePipelineManifest(): { filename: string; content: string } {
+  function generatePipelineSnippet(): { filename: string; content: string } {
     switch (selectedIntegration) {
       case "github_actions":
         return {
-          filename: ".github/workflows/carf.yml",
-          content: `name: CARF Deployment & Rollback Gating
+          filename: ".github/workflows/carf-pipeline.yml",
+          content: `name: Production Deployment & Soak Gate
 on:
   push:
-    branches: [ ${branch} ]
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [ ${branch} ]
+    branches: [${branch}]
 
 jobs:
-  carf-gate:
+  carf_gate:
+    name: CARF Pre-Flight & Soak Verification
     runs-on: ubuntu-latest
-    if: \${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Evaluate CARF Dynamic Risk Threshold
+        with:
+          fetch-depth: 0
+
+      - name: Calculate Dynamic Error Ceiling
         id: carf_threshold
         run: |
           RESP=$(curl -s -f -X GET \\
-            -H "Authorization: Bearer \${{ secrets.CARF_API_KEY }}" \\
-            "${apiUrl}/v1/augment/threshold?owner=\${{ github.repository_owner }}&repo=\${{ github.event.repository.name }}&sha=\${{ github.sha }}")
+            "${apiUrl}/v1/augment/threshold?owner=${repoSlug.split("/")[0]}&repo=${repoSlug.split("/")[1]}&sha=\${{ github.sha }}" \\
+            -H "Authorization: Bearer \${{ secrets.CARF_API_KEY }}")
           echo "threshold=$(echo $RESP | jq -r .threshold)" >> $GITHUB_OUTPUT
           echo "soak_seconds=$(echo $RESP | jq -r .soakWindowSeconds)" >> $GITHUB_OUTPUT
 
@@ -550,21 +548,39 @@ WantedBy=multi-user.target
       },
     ]);
 
-    // Step 4: Health Check & Rollback Decision
+    // Step 4: Soak Telemetry Observation
     setSimStep(4);
     await new Promise((r) => setTimeout(r, 900));
-    if (simulationMode === "success") {
+    const simulatedErrorRate = simulationMode === "rollback" ? 0.038 : 0.002;
+    setSimLogs((prev) => [
+      ...prev,
+      {
+        step: "Step 4: Soak Telemetry Observation",
+        status: simulationMode === "rollback" ? "error" : "success",
+        data: {
+          monitoredTarget: targetName,
+          soakWindowRemaining: "120s",
+          measuredErrorRate: `${(simulatedErrorRate * 100).toFixed(2)}%`,
+          thresholdCeiling: `${(dynamicCeiling * 100).toFixed(2)}%`,
+          breachDetected: simulationMode === "rollback",
+        },
+      },
+    ]);
+
+    // Step 5: Rollback Execution or Verified Promotion
+    setSimStep(5);
+    await new Promise((r) => setTimeout(r, 800));
+    if (simulationMode === "rollback") {
       setSimLogs((prev) => [
         ...prev,
         {
-          step: "Step 4: Soak Monitoring & Promotion",
-          status: "success",
+          step: "Step 5: Automated Rollback Dispatched",
+          status: "error",
           data: {
-            request: `POST ${apiUrl}/v1/report`,
-            measuredErrorRate: 0.002,
-            threshold: dynamicCeiling,
-            decision: "CONTINUE_DEPLOYMENT",
-            action: "Promoted to 100% production traffic. No rollback needed.",
+            decision: "ROLLBACK_TRIGGERED",
+            reason: `Error rate 3.8% exceeded dynamic ceiling 1.5% during soak window`,
+            action: `${selectedIntegration.toUpperCase()}_ROLLBACK_DISPATCHED`,
+            restoredCommit: "e4f1a20",
           },
         },
       ]);
@@ -572,19 +588,12 @@ WantedBy=multi-user.target
       setSimLogs((prev) => [
         ...prev,
         {
-          step: "Step 4: Breach Detected -> Automated Rollback Triggered",
-          status: "error",
+          step: "Step 5: Release Verified & Promoted",
+          status: "success",
           data: {
-            request: `POST ${apiUrl}/v1/report`,
-            measuredErrorRate: 0.098,
-            thresholdCeiling: dynamicCeiling,
-            decision: "ROLLBACK_TRIGGERED",
-            recoveryExecution: {
-              adapter: selectedIntegration,
-              action: `Atomic rollback executed for ${targetName}. Previous revision restored.`,
-              verificationResult: "ROLLBACK_VERIFIED",
-              postRollbackErrorRate: 0.0,
-            },
+            decision: "RELEASE_STABLE",
+            soakStatus: "COMPLETED_WITHOUT_BREACH",
+            telemetrySummary: "Error rate sustained under 0.05% threshold ceiling",
           },
         },
       ]);
@@ -592,9 +601,6 @@ WantedBy=multi-user.target
 
     setSimRunning(false);
   }
-
-  const manifest = generatePipelineManifest();
-  const carfYml = generateCarfYml();
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full">
@@ -608,7 +614,7 @@ WantedBy=multi-user.target
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Integrations</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Choose your stack, follow the setup guide, and prepare your deployment configuration.
+            Choose your deployment integration, runtime integration, and health providers to prepare your configuration.
           </p>
         </div>
 
@@ -718,51 +724,7 @@ WantedBy=multi-user.target
               </div>
 
               <div>
-                <label htmlFor="target-name" className="block text-[11px] font-semibold text-muted-foreground mb-1">Target Service / Workload</label>
-                <input
-                  id="target-name"
-                  type="text"
-                  value={targetName}
-                  onChange={(e) => setTargetName(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="health-url" className="block text-[11px] font-semibold text-muted-foreground mb-1">Healthcheck Probe URL</label>
-                <input
-                  id="health-url"
-                  type="text"
-                  value={healthUrl}
-                  onChange={(e) => setHealthUrl(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="branch" className="block text-[11px] font-semibold text-muted-foreground mb-1">Deployment Branch</label>
-                <input
-                  id="branch"
-                  type="text"
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="repo-slug" className="block text-[11px] font-semibold text-muted-foreground mb-1">Repository Slug (owner/repo)</label>
-                <input
-                  id="repo-slug"
-                  type="text"
-                  value={repoSlug}
-                  onChange={(e) => setRepoSlug(e.target.value)}
-                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="api-key" className="block text-[11px] font-semibold text-muted-foreground mb-1">API Key / Token</label>
+                <label htmlFor="api-key" className="block text-[11px] font-semibold text-muted-foreground mb-1">Bearer API Key</label>
                 <input
                   id="api-key"
                   type="password"
@@ -771,19 +733,41 @@ WantedBy=multi-user.target
                   className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden"
                 />
               </div>
+
+              <div>
+                <label htmlFor="target-name" className="block text-[11px] font-semibold text-muted-foreground mb-1">Deployment Target Name</label>
+                <input
+                  id="target-name"
+                  type="text"
+                  value={targetName}
+                  onChange={(e) => setTargetName(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden font-mono"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="health-url" className="block text-[11px] font-semibold text-muted-foreground mb-1">Health Provider Probe URL</label>
+                <input
+                  id="health-url"
+                  type="text"
+                  value={healthUrl}
+                  onChange={(e) => setHealthUrl(e.target.value)}
+                  className="w-full px-2.5 py-1.5 rounded-md border border-border bg-background text-foreground focus:ring-1 focus:ring-primary outline-hidden font-mono"
+                />
+              </div>
             </div>
 
-            {/* Manifest Code Viewer Tabs */}
-            <div className="mt-2 flex flex-col rounded-lg border border-border bg-muted/30 overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border bg-muted/60 px-3 py-2">
-                <div className="flex items-center gap-2">
+            {/* Manifest Preview Tabs */}
+            <div className="mt-2 flex flex-col gap-2">
+              <div className="flex items-center justify-between border-b border-border">
+                <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => setActiveManifestTab("carf_yml")}
-                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px transition-colors ${
                       activeManifestTab === "carf_yml"
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     .carf.yml
@@ -791,48 +775,43 @@ WantedBy=multi-user.target
                   <button
                     type="button"
                     onClick={() => setActiveManifestTab("pipeline")}
-                    className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                    className={`px-3 py-1.5 text-xs font-semibold border-b-2 -mb-px transition-colors ${
                       activeManifestTab === "pipeline"
-                        ? "bg-background text-foreground shadow-xs"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {manifest.filename}
+                    CI / Deploy Manifest
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2 pb-1">
                   <button
                     type="button"
-                    onClick={() =>
-                      copyToClipboard(
-                        activeManifestTab === "carf_yml" ? carfYml : manifest.content,
-                        activeManifestTab
-                      )
-                    }
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-border bg-background hover:bg-muted text-foreground transition-colors"
+                    onClick={() => {
+                      const snippet =
+                        activeManifestTab === "carf_yml"
+                          ? generateCarfYml()
+                          : generatePipelineSnippet().content;
+                      copyToClipboard(snippet, "manifest");
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium border border-border bg-card hover:bg-muted text-foreground"
                   >
-                    {copiedKey === activeManifestTab ? (
-                      <>
-                        <Check className="size-3 text-emerald-500" />
-                        <span className="text-emerald-500">Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="size-3" />
-                        <span>Copy</span>
-                      </>
-                    )}
+                    {copiedKey === "manifest" ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+                    <span>{copiedKey === "manifest" ? "Copied" : "Copy"}</span>
                   </button>
+
                   <button
                     type="button"
-                    onClick={() =>
-                      downloadFile(
-                        activeManifestTab === "carf_yml" ? ".carf.yml" : manifest.filename,
-                        activeManifestTab === "carf_yml" ? carfYml : manifest.content
-                      )
-                    }
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border border-border bg-background hover:bg-muted text-foreground transition-colors"
+                    onClick={() => {
+                      if (activeManifestTab === "carf_yml") {
+                        downloadFile(".carf.yml", generateCarfYml());
+                      } else {
+                        const pipe = generatePipelineSnippet();
+                        downloadFile(pipe.filename, pipe.content);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium bg-primary/10 text-primary hover:bg-primary/20"
                   >
                     <Download className="size-3" />
                     <span>Download</span>
@@ -840,159 +819,133 @@ WantedBy=multi-user.target
                 </div>
               </div>
 
-              <pre className="p-4 text-[11px] font-mono text-foreground overflow-x-auto whitespace-pre leading-relaxed max-h-72">
-                {activeManifestTab === "carf_yml" ? carfYml : manifest.content}
-              </pre>
+              {/* Code Viewer */}
+              <div className="relative rounded-lg bg-muted/60 p-3 font-mono text-[11px] leading-relaxed text-foreground border border-border overflow-x-auto">
+                <pre>
+                  {activeManifestTab === "carf_yml"
+                    ? generateCarfYml()
+                    : generatePipelineSnippet().content}
+                </pre>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Interactive End-to-End Simulator (Issue #213) (5 cols) */}
+        {/* Right Column: Interactive Live Simulator (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div className="p-5 rounded-xl border border-border bg-card flex flex-col gap-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
-                <Activity className="size-4 text-primary" />
-                <h3 className="text-sm font-bold text-foreground">Interactive Integration Simulator</h3>
+                <Terminal className="size-4 text-primary" />
+                <h3 className="text-sm font-bold text-foreground">Interactive Gating Simulator</h3>
               </div>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                Demo only
-              </span>
+              <span className="text-[11px] text-muted-foreground font-mono">v1.4.0-sim</span>
             </div>
 
-            <p className="text-xs text-muted-foreground">
-              Preview sample request and response flows. This demo runs locally in your browser and does not contact your API, verify credentials, or change a deployment.
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              Test how CARF Core evaluates risk and triggers rollback for this integration before executing on production runners.
             </p>
 
-            {/* Simulation Scenario Selector */}
-            <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-lg border border-border">
+            {/* Mode Toggle */}
+            <div className="flex rounded-lg border border-border p-1 bg-muted/30">
               <button
                 type="button"
                 onClick={() => setSimulationMode("success")}
-                className={`flex-1 py-1.5 px-2 rounded-md text-xs font-semibold text-center transition-all ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   simulationMode === "success"
-                    ? "bg-background text-foreground shadow-xs"
+                    ? "bg-card text-emerald-600 dark:text-emerald-400 shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Normal Release (Promote)
+                Stable Release
               </button>
               <button
                 type="button"
                 onClick={() => setSimulationMode("rollback")}
-                className={`flex-1 py-1.5 px-2 rounded-md text-xs font-semibold text-center transition-all ${
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
                   simulationMode === "rollback"
-                    ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                    ? "bg-card text-rose-600 dark:text-rose-400 shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                High Risk (Auto-Rollback)
+                Simulate Rollback Breach
               </button>
             </div>
 
             {/* Run Button */}
             <button
               type="button"
-              onClick={runSimulation}
               disabled={simRunning}
-              className={`w-full py-2.5 px-4 rounded-lg font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
-                simRunning
-                  ? "bg-muted text-muted-foreground cursor-not-allowed"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
-              }`}
+              onClick={runSimulation}
+              className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-all disabled:opacity-50"
             >
-              {simRunning ? (
-                <>
-                  <RefreshCw className="size-3.5 animate-spin" />
-                  <span>Simulating Integration Flow (Step {simStep}/4)...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="size-3.5 fill-current" />
-                  <span>Run Demo Simulation</span>
-                </>
-              )}
+              {simRunning ? <RefreshCw className="size-3.5 animate-spin" /> : <Play className="size-3.5 fill-current" />}
+              <span>{simRunning ? "Simulating pipeline execution..." : "Run Pipeline Simulation"}</span>
             </button>
 
-            {/* Simulation Step Progress */}
-            <div className="grid grid-cols-4 gap-1.5 text-center mt-1">
-              {[
-                { num: 1, label: "Auth Probe" },
-                { num: 2, label: "Risk Score" },
-                { num: 3, label: "Threshold" },
-                { num: 4, label: simulationMode === "rollback" ? "Rollback" : "Promote" },
-              ].map((s) => {
-                const isActive = simStep === s.num;
-                const isDone = simStep > s.num || (!simRunning && simLogs.length === 4);
+            {/* Progress Step Indicators */}
+            <div className="grid grid-cols-5 gap-1 pt-1">
+              {[1, 2, 3, 4, 5].map((step) => {
+                const isCurrent = simStep === step;
+                const isPassed = simStep > step;
                 return (
                   <div
-                    key={s.num}
-                    className={`py-1.5 px-1 rounded text-[10px] font-semibold border transition-all ${
-                      isActive
-                        ? "border-primary bg-primary/10 text-primary animate-pulse"
-                        : isDone
-                        ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-500"
-                        : "border-border bg-muted/20 text-muted-foreground"
+                    key={step}
+                    className={`h-1.5 rounded-full transition-all ${
+                      isCurrent
+                        ? "bg-primary animate-pulse"
+                        : isPassed
+                        ? "bg-emerald-500"
+                        : "bg-muted"
                     }`}
-                  >
-                    <span>{s.num}. {s.label}</span>
-                  </div>
+                  />
                 );
               })}
             </div>
 
-            {/* Live JSON Inspector / Logs */}
-            <div className="mt-2 flex flex-col rounded-lg border border-border bg-background overflow-hidden">
-              <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
-                <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1.5">
-                  <Terminal className="size-3" />
-                  <span>Sample Responses</span>
-                </span>
-                {simLogs.length > 0 && (
-                  <span className="text-[10px] font-semibold text-emerald-500">
-                    {simLogs.length} events recorded
-                  </span>
-                )}
+            {/* Simulator Output Console */}
+            <div className="flex flex-col gap-2 rounded-lg bg-black/90 p-3 font-mono text-[11px] text-zinc-300 min-h-[260px] max-h-[360px] overflow-y-auto border border-zinc-800">
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5 text-zinc-500 text-[10px]">
+                <span>TERMINAL_OUTPUT</span>
+                <span>STATUS: {simRunning ? "PROCESSING" : simLogs.length ? "READY" : "IDLE"}</span>
               </div>
 
-              <div className="p-3 text-[11px] font-mono space-y-3 max-h-80 overflow-y-auto">
-                {simLogs.length === 0 ? (
-                  <p className="text-muted-foreground italic text-center py-6">
-                    Run the demo to see sample responses, then use the setup guide to verify your real connection.
-                  </p>
-                ) : (
-                  simLogs.map((log, idx) => (
-                    <div
-                      key={idx}
-                      className={`p-2.5 rounded border text-xs leading-relaxed ${
-                        log.status === "error"
-                          ? "border-red-500/30 bg-red-500/5 text-red-400"
+              {simLogs.length === 0 && !simRunning && (
+                <div className="flex flex-col items-center justify-center h-48 text-zinc-600 text-xs">
+                  <Activity className="size-6 mb-2 opacity-40" />
+                  <span>Click &quot;Run Pipeline Simulation&quot; to test gating flow</span>
+                </div>
+              )}
+
+              {simLogs.map((log, index) => (
+                <div key={index} className="flex flex-col gap-1 border-b border-zinc-900 pb-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        log.status === "success"
+                          ? "bg-emerald-400"
                           : log.status === "warning"
-                          ? "border-amber-500/30 bg-amber-500/5 text-amber-300"
-                          : "border-border bg-muted/20 text-foreground"
+                          ? "bg-amber-400"
+                          : "bg-rose-400"
                       }`}
+                    />
+                    <span
+                      className={
+                        log.status === "success"
+                          ? "text-emerald-400"
+                          : log.status === "warning"
+                          ? "text-amber-400"
+                          : "text-rose-400"
+                      }
                     >
-                      <div className="flex items-center justify-between font-bold mb-1">
-                        <span>{log.step}</span>
-                        <span
-                          className={`text-[9px] px-1.5 py-0.2 rounded font-semibold uppercase ${
-                            log.status === "error"
-                              ? "bg-red-500/20 text-red-400"
-                              : log.status === "warning"
-                              ? "bg-amber-500/20 text-amber-300"
-                              : "bg-emerald-500/20 text-emerald-400"
-                          }`}
-                        >
-                          {log.status}
-                        </span>
-                      </div>
-                      <pre className="text-[10px] overflow-x-auto whitespace-pre">
-                        {JSON.stringify(log.data, null, 2)}
-                      </pre>
-                    </div>
-                  ))
-                )}
-              </div>
+                      {log.step}
+                    </span>
+                  </div>
+                  <pre className="text-zinc-400 text-[10px] pl-3.5 overflow-x-auto leading-tight">
+                    {JSON.stringify(log.data, null, 2)}
+                  </pre>
+                </div>
+              ))}
             </div>
           </div>
         </div>

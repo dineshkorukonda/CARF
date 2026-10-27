@@ -17,6 +17,7 @@ import {
   type DeploymentIntegration,
   type RuntimeAdapter,
 } from "../../../lib/capabilities";
+import { CARF_TERMS, CAPABILITY_LABELS, CAPABILITY_DESCRIPTIONS } from "../../../lib/terminology";
 import { projectPageHref } from "../../../lib/dashboardNav";
 import type { AnalysisTrigger } from "../../../lib/carfConfigSchema";
 
@@ -62,30 +63,33 @@ export function CapabilitiesPreviewStep({
   const isPm2 = runtimeAdapter === "pm2";
   const isDocker = runtimeAdapter === "docker";
 
-  const carfYamlPreview = `# .carf.yml — CARF 3-Layer Architecture Configuration
-deploymentIntegration: "${deploymentIntegration}"
-analysisTrigger: "${analysisTrigger}"
-runtimeAdapter: "${runtimeAdapter}"
-mode: "${resolved.capabilities.rollback ? "standalone" : "augment"}"
+  // Generate .carf.yml preview content based on choices
+  const carfYamlPreview = `# CARF 3-Layer Configuration for ${repo.full_name}
+version: 1
+policy:
+  deployment_integration: ${deploymentIntegration}
+  runtime_adapter: ${runtimeAdapter}
+  analysis_trigger: ${analysisTrigger}
+  auto_rollback: ${resolved.capabilities.rollback ? "true" : "false"}
 ${
-  runtimeAdapter === "pm2"
-    ? `adapter:
-  kind: pm2
-  target: "${pm2Config.targetName || repo.name}"
-  cwd: "${pm2Config.cwd}"
-  healthUrl: "${pm2Config.healthUrl}"
-  layout: "${pm2Config.layout}"${pm2Config.buildCommand.trim() ? `\n  buildCommand: ${JSON.stringify(pm2Config.buildCommand.trim())}` : ""}`
-    : runtimeAdapter === "docker"
-    ? `adapter:
-  kind: docker
-  target: "${dockerConfig.containerName || repo.name}"${dockerConfig.composeFile ? `\n  composeFile: "${dockerConfig.composeFile}"` : ""}${dockerConfig.healthUrl ? `\n  healthUrl: "${dockerConfig.healthUrl}"` : ""}`
+  isPm2
+    ? `\npm2:
+  target: ${pm2Config.targetName || repo.name}
+  cwd: ${pm2Config.cwd}
+  health_url: ${pm2Config.healthUrl}${pm2Config.buildCommand ? `\n  build_command: ${pm2Config.buildCommand}` : ""}\n  layout: ${pm2Config.layout}
+`
+    : isDocker
+    ? `\ndocker:
+  container_name: ${dockerConfig.containerName || repo.name}
+  compose_file: ${dockerConfig.composeFile}
+  health_url: ${dockerConfig.healthUrl}
+`
     : ""
 }`.trim();
 
   const handleConnect = async () => {
     setLinking(true);
     setError(null);
-
     try {
       const payload: Record<string, unknown> = {
         installationId,
@@ -153,10 +157,10 @@ ${
         <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
           <span>Step 4</span>
           <span>•</span>
-          <span>Layer Resolution &amp; Confirmation</span>
+          <span>Configuration Review</span>
         </div>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
-          Live Capabilities Preview
+          Configuration Review &amp; Capabilities
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Review the resolved capabilities for{" "}
@@ -178,7 +182,7 @@ ${
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="rounded-lg border border-border bg-muted/20 p-3">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Layer 1: CARF Core
+              Layer 1: {CARF_TERMS.core.label}
             </span>
             <div className="mt-1.5 flex items-center gap-1.5 font-bold text-xs text-foreground">
               <span className="size-2 rounded-full bg-emerald-500" />
@@ -191,7 +195,7 @@ ${
 
           <div className="rounded-lg border border-border bg-muted/20 p-3">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Layer 2: Deployment
+              Layer 2: {CARF_TERMS.deploymentIntegration.label}
             </span>
             <div className="mt-1.5 flex items-center gap-1.5 font-bold text-xs text-foreground">
               <span
@@ -208,7 +212,7 @@ ${
 
           <div className="rounded-lg border border-border bg-muted/20 p-3">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Layer 3: Runtime
+              Layer 3: {CARF_TERMS.runtimeIntegration.label}
             </span>
             <div className="mt-1.5 flex items-center gap-1.5 font-bold text-xs text-foreground">
               <span
@@ -235,17 +239,12 @@ ${
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-              <span className="text-foreground font-medium">Risk Vector &amp; Churn Scoring</span>
+              <span className="text-foreground font-medium">{CAPABILITY_LABELS.policy} ({CAPABILITY_DESCRIPTIONS.policy})</span>
             </div>
 
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-              <span className="text-foreground font-medium">Dynamic Error-Rate Thresholds</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
-              <span className="text-foreground font-medium">Dynamic Soak Window Duration</span>
+              <span className="text-foreground font-medium">Dynamic Error-Rate Thresholds &amp; Soak Windows</span>
             </div>
 
             <div className="flex items-center gap-2">
@@ -261,7 +260,7 @@ ${
                     : "text-muted-foreground line-through"
                 }
               >
-                Runtime Telemetry Monitoring
+                {CAPABILITY_LABELS.monitoring} ({CAPABILITY_DESCRIPTIONS.monitoring})
               </span>
             </div>
 
@@ -278,7 +277,7 @@ ${
                     : "text-muted-foreground line-through"
                 }
               >
-                Automated Deployment Rollback
+                {CAPABILITY_LABELS.rollback} ({CAPABILITY_DESCRIPTIONS.rollback})
               </span>
             </div>
 

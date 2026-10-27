@@ -6,6 +6,7 @@ import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { DeploymentIntegration } from "../../../lib/capabilities";
 import type { AnalysisTrigger } from "../../../lib/carfConfigSchema";
 import { AnalysisTriggerSelect } from "../../../components/AnalysisTriggerSelect";
+import { CARF_TERMS, SETUP_EXPLANATIONS } from "../../../lib/terminology";
 
 interface DeploymentIntegrationStepProps {
   selectedRepo: InstallationRepo | null;
@@ -101,17 +102,16 @@ export function DeploymentIntegrationStep({
         <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
           <span>Step 2</span>
           <span>•</span>
-          <span>Layer 2: Deployment Integration</span>
+          <span>Layer 2: {CARF_TERMS.deploymentIntegration.label}</span>
         </div>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
-          Choose Deployment Integration
+          Choose {CARF_TERMS.deploymentIntegration.label}
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Select how deployment events and CI pipelines for{" "}
+          {SETUP_EXPLANATIONS.deploymentIntegration} Selected repository:{" "}
           <span className="font-semibold text-foreground font-mono">
             {selectedRepo?.full_name ?? "this repository"}
-          </span>{" "}
-          communicate with CARF Core.
+          </span>.
         </p>
       </div>
 
@@ -202,7 +202,7 @@ export function DeploymentIntegrationStep({
           disabled={analysisLoading || Boolean(analysisError)}
           className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
         >
-          <span>Next: Runtime Adapter</span>
+          <span>Next: {CARF_TERMS.runtimeIntegration.label}</span>
           <ArrowRight className="size-3.5" />
         </button>
       </div>

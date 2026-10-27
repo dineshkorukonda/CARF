@@ -10,6 +10,7 @@ import {
   type RuntimeAdapter,
   resolveFromLegacy,
 } from "../../../lib/capabilities";
+import { CARF_TERMS } from "../../../lib/terminology";
 import { RepositorySelectionStep } from "./RepositorySelectionStep";
 import { DeploymentIntegrationStep } from "./DeploymentIntegrationStep";
 import { RuntimeAdapterStep } from "./RuntimeAdapterStep";
@@ -64,7 +65,7 @@ export function SetupWizard({
   const existingConn = seedRepo ? findRepoConnection(connections || [], seedRepo) : null;
   const initialResolved = existingConn ? resolveFromLegacy(existingConn) : null;
 
-  // Global wizard steps: 1 = Select Repo, 2 = Deployment Integration, 3 = Runtime Adapter, 4 = Capabilities Preview
+  // Global wizard steps: 1 = Select Repo, 2 = Deployment Integration, 3 = Runtime Integration, 4 = Configuration Review
   const [step, setStep] = useState<1 | 2 | 3 | 4>(seedRepo ? 2 : 1);
   const [selectedRepoFullName, setSelectedRepoFullName] = useState<string>(seedRepo);
   const [analysisTrigger, setAnalysisTrigger] = useState<AnalysisTrigger>("both");
@@ -153,7 +154,7 @@ export function SetupWizard({
             Connect Repository
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            Configure 3-layer architecture: CARF Core policy, deployment integrations, and runtime adapters.
+            Configure 3-layer architecture: {CARF_TERMS.core.label} policy engine, {CARF_TERMS.deploymentIntegration.label.toLowerCase()}s, and {CARF_TERMS.runtimeIntegration.label.toLowerCase()}s.
           </p>
         </div>
       </div>
@@ -187,7 +188,7 @@ export function SetupWizard({
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
             {step > 2 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "2"}
           </span>
-          <span className="truncate">Deployment</span>
+          <span className="truncate">{CARF_TERMS.deploymentIntegration.label}</span>
         </div>
 
         <div
@@ -202,7 +203,7 @@ export function SetupWizard({
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
             {step > 3 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "3"}
           </span>
-          <span className="truncate">Runtime</span>
+          <span className="truncate">{CARF_TERMS.runtimeIntegration.label}</span>
         </div>
 
         <div
@@ -215,7 +216,7 @@ export function SetupWizard({
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
             4
           </span>
-          <span className="truncate">Preview &amp; Connect</span>
+          <span className="truncate">Configuration Review</span>
         </div>
       </div>
 
@@ -276,7 +277,7 @@ export function SetupWizard({
         />
       )}
 
-      {/* STEP 3: CHOOSE RUNTIME ADAPTER */}
+      {/* STEP 3: CHOOSE RUNTIME INTEGRATION */}
       {step === 3 && (
         <RuntimeAdapterStep
           installationId={primaryInstallationId}

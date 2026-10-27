@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, Shield, Server, Box, Layers, Cpu, RefreshCw, Activity } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { RuntimeAdapter } from "../../../lib/capabilities";
+import { CARF_TERMS, SETUP_EXPLANATIONS } from "../../../lib/terminology";
 import { Input } from "../../../components/ui/input";
 
 interface RuntimeAdapterStepProps {
@@ -72,7 +73,7 @@ interface ProcessResponse extends Partial<DiscoveredApp> {
 const ADAPTER_OPTIONS: AdapterOption[] = [
   {
     id: "none",
-    name: "No Direct Runtime (Policy Only)",
+    name: "Policy Only (No Direct Runtime)",
     tag: "Active · Recommended",
     tagColor: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     icon: Shield,
@@ -113,8 +114,8 @@ const ADAPTER_OPTIONS: AdapterOption[] = [
   {
     id: "kubernetes",
     name: "Kubernetes",
-    tag: "Roadmap · Preview",
-    tagColor: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
+    tag: "Preview",
+    tagColor: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
     icon: Layers,
     description: "In development. Direct pod and deployment rollback controller for cluster environments.",
     features: [
@@ -126,7 +127,7 @@ const ADAPTER_OPTIONS: AdapterOption[] = [
   {
     id: "systemd",
     name: "systemd Services",
-    tag: "Roadmap · Preview",
+    tag: "Roadmap",
     tagColor: "border-muted-foreground/30 bg-muted/40 text-muted-foreground",
     icon: Cpu,
     description: "In development. Linux service unit management and rollback.",
@@ -205,66 +206,49 @@ export function RuntimeAdapterStep({
         <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
           <span>Step 3</span>
           <span>•</span>
-          <span>Layer 3 Architecture</span>
+          <span>Layer 3: {CARF_TERMS.runtimeIntegration.label}</span>
         </div>
         <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
-          Choose Runtime Adapter
+          Choose {CARF_TERMS.runtimeIntegration.label}
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Runtime adapters connect CARF Core policies directly to the runtime host where your code executes.
+          {SETUP_EXPLANATIONS.runtimeIntegration}
         </p>
       </div>
 
       {/* Adapter Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {ADAPTER_OPTIONS.map((opt) => {
-          const isSelected = selectedAdapter === opt.id;
           const Icon = opt.icon;
-
+          const isSelected = selectedAdapter === opt.id;
           return (
             <div
               key={opt.id}
               onClick={() => onSelectAdapter(opt.id)}
-              className={`group relative flex flex-col justify-between rounded-xl border p-5 transition-all cursor-pointer ${
+              className={`cursor-pointer rounded-xl border p-5 transition-all relative flex flex-col justify-between ${
                 isSelected
-                  ? "border-primary bg-primary/[0.03] shadow-sm ring-1 ring-primary"
-                  : "border-border bg-card hover:border-border/80 hover:bg-muted/30"
+                  ? "border-primary bg-primary/[0.04] shadow-sm ring-1 ring-primary"
+                  : "border-border bg-card hover:border-border/80 hover:bg-muted/20"
               }`}
             >
-              <div>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex size-10 items-center justify-center rounded-lg border transition-colors ${
-                        isSelected
-                          ? "border-primary/40 bg-primary/10 text-primary"
-                          : "border-border bg-muted/50 text-muted-foreground group-hover:text-foreground"
-                      }`}
-                    >
-                      <Icon className="size-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-sm text-foreground">{opt.name}</h3>
-                      <span
-                        className={`inline-block mt-0.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${opt.tagColor}`}
-                      >
-                        {opt.tag}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div
-                    className={`flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
-                      isSelected
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background"
-                    }`}
-                  >
-                    {isSelected && <CheckCircle2 className="size-3.5" />}
-                  </div>
+              {isSelected && (
+                <div className="absolute top-4 right-4 text-primary">
+                  <CheckCircle2 className="size-5" />
                 </div>
-
-                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              )}
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex size-10 items-center justify-center rounded-lg border border-border bg-muted/40 text-primary">
+                    <Icon className="size-5" />
+                  </div>
+                  <span className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${opt.tagColor}`}>
+                    {opt.tag}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <h3 className="text-base font-bold text-foreground">{opt.name}</h3>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                   {opt.description}
                 </p>
 
@@ -305,7 +289,7 @@ export function RuntimeAdapterStep({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Server className="size-4 text-sky-500" />
-              <h3 className="text-sm font-semibold text-foreground">PM2 Process Details</h3>
+              <h3 className="text-sm font-semibold text-foreground">PM2 Configuration &amp; {CARF_TERMS.deploymentTarget.label}</h3>
             </div>
             {loadingProcesses && (
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -315,7 +299,7 @@ export function RuntimeAdapterStep({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Configure how CARF Core interacts with the local PM2 runtime on this server. Select from detected processes or specify custom details.
+            Configure how {CARF_TERMS.core.label} interacts with the local PM2 runtime. Select from detected processes or specify target details manually.
           </p>
           {pm2Error && (
             <p className="text-xs text-amber-600 dark:text-amber-400">
@@ -362,7 +346,7 @@ export function RuntimeAdapterStep({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-foreground">PM2 Process Name</label>
+              <label className="text-xs font-medium text-foreground">{CARF_TERMS.deploymentTarget.label} (Process Name)</label>
               <input
                 type="text"
                 value={pm2Config.targetName}
@@ -370,7 +354,7 @@ export function RuntimeAdapterStep({
                 placeholder={selectedRepo?.name ?? "my-app"}
                 className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Process name in `pm2 jlist`</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{SETUP_EXPLANATIONS.deploymentTarget}</p>
             </div>
 
             <div>
@@ -386,7 +370,7 @@ export function RuntimeAdapterStep({
             </div>
 
             <div>
-              <label className="text-xs font-medium text-foreground">Health Check URL</label>
+              <label className="text-xs font-medium text-foreground">{CARF_TERMS.healthProvider.label} (Health Check URL)</label>
               <input
                 type="text"
                 value={pm2Config.healthUrl}
@@ -394,7 +378,7 @@ export function RuntimeAdapterStep({
                 placeholder="http://127.0.0.1:3000/"
                 className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Endpoint polled during soak window</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{SETUP_EXPLANATIONS.healthProvider}</p>
             </div>
 
             <div>
@@ -424,16 +408,16 @@ export function RuntimeAdapterStep({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Box className="size-4 text-sky-500" />
-              <h3 className="text-sm font-semibold text-foreground">Docker Container &amp; Compose Details</h3>
+              <h3 className="text-sm font-semibold text-foreground">Docker Configuration &amp; {CARF_TERMS.deploymentTarget.label}</h3>
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Configure how CARF Core interacts with Docker or Docker Compose on this host.
+            Configure how {CARF_TERMS.core.label} interacts with Docker or Docker Compose on this host.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-foreground">Container / Service Name</label>
+              <label className="text-xs font-medium text-foreground">{CARF_TERMS.deploymentTarget.label} (Container / Service Name)</label>
               <input
                 type="text"
                 value={dockerConfig.containerName}
@@ -441,7 +425,7 @@ export function RuntimeAdapterStep({
                 placeholder={selectedRepo?.name ? `${selectedRepo.name}-web-1` : "monix-web-1"}
                 className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">Container name in `docker ps` or compose service name</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{SETUP_EXPLANATIONS.deploymentTarget}</p>
             </div>
 
             <div>
@@ -457,7 +441,7 @@ export function RuntimeAdapterStep({
             </div>
 
             <div className="md:col-span-2">
-              <label className="text-xs font-medium text-foreground">Health Check URL</label>
+              <label className="text-xs font-medium text-foreground">{CARF_TERMS.healthProvider.label} (Health Check URL)</label>
               <input
                 type="text"
                 value={dockerConfig.healthUrl}
@@ -465,7 +449,7 @@ export function RuntimeAdapterStep({
                 placeholder="http://127.0.0.1:3100/api/health"
                 className="mt-1 w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary font-mono"
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">HTTP endpoint polled during soak observation window</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{SETUP_EXPLANATIONS.healthProvider}</p>
             </div>
           </div>
         </div>
@@ -487,7 +471,7 @@ export function RuntimeAdapterStep({
           onClick={onContinue}
           className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
         >
-          <span>Review Capabilities</span>
+          <span>Next: Configuration Review</span>
           <ArrowRight className="size-3.5" />
         </button>
       </div>
