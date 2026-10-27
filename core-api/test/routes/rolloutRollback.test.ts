@@ -13,6 +13,11 @@ function createMockPrisma(options: {
 } = {}) {
   const installationId = options.installationId ?? "inst-100";
   return {
+    standaloneLoopLock: {
+      create: vi.fn(async () => ({})),
+      updateMany: vi.fn(async () => ({ count: 1 })),
+      deleteMany: vi.fn(async () => ({ count: 1 })),
+    },
     installationApiKey: {
       findUnique: vi.fn(async ({ where }: { where: { keyHash: string } }) => {
         if (where.keyHash === TEST_KEY_HASH) {
@@ -24,7 +29,7 @@ function createMockPrisma(options: {
     rolloutOutcome: {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
         if (options.rolloutOutcome && options.rolloutOutcome.id === where.id) {
-          return options.rolloutOutcome;
+          return { status: "PENDING", ...options.rolloutOutcome };
         }
         return null;
       }),
@@ -46,6 +51,24 @@ function createMockPrisma(options: {
 }
 
 describe("POST /v1/rollouts/:id/rollback", () => {
+  it.each(["stale", "claimed", "unhealthy"])("protects manual rollback: %s", async scenario => {
+    const prisma = createMockPrisma({ rolloutOutcome: {
+      id: "manual", installationId: "inst-100", owner: "org", repo: "api",
+      commitSha: "head", previousSha: "base", status: "SUCCESS",
+    } });
+    if (scenario === "claimed") prisma.rolloutOutcome.updateMany.mockResolvedValue({ count: 0 });
+    const adapter = {
+      checkHealth: vi.fn(), rollback: vi.fn(),
+      getCurrentRevision: vi.fn().mockResolvedValue(scenario === "stale" ? "newer" : "head"),
+      rollbackWithVerification: vi.fn().mockResolvedValue({ rollbackVerified: false }),
+    };
+    const app = Fastify();
+    await registerRolloutRollbackRoute(app, { prismaClient: prisma as any, adapterFactory: () => adapter });
+    const response = await app.inject({ method: "POST", url: "/v1/rollouts/manual/rollback", headers: { authorization: `Bearer ${TEST_API_KEY}` } });
+    expect(response.statusCode).toBe(scenario === "unhealthy" ? 500 : 409);
+    if (scenario !== "unhealthy") expect(adapter.rollbackWithVerification).not.toHaveBeenCalled();
+    await app.close();
+  });
   it.each(["success", "no-decision", "stale-revision", "claimed", "unhealthy", "wrong-restored-revision"])("Actions rollback: %s", async (scenario) => {
     const rollout = {
       id: "actions-1", installationId: "inst-100", owner: "org", repo: "api",
@@ -146,6 +169,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
   it("executes manual rollback, updates RolloutOutcome, and writes RolloutAuditLog", async () => {
     const app = Fastify();
     const mockAdapter = {
+      getCurrentRevision: vi.fn().mockResolvedValueOnce("head123").mockResolvedValue("actual-deployed-sha"),
       rollback: vi.fn().mockResolvedValue(undefined),
       rollbackWithVerification: vi.fn().mockResolvedValue({ rollbackVerified: true }),
       checkHealth: vi.fn().mockResolvedValue({ healthy: true, errorRate: 0 }),

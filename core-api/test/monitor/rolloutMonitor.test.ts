@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { RollbackAdapter } from "../../src/adapters/rollbackAdapter.js";
 import type { RolloutOutcomePrismaClient, RolloutOutcomeRecord } from "../../src/adapters/rolloutOutcome.js";
 import { RolloutMonitor } from "../../src/monitor/rolloutMonitor.js";
+import { leasePrisma } from "../helpers/leasePrisma.js";
+import { acquireDeploymentLease } from "../../src/adapters/deploymentLease.js";
 
 function createFakePrisma(
   initialOutcomes: RolloutOutcomeRecord[] = [],
@@ -72,6 +74,22 @@ function createFakePrisma(
 }
 
 describe("RolloutMonitor State Machine", () => {
+  it("does not recover a repository owned by another worker", async () => {
+    const leases = leasePrisma();
+    const lease = (await acquireDeploymentLease(leases, "org", "api"))!;
+    const prisma = createFakePrisma([{ id: "owned", owner: "org", repo: "api", commitSha: "head",
+      status: "PENDING", threshold: 0.05, window: 10, startedAt: new Date(0),
+      rolledBack: false, createdAt: new Date(0), updatedAt: new Date(0) }]);
+    const factory = vi.fn();
+    const monitor = new RolloutMonitor({ prismaClient: prisma, leaseClient: leases,
+      adapterFactory: factory, logger: { info: vi.fn(), error: vi.fn() } });
+    expect(await monitor.recoverPending()).toBe(0);
+    expect(factory).not.toHaveBeenCalled();
+    await lease.release();
+    await monitor.recoverPending();
+    expect(prisma.outcomes.get("owned")!.status).toBe("FAILED");
+    expect(prisma.outcomes.get("owned")!.reason).toContain("no recovery adapter");
+  });
   it("persists an Actions rollback decision without executing it, including after restart", async () => {
     const outcome: RolloutOutcomeRecord = {
       id: "actions", commitSha: "bad", previousSha: "healthy", rollbackExecutor: "github_actions",
