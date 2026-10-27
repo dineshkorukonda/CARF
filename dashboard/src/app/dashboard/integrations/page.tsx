@@ -655,7 +655,7 @@ WantedBy=multi-user.target
               }`}
             >
               <span className="text-sm font-semibold w-full">{item.title}</span>
-              <span className="mt-1 text-[10px] px-1.5 py-0.5 rounded-full bg-muted/80 text-muted-foreground uppercase font-medium">
+              <span className="mt-1 text-[10px] px-1.5 py-0.5 rounded bg-muted/80 text-muted-foreground uppercase font-medium">
                 {item.badge}
               </span>
             </button>
@@ -676,7 +676,7 @@ WantedBy=multi-user.target
                 </span>
                 <h2 className="text-xl font-bold text-foreground mt-0.5">{activeIntegration.title}</h2>
               </div>
-              <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
                 Setup reference
               </span>
             </div>
@@ -891,7 +891,7 @@ WantedBy=multi-user.target
                 return (
                   <div
                     key={step}
-                    className={`h-1.5 rounded-full transition-all ${
+                    className={`h-1.5 rounded-sm transition-all ${
                       isCurrent
                         ? "bg-primary animate-pulse"
                         : isPassed

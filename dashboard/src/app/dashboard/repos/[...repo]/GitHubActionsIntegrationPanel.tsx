@@ -131,7 +131,7 @@ export function GitHubActionsIntegrationPanel({
               : "This workflow supplies change-aware policy to your pipeline. Standalone PM2 projects need Reconfigure to enable deployment after the CI workflow passes."}
           </p>
         </div>
-        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[status]}`}>
+        <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[status]}`}>
           {status === "configuring" ? <Loader2 className="size-3 animate-spin" /> : <span className="size-1.5 rounded-full bg-current" />}
           {STATUS_LABEL[status]}
         </span>

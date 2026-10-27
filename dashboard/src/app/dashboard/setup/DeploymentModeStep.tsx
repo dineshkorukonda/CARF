@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowLeft, ArrowRight, Server, Zap, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Server, Zap, CheckCircle2, Check } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import { CARF_TERMS, CAPABILITY_LABELS } from "../../../lib/terminology";
 
@@ -71,19 +71,19 @@ export function DeploymentModeStep({
 
             <ul className="mt-4 space-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Supported runtime: <strong className="text-foreground">PM2</strong> process manager</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Runs lightweight <strong className="text-foreground">CARF Host Agent</strong> on target server</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Active soak error-rate observation loop</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Direct rollback execution upon threshold breach</span>
               </li>
             </ul>
@@ -137,19 +137,19 @@ export function DeploymentModeStep({
 
             <ul className="mt-4 space-y-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Works with <strong className="text-foreground">GitHub Actions, Argo Rollouts, HTTP API</strong></span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span><strong className="text-foreground">Zero Agent</strong> required on target hosts</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Dynamic risk-adjusted threshold &amp; window policy</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-emerald-500 font-bold">✓</span>
+                <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                 <span>Zero server footprint on your deployment infrastructure</span>
               </li>
             </ul>

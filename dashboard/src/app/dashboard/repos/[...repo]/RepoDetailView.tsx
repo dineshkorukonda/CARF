@@ -739,7 +739,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
 
               {/* STATUS BADGE */}
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.colorClass}`}
+                className={`inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${badge.colorClass}`}
               >
                 <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
                 {pendingRollout ? rolloutStage(pendingRollout) : isStandalone && commits[0] && !liveRollouts.some((r) => r.commitSha === commits[0].sha) ? commitCiStage(commits[0].sha, ci) : derivedStatus}
@@ -748,7 +748,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               {/* AGENT BADGE (When Agent Required) */}
               {resolved.requiresAgent && !isPm2 && (
                 <span
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
+                  className={`inline-flex items-center gap-1.5 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${agentBadge.colorClass}`}
                 >
                   <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
                   {agentBadge.label}
@@ -916,7 +916,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             </div>
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+                className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-semibold ${
                   pm2Status?.connected && pm2Status?.processFound
                     ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                     : pm2Status?.connected
@@ -1047,9 +1047,9 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
             <div className="flex items-center gap-4">
               <span className="font-medium text-foreground">Capabilities:</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {CAPABILITY_LABELS.policy}</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {CAPABILITY_LABELS.monitoring}</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {CAPABILITY_LABELS.rollback}</span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"><Check className="size-3" /> {CAPABILITY_LABELS.policy}</span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"><Check className="size-3" /> {CAPABILITY_LABELS.monitoring}</span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium"><Check className="size-3" /> {CAPABILITY_LABELS.rollback}</span>
             </div>
             <div className="text-[11px] text-muted-foreground">
               {CARF_TERMS.runtimeIntegration.label}: <span className="font-mono text-foreground font-semibold">Local PM2 (Direct)</span>
@@ -1076,7 +1076,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${agentBadge.colorClass}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs font-semibold ${agentBadge.colorClass}`}>
                 <span className={`size-1.5 rounded-full ${agentBadge.dotClass}`} />
                 {agentBadge.label} {connection?.agentVersion ? `(v${connection.agentVersion})` : isHostColocated ? "(Colocated)" : ""}
               </span>
@@ -1210,7 +1210,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              <span className="inline-flex items-center gap-1.5 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                 <span className="size-1.5 rounded-full bg-emerald-500" />
                 Policy: Ready
               </span>
@@ -1685,7 +1685,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
                           {rollout ? (
                             <div className="flex items-center gap-2">
                               <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                                className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium uppercase ${
                                   rollout.status === "SUCCESS"
                                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                     : rollout.status === "ROLLED_BACK"

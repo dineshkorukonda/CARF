@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "../../../components/ui/button";
 import { AuthVisualPanel } from "../../../components/AuthVisualPanel";
-import { ShieldCheck, Activity, ArrowLeft, AlertCircle } from "lucide-react";
+import { ShieldCheck, ArrowLeft, AlertCircle } from "lucide-react";
 
 const ERROR_MESSAGES: Record<string, string> = {
   Configuration: "Server configuration issue with GitHub App credentials. Please verify AUTH_GITHUB_ID and AUTH_GITHUB_SECRET in your environment variables.",
@@ -48,10 +48,9 @@ export default async function LoginPage({
         {/* Center Card */}
         <div className="flex flex-1 items-center justify-center py-10">
           <div className="w-full max-w-sm">
-            {/* Eyebrow */}
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-border bg-muted/40 text-[11px] font-medium text-muted-foreground mb-4">
-              <Activity className="size-3 text-primary" />
-              <span>Deployment Resilience Control Plane</span>
+            {/* Eyebrow Label */}
+            <div className="font-mono text-xs font-medium text-muted-foreground mb-3">
+              Deployment Resilience Control Plane
             </div>
 
             <h1 className="text-2xl font-bold tracking-tight text-foreground">Sign in to CARF</h1>
@@ -92,15 +91,15 @@ export default async function LoginPage({
               </div>
               <ul className="space-y-1.5 text-muted-foreground text-[11px] leading-relaxed">
                 <li className="flex items-start gap-1.5">
-                  <span className="text-emerald-500 font-bold">•</span>
+                  <span className="text-emerald-500 font-bold">&bull;</span>
                   <span>Zero database credentials or production keys stored on host agents.</span>
                 </li>
                 <li className="flex items-start gap-1.5">
-                  <span className="text-emerald-500 font-bold">•</span>
+                  <span className="text-emerald-500 font-bold">&bull;</span>
                   <span>Fine-grained repository access scoped strictly to chosen repositories.</span>
                 </li>
                 <li className="flex items-start gap-1.5">
-                  <span className="text-emerald-500 font-bold">•</span>
+                  <span className="text-emerald-500 font-bold">&bull;</span>
                   <span>Fully auditable rollback execution and telemetry decision logs.</span>
                 </li>
               </ul>
@@ -113,7 +112,7 @@ export default async function LoginPage({
         </div>
 
         {/* Bottom Footer */}
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-4 border-t border-border/40">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-4 border-t border-border/40 font-mono">
           <span>&copy; {new Date().getFullYear()} CARF Open Source</span>
           <div className="flex items-center gap-3">
             <Link href="/" className="hover:text-foreground transition-colors">
@@ -122,19 +121,11 @@ export default async function LoginPage({
             <Link href="/dashboard/integrations" className="hover:text-foreground transition-colors">
               Integrations
             </Link>
-            <a
-              href="https://github.com/dineshkorukonda/CARF"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              GitHub
-            </a>
           </div>
         </div>
       </div>
 
-      {/* Right Column: Visual Telemetry Panel */}
+      {/* Right Column: Decorative Visual Panel */}
       <AuthVisualPanel />
     </main>
   );

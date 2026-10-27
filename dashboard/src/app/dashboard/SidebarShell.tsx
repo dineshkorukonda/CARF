@@ -241,7 +241,7 @@ export function SidebarShell({
           }
         >
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sidebar-foreground/15 text-xs font-semibold text-sidebar-foreground">
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-sidebar-foreground/15 text-xs font-semibold text-sidebar-foreground">
               {initial}
             </div>
             {!collapsed && (

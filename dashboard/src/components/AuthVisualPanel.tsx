@@ -29,7 +29,7 @@ export function AuthVisualPanel() {
       {/* Top Meta Header */}
       <div className="relative z-10 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="size-2 rounded-sm bg-emerald-500" />
           <span className="font-mono text-xs uppercase tracking-wider text-slate-300 font-semibold">
             Automated Guard Engine
           </span>
@@ -41,7 +41,7 @@ export function AuthVisualPanel() {
 
       {/* Center Simulated Cockpit Card */}
       <div className="relative z-10 my-auto max-w-md w-full mx-auto">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 backdrop-blur-md p-6 shadow-2xl space-y-5">
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 backdrop-blur-md p-6 shadow-2xl space-y-5">
           {/* Card Header */}
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
             <div className="flex items-center gap-2">
@@ -54,7 +54,7 @@ export function AuthVisualPanel() {
               </div>
             </div>
             <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              HEALTHY • 142s / 180s
+              HEALTHY &bull; 142s / 180s
             </span>
           </div>
 
@@ -129,7 +129,7 @@ export function AuthVisualPanel() {
 
                 {/* Real-time sample node */}
                 <circle cx="280" cy="55" r="3.5" fill="#10b981" />
-                <circle cx="280" cy="55" r="7" fill="#10b981" opacity="0.3" className="animate-ping" />
+                <circle cx="280" cy="55" r="7" fill="#10b981" opacity="0.3" />
               </svg>
             </div>
 
@@ -150,7 +150,7 @@ export function AuthVisualPanel() {
           </div>
         </div>
 
-        {/* Runtime compatibility pills */}
+        {/* Runtime compatibility tags */}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           {[
             { name: "Kubernetes", icon: Box },
@@ -163,7 +163,7 @@ export function AuthVisualPanel() {
             return (
               <span
                 key={item.name}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-800 bg-slate-900/60 text-[11px] font-mono text-slate-400"
+                className="inline-flex items-center gap-1.5 px-2 py-1 rounded border border-slate-800 bg-slate-900/60 text-[11px] font-mono text-slate-400"
               >
                 <Icon className="size-3 text-slate-400" />
                 <span>{item.name}</span>

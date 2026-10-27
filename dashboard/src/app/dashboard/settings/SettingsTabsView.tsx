@@ -119,13 +119,13 @@ export function SettingsTabsView({ account, installations, bannerError, bannerSu
                 {installations.map((inst) => (
                   <div key={inst.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center gap-3">
-                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs uppercase">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary font-bold text-xs uppercase">
                         {inst.targetLogin.slice(0, 2)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold text-foreground">{inst.targetLogin}</span>
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground uppercase">
                             {inst.targetType}
                           </span>
                         </div>

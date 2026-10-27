@@ -19,7 +19,7 @@ export function Topbar({
       <div className="flex items-center gap-4">
         <Breadcrumbs installations={installations} />
         {primary && (
-          <div className="hidden md:flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs">
+          <div className="hidden md:flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs">
             <CheckCircle2 className="size-3 text-emerald-600" />
             <span className="font-medium text-slate-700">GitHub: @{primary.targetLogin}</span>
             <span className="text-slate-400">|</span>
@@ -32,7 +32,7 @@ export function Topbar({
         <span className="hidden text-xs font-medium text-slate-600 sm:inline">{accountEmail}</span>
         <Link
           href="/dashboard/settings"
-          className="flex size-7 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
+          className="flex size-7 shrink-0 items-center justify-center rounded-md bg-slate-900 text-xs font-semibold text-white shadow-xs hover:bg-slate-800 transition-colors"
         >
           {initial}
         </Link>
