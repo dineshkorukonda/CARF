@@ -63,7 +63,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
       rollbackWithVerification: vi.fn().mockResolvedValue({ rollbackVerified: false }),
     };
     const app = Fastify();
-    await registerRolloutRollbackRoute(app, { prismaClient: prisma as any, adapterFactory: () => adapter });
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: prisma as any, adapterFactory: () => adapter });
     const response = await app.inject({ method: "POST", url: "/v1/rollouts/manual/rollback", headers: { authorization: `Bearer ${TEST_API_KEY}` } });
     expect(response.statusCode).toBe(scenario === "unhealthy" ? 500 : 409);
     if (scenario !== "unhealthy") expect(adapter.rollbackWithVerification).not.toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
       rollbackWithVerification: vi.fn().mockResolvedValue({ rollbackVerified: scenario !== "unhealthy" }),
     };
     const app = Fastify();
-    await registerRolloutRollbackRoute(app, { prismaClient: prisma as any, adapterFactory: () => adapter });
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: prisma as any, adapterFactory: () => adapter });
     const res = await app.inject({ method: "POST", url: "/v1/rollouts/actions-1/rollback", headers: { authorization: `Bearer ${TEST_API_KEY}` }, payload: { automatic: true } });
     if (scenario === "success") {
       expect(res.statusCode).toBe(200);
@@ -101,7 +101,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
   });
   it("returns 401 when unauthenticated", async () => {
     const app = Fastify();
-    await registerRolloutRollbackRoute(app, { prismaClient: createMockPrisma() as any });
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: createMockPrisma() as any });
 
     const res = await app.inject({
       method: "POST",
@@ -125,7 +125,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
       },
     });
 
-    await registerRolloutRollbackRoute(app, { prismaClient: mockPrisma as any });
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: mockPrisma as any });
 
     const res = await app.inject({
       method: "POST",
@@ -154,7 +154,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
       },
     });
 
-    await registerRolloutRollbackRoute(app, { prismaClient: mockPrisma as any });
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: mockPrisma as any });
 
     const res = await app.inject({
       method: "POST",
@@ -193,7 +193,7 @@ describe("POST /v1/rollouts/:id/rollback", () => {
     });
 
     const adapterFactory = vi.fn(() => mockAdapter as any);
-    await registerRolloutRollbackRoute(app, {
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100",
       prismaClient: mockPrisma as any,
       adapterFactory,
     });
@@ -249,7 +249,7 @@ describe("GET /v1/rollouts/:id/samples", () => {
       },
     });
 
-    await registerRolloutRollbackRoute(app, { prismaClient: mockPrisma as any });
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: mockPrisma as any });
 
     const res = await app.inject({
       method: "GET",

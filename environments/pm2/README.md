@@ -1,3 +1,5 @@
+> Reference environment: see [support and verification status](../../docs/integrations/README.md). Artifacts and mocked tests do not establish live deployment or recovery.
+
 # Environment A — PM2 Reference Environment
 
 This environment provides a reproducible local PM2 deployment target for CARF adapter integration and verification.

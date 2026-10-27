@@ -1,11 +1,10 @@
+import { buildRuntimeAdapter as defaultRollbackAdapterFactory, dockerDeploymentImage } from "./adapters/runtimeFactory.js";
 import { acquireDiff, fetchBlobContent } from "./adapters/github/diffAcquisition.js";
 import { load as loadYaml } from "js-yaml";
 import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
-import { PM2Adapter } from "./adapters/pm2.js";
-import { DockerAdapter } from "./adapters/docker.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient, type RolloutOutcomeRecord } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
@@ -21,8 +20,9 @@ import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 import { resolveRepoMode } from "./deploymentMode.js";
 import { resolveFromLegacy } from "./capabilities/resolver.js";
-import { acquireDeploymentLease, guardAdapter } from "./adapters/deploymentLease.js";
+import { acquireDeploymentLease, guardAdapter, DeploymentLeaseLostError } from "./adapters/deploymentLease.js";
 import { resolveRepoAdapterConfig } from "./config/repoAdapterConfig.js";
+import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "./auth/localRuntime.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
 
@@ -32,6 +32,7 @@ export interface OrchestratorLogger {
 }
 
 export interface WebhookOrchestratorDeps {
+  localInstallationId?: string;
   githubApiClient: GitHubApiClient;
   installationTokenClient: InstallationTokenClient;
   /** Loaded once at startup (index.ts). undefined means no .carf.yml -- all defaults. */
@@ -67,32 +68,6 @@ export interface WebhookOrchestratorDeps {
   /** Apply the project's event selection only to automatic webhook deliveries. */
   respectAnalysisTrigger?: boolean;
 }
-
-function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
-  if (adapterConfig.kind === "pm2") {
-    // baseSha stands in for the previous release SHA. See issue #51.
-    return new PM2Adapter(baseSha, {
-      releasesRoot: adapterConfig.releasesRoot,
-      currentSymlink: adapterConfig.currentSymlink,
-      cwd: adapterConfig.cwd,
-      buildCommand: adapterConfig.buildCommand,
-      layout: adapterConfig.layout,
-      healthUrl: adapterConfig.healthUrl,
-      probeCount: adapterConfig.probeCount,
-    });
-  }
-  if (adapterConfig.kind === "docker") {
-    return new DockerAdapter(adapterConfig.previousImageTag || baseSha, {
-      containerName: adapterConfig.target || adapterConfig.containerName,
-      composeFile: adapterConfig.composeFile,
-      healthUrl: adapterConfig.healthUrl,
-      probeCount: adapterConfig.probeCount,
-      startupGraceSeconds: adapterConfig.startupGraceSeconds,
-    });
-  }
-  throw new Error(`Adapter kind "${(adapterConfig as { kind: string }).kind}" is unsupported.`);
-}
-
 
 /**
  * Composition root for a validated webhook DeployTarget: exchanges the installation ID
@@ -289,6 +264,11 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   const adapterConfig = connectionAdapter;
+  if (!localRuntimeAllowed(target.installationId, deps.localInstallationId)) {
+    if (deps.observeLive === true) throw new Error(LOCAL_RUNTIME_ERROR);
+    deps.logger.error({ installationId: target.installationId }, LOCAL_RUNTIME_ERROR);
+    return;
+  }
   if (deps.observeLive === true && adapterConfig?.kind === "pm2" && adapterConfig.layout === "git" && !adapterConfig.buildCommand?.trim()) {
     throw new Error("Git PM2 deployment requires an explicit buildCommand (use true for apps without a build step)");
   }
@@ -324,7 +304,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     return;
   }
 
-  // Create PENDING RolloutOutcome row (idempotent per installationId, commitSha)
+  // Rollout identity is installation + repository + commit SHA.
   let pendingOutcome: RolloutOutcomeRecord | undefined;
   try {
     pendingOutcome = await createPendingRolloutOutcome(rolloutOutcomeClient, {
@@ -342,7 +322,13 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     }
   } catch (error) {
     deps.logger.error({ error, sha: target.headSha }, "failed to create pending rollout outcome");
-    if (rollbackViaActions) { await lease.release(); throw error; }
+    await lease.release();
+    throw error;
+  }
+  if (pendingOutcome.status !== "PENDING") {
+    await lease.release();
+    if (deps.observeLive === true) throw new Error("This revision already has a terminal deployment outcome");
+    return;
   }
 
   const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
@@ -375,14 +361,19 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { previousSha } });
         capturedRevision = true;
       }
-      await adapter.applyRelease(target.headSha, targetName);
+      await adapter.applyRelease(adapterConfig.kind === "docker" ? dockerDeploymentImage(adapterConfig.imageTag, target.headSha) : target.headSha, targetName);
       if (pendingOutcome) {
         // Compilation/install time must not consume startup grace or observation time.
         const deployedAt = new Date();
-        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: deployedAt, deployedAt } });
+        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: deployedAt, deployedAt, ...(adapter.getCurrentRevision ? { deployedRevision: await adapter.getCurrentRevision(false) } : {}) } });
       }
     } catch (error) {
       deps.logger.error({ error, key, sha: target.headSha }, "failed to apply commit on the host before soak");
+      if (error instanceof DeploymentLeaseLostError) {
+        clearInterval(heartbeat);
+        await lease.release();
+        throw error;
+      }
       let rollbackVerified: boolean | undefined;
       let recoveryReason = "";
       if (capturedRevision && adapter.rollbackWithVerification && !rollbackViaActions) {

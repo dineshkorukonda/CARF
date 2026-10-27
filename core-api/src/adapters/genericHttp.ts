@@ -34,9 +34,8 @@ export class GenericHttpIntegration implements DeploymentIntegration {
     if (recorded) return recorded;
 
     return {
-      phase: "succeeded",
-      activeVersion: deploymentId.split("@")[1] || "unknown",
-      message: "Deployment active via Generic HTTP pipeline",
+      phase: "pending",
+      message: "No external deployment status has been reported",
     };
   }
 
@@ -70,7 +69,7 @@ export class GenericHttpIntegration implements DeploymentIntegration {
   async rollback(deploymentId: string, context?: DeploymentContext): Promise<void> {
     const status: DeploymentStatus = {
       phase: "failed",
-      message: "Deployment rolled back by CARF policy authority",
+      message: "Rollback requested; the external pipeline must execute it",
     };
     if (context?.baseSha) {
       status.activeVersion = context.baseSha;

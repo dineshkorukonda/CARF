@@ -18,6 +18,7 @@ export interface RolloutOutcomeRecord {
   readyAt?: Date | null | undefined;
   previousSha?: string | null | undefined;
   deployedAt?: Date | null | undefined;
+  deployedRevision?: string | null | undefined;
   rollbackExecutor?: string | undefined;
   rollbackRequestedAt?: Date | null | undefined;
   rollbackStartedAt?: Date | null | undefined;
@@ -87,6 +88,7 @@ export interface RolloutOutcomePrismaClient {
         rollbackVerified?: boolean | null | undefined;
         previousSha?: string | undefined;
         deployedAt?: Date | undefined;
+        deployedRevision?: string | undefined;
         rollbackExecutor?: string | undefined;
         rollbackRequestedAt?: Date | undefined;
         startedAt?: Date | undefined;

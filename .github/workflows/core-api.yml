@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - "core-api/**"
+      - "environments/**"
+      - "docs/integrations/**"
       - "dashboard/prisma/schema.prisma"
       - "scripts/check-schema-parity.mjs"
       - ".github/workflows/core-api.yml"
   pull_request:
     paths:
       - "core-api/**"
+      - "environments/**"
+      - "docs/integrations/**"
       - "dashboard/prisma/schema.prisma"
       - "scripts/check-schema-parity.mjs"
       - ".github/workflows/core-api.yml"
@@ -67,6 +71,8 @@ jobs:
       - run: npx prisma generate
       - run: npx prisma migrate deploy
       - run: npm test
+      - name: Validate reference artifacts without claiming live runtime coverage
+        run: node ../environments/validate-environments.mjs
 
   pm2-runtime:
     runs-on: ubuntu-latest

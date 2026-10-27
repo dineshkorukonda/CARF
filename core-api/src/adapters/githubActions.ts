@@ -31,8 +31,8 @@ export class GitHubActionsIntegration implements DeploymentIntegration {
     if (recorded) return recorded;
 
     return {
-      phase: "succeeded",
-      message: "GitHub Actions workflow run completed",
+      phase: "pending",
+      message: "No workflow execution status has been reported",
     };
   }
 
@@ -43,7 +43,7 @@ export class GitHubActionsIntegration implements DeploymentIntegration {
   async abort(deploymentId: string, context?: DeploymentContext): Promise<void> {
     const status: DeploymentStatus = {
       phase: "aborted",
-      message: "Workflow canceled due to CARF threshold breach",
+      message: "Cancellation requested; the external workflow must execute it",
     };
     if (context?.sha) {
       status.targetVersion = context.sha;
@@ -54,7 +54,7 @@ export class GitHubActionsIntegration implements DeploymentIntegration {
   async rollback(deploymentId: string, context?: DeploymentContext): Promise<void> {
     const status: DeploymentStatus = {
       phase: "failed",
-      message: "Rollback dispatched for GitHub Actions deployment",
+      message: "Rollback requested; execution is owned by the generated Actions workflow",
     };
     if (context?.baseSha) {
       status.activeVersion = context.baseSha;

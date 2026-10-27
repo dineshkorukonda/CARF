@@ -1,7 +1,16 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { DockerAdapter } from "../../src/adapters/docker.js";
 
 describe("DockerAdapter (Docker Runtime Adapter)", () => {
+  it("captures the immutable image and refuses destructive recreation without Compose", async () => {
+    const exec = vi.fn().mockResolvedValue({ stdout: JSON.stringify([{ Image: "sha256:abc", Config: { Image: "mutable:latest" } }]), stderr: "" });
+    const adapter = new DockerAdapter("", { exec, containerName: "api" });
+    expect(await adapter.getCurrentRevision()).toBe("sha256:abc");
+    exec.mockClear();
+    await expect(adapter.applyRelease("image:sha")).rejects.toThrow("requires composeFile");
+    expect(exec).not.toHaveBeenCalled();
+  });
   it("detects availability when docker CLI is available", async () => {
     const mockExec = vi.fn().mockResolvedValue({ stdout: "Docker version 24.0.5, build ced0996\n", stderr: "" });
     const adapter = new DockerAdapter("carf-app:v1", { exec: mockExec });
@@ -116,6 +125,11 @@ describe("DockerAdapter (Docker Runtime Adapter)", () => {
     const executedCommands: string[] = [];
     const mockExec = vi.fn().mockImplementation(async (cmd: string) => {
       executedCommands.push(cmd);
+      if (cmd.startsWith("docker inspect")) return { stdout: JSON.stringify([{ Config: { Labels: { "com.docker.compose.service": "sample-app" } } }]), stderr: "" };
+      if (cmd.includes("--force-recreate")) {
+        const override = cmd.match(/-f "([^"]*image.json)"/)?.[1];
+        expect(JSON.parse(readFileSync(override!, "utf8"))).toEqual({ services: { "sample-app": { image: "carf-sample-app:v1" } } });
+      }
       return { stdout: "", stderr: "" };
     });
 
@@ -125,9 +139,7 @@ describe("DockerAdapter (Docker Runtime Adapter)", () => {
     });
 
     await adapter.rollback();
-    expect(executedCommands).toContain(
-      "docker compose -f environments/docker/compose.yml up -d --force-recreate"
-    );
+    expect(executedCommands.some(cmd => cmd.includes("--no-build --no-deps --force-recreate sample-app"))).toBe(true);
   });
 
   it("verifies post-rollback health during rollbackWithVerification", async () => {
@@ -138,6 +150,7 @@ describe("DockerAdapter (Docker Runtime Adapter)", () => {
         return {
           stdout: JSON.stringify([
             {
+              Config: { Labels: { "com.docker.compose.service": "sample-app" } },
               State: { Running: polled > 1 },
               RestartCount: 0,
             },
@@ -151,6 +164,7 @@ describe("DockerAdapter (Docker Runtime Adapter)", () => {
     let fakeTime = 1000;
     const adapter = new DockerAdapter("carf-sample-app:v1", {
       exec: mockExec,
+      composeFile: "compose.yml",
       sleep: async () => {
         fakeTime += 1000;
       },

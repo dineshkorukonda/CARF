@@ -161,6 +161,7 @@ const target: DeployTarget = {
 
 function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrchestratorDeps {
   return {
+    localInstallationId: "inst-1",
     githubApiClient: fakeGithubApiClient(),
     installationTokenClient: fakeInstallationTokenClient(),
     carfConfig: undefined,

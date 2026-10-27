@@ -1,3 +1,5 @@
+> Reference environment: see [support and verification status](../../docs/integrations/README.md). Artifacts and mocked tests do not establish live deployment or recovery.
+
 # Environment C — Kubernetes Deployment Environment
 
 This environment provides a local reproducible Kubernetes workload for CARF adapter integration and verification.

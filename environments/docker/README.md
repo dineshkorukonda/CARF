@@ -1,3 +1,5 @@
+> Reference environment: see [support and verification status](../../docs/integrations/README.md). Artifacts and mocked tests do not establish live deployment or recovery.
+
 # Environment B — Docker Deployment Environment
 
 This environment provides a reproducible container deployment environment using Docker and Docker Compose.

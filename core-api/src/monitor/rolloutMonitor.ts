@@ -123,97 +123,97 @@ export class RolloutMonitor {
       }, 20_000) : undefined;
       let job: Promise<void> | undefined;
       try {
-      const startTime = outcome.readyAt ? new Date(outcome.readyAt).getTime() : new Date(outcome.startedAt).getTime();
-      const elapsedSeconds = Math.max(0, Math.floor((currentTime - startTime) / 1000));
-      const remainingSeconds = outcome.window - elapsedSeconds;
+        const startTime = outcome.readyAt ? new Date(outcome.readyAt).getTime() : new Date(outcome.startedAt).getTime();
+        const elapsedSeconds = Math.max(0, Math.floor((currentTime - startTime) / 1000));
+        const remainingSeconds = outcome.window - elapsedSeconds;
 
-      const rawAdapter = factory ? await factory(outcome) : undefined;
-      const adapter = rawAdapter && lease ? guardAdapter(rawAdapter, lease) : rawAdapter;
+        const rawAdapter = factory ? await factory(outcome) : undefined;
+        const adapter = rawAdapter && lease ? guardAdapter(rawAdapter, lease) : rawAdapter;
 
-      if (!adapter) {
-        if (outcome.rollbackExecutor === "github_actions") {
-          this.logger.error({ id: outcome.id }, "cannot recover Actions deployment without its runtime adapter");
-          continue;
-        }
-        if (remainingSeconds <= 0) {
-          // Missing observations cannot establish deployment health.
-          await finalizeRolloutOutcome(this.prisma, {
-            id: outcome.id,
-            status: "FAILED",
-            rolledBack: false,
-            reason: "Observation unavailable during server offline period; no recovery adapter",
-            finishedAt: this.now(),
-          });
-          recoveredCount++;
-        } else {
-          this.logger.error(
-            { id: outcome.id, commitSha: outcome.commitSha },
-            "cannot resume pending rollout monitor: no adapter factory provided"
-          );
-        }
-        continue;
-      }
-
-      if (remainingSeconds <= 0) {
-        // Expired while offline: do a single health check to determine outcome
-        try {
-          const health = await adapter.checkHealth();
-          if (health.errorRate >= outcome.threshold) {
-            if (outcome.rollbackExecutor === "github_actions") {
-              await this.handleRollback(outcome, adapter, undefined, health.errorRate, "Health breach during boot recovery", 60);
-              recoveredCount++;
-              continue;
-            }
-            if (adapter.getCurrentRevision && await adapter.getCurrentRevision(false) !== outcome.commitSha) {
-              throw new Error("A different revision is deployed; refusing stale recovery rollback");
-            }
-            let rollbackVerified: boolean | undefined = undefined;
-            if (typeof adapter.rollbackWithVerification === "function") {
-              const res = await adapter.rollbackWithVerification(undefined, 60);
-              rollbackVerified = res.rollbackVerified;
-            } else {
-              await adapter.rollback();
-            }
-
-            let reason = `Breach detected on boot recovery: errorRate ${health.errorRate} >= ${outcome.threshold}`;
-            if (await this.hasDataSchemaChange(outcome)) {
-              reason = `${reason}; schema not reverted`;
-            }
-
+        if (!adapter) {
+          if (outcome.rollbackExecutor === "github_actions") {
+            this.logger.error({ id: outcome.id }, "cannot recover Actions deployment without its runtime adapter");
+            continue;
+          }
+          if (remainingSeconds <= 0) {
+            // Missing observations cannot establish deployment health.
             await finalizeRolloutOutcome(this.prisma, {
               id: outcome.id,
-              status: "ROLLED_BACK",
-              finalErrorRate: health.errorRate,
-              rolledBack: true,
-              rollbackVerified,
-              reason,
+              status: "FAILED",
+              rolledBack: false,
+              reason: "Observation unavailable during server offline period; no recovery adapter",
               finishedAt: this.now(),
             });
-            await this.notifyRollbackAlert(outcome, reason, health.errorRate, rollbackVerified);
+            recoveredCount++;
           } else {
+            this.logger.error(
+              { id: outcome.id, commitSha: outcome.commitSha },
+              "cannot resume pending rollout monitor: no adapter factory provided"
+            );
+          }
+          continue;
+        }
+
+        if (remainingSeconds <= 0) {
+          // Expired while offline: do a single health check to determine outcome
+          try {
+            const health = await adapter.checkHealth();
+            if (health.errorRate >= outcome.threshold) {
+              if (outcome.rollbackExecutor === "github_actions") {
+                await this.handleRollback(outcome, adapter, undefined, health.errorRate, "Health breach during boot recovery", 60);
+                recoveredCount++;
+                continue;
+              }
+              if (adapter.getCurrentRevision && await adapter.getCurrentRevision(false) !== (outcome.deployedRevision ?? outcome.commitSha)) {
+                throw new Error("A different revision is deployed; refusing stale recovery rollback");
+              }
+              let rollbackVerified: boolean | undefined = undefined;
+              if (typeof adapter.rollbackWithVerification === "function") {
+                const res = await adapter.rollbackWithVerification(undefined, 60);
+                rollbackVerified = res.rollbackVerified;
+              } else {
+                await adapter.rollback();
+              }
+
+              let reason = `Breach detected on boot recovery: errorRate ${health.errorRate} >= ${outcome.threshold}`;
+              if (await this.hasDataSchemaChange(outcome)) {
+                reason = `${reason}; schema not reverted`;
+              }
+
+              await finalizeRolloutOutcome(this.prisma, {
+                id: outcome.id,
+                status: "ROLLED_BACK",
+                finalErrorRate: health.errorRate,
+                rolledBack: true,
+                rollbackVerified,
+                reason,
+                finishedAt: this.now(),
+              });
+              await this.notifyRollbackAlert(outcome, reason, health.errorRate, rollbackVerified);
+            } else {
+              await finalizeRolloutOutcome(this.prisma, {
+                id: outcome.id,
+                status: "SUCCESS",
+                finalErrorRate: health.errorRate,
+                rolledBack: false,
+                reason: "Window expired during offline period and health is normal",
+                finishedAt: this.now(),
+              });
+            }
+          } catch (error) {
             await finalizeRolloutOutcome(this.prisma, {
               id: outcome.id,
-              status: "SUCCESS",
-              finalErrorRate: health.errorRate,
+              status: "FAILED",
               rolledBack: false,
-              reason: "Window expired during offline period and health is normal",
+              reason: `Recovery health check threw error: ${(error as Error).message}`,
               finishedAt: this.now(),
             });
           }
-        } catch (error) {
-          await finalizeRolloutOutcome(this.prisma, {
-            id: outcome.id,
-            status: "FAILED",
-            rolledBack: false,
-            reason: `Recovery health check threw error: ${(error as Error).message}`,
-            finishedAt: this.now(),
-          });
+        } else {
+          // Still within window: resume active monitoring
+          job = this.enqueue(outcome, adapter);
         }
-      } else {
-        // Still within window: resume active monitoring
-        job = this.enqueue(outcome, adapter);
-      }
-      recoveredCount++;
+        recoveredCount++;
       } finally {
         const release = async () => { if (heartbeat) clearInterval(heartbeat); await lease?.release(); };
         if (job) void job.finally(release).catch(error => this.logger.error({ error, id: outcome.id }, "recovery lease release failed"));
@@ -442,7 +442,7 @@ export class RolloutMonitor {
       this.logger.info({ id: outcome.id }, "rollback requested; awaiting GitHub Actions rollback job");
       return;
     }
-    if (adapter.getCurrentRevision && await adapter.getCurrentRevision(false) !== outcome.commitSha) {
+    if (adapter.getCurrentRevision && await adapter.getCurrentRevision(false) !== (outcome.deployedRevision ?? outcome.commitSha)) {
       throw new Error("A different revision is deployed; refusing stale monitor rollback");
     }
     let rollbackVerified: boolean | undefined = undefined;
