@@ -1,13 +1,16 @@
+import { acquireDeploymentLease, guardAdapter, DeploymentLeaseLostError } from "../adapters/deploymentLease.js";
+import type { StandaloneLoopLockPrismaClient } from "../adapters/standaloneLoopLock.js";
 import type { FastifyInstance, FastifySchema } from "fastify";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
 import { prisma as defaultPrisma } from "../db/client.js";
 import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
-import { PM2Adapter } from "../adapters/pm2.js";
+import { buildRuntimeAdapter } from "../adapters/runtimeFactory.js";
 import { loadCarfConfig } from "../config/carfConfig.js";
 import { resolveRepoAdapterConfig } from "../config/repoAdapterConfig.js";
 import { dispatchRollbackAlert } from "../alerts/dispatch.js";
+import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "../auth/localRuntime.js";
 
-export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClient {
+export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClient, StandaloneLoopLockPrismaClient {
   rolloutOutcome: {
     findUnique(args: {
       where: { id: string };
@@ -22,6 +25,7 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
       threshold: number;
       window: number;
       previousSha?: string | null;
+      deployedRevision?: string | null;
       rollbackExecutor?: string;
       rollbackRequestedAt?: Date | null;
       rollbackStartedAt?: Date | null;
@@ -78,6 +82,7 @@ export interface RolloutRollbackPrismaClient extends InstallationAuthPrismaClien
 }
 
 export interface RolloutRollbackRouteOptions {
+  localInstallationId?: string;
   prismaClient?: RolloutRollbackPrismaClient;
   adapterFactory?: (previousSha: string, targetName?: string) => RollbackAdapter;
 }
@@ -199,6 +204,9 @@ export async function registerRolloutRollbackRoute(
 
       const owner = rollout.owner ?? "";
       const repo = rollout.repo ?? "";
+      if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+        return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
+      }
       const automatic = request.body?.automatic === true;
       const actor = automatic ? "github_actions" : request.body?.actor || "session_user";
       if (!automatic && rollout.status === "PENDING" && rollout.rollbackRequestedAt) {
@@ -240,45 +248,44 @@ export async function registerRolloutRollbackRoute(
         (typeof firstTarget === "string" ? firstTarget : firstTarget?.name) ??
         "";
 
-      const defaultFactory = (sha: string) =>
-        new PM2Adapter(sha, {
-          releasesRoot: carfConfig?.adapter?.releasesRoot,
-          currentSymlink: carfConfig?.adapter?.currentSymlink,
-          cwd: carfConfig?.adapter?.cwd,
-          buildCommand: carfConfig?.adapter?.buildCommand,
-          layout: carfConfig?.adapter?.layout,
-          healthUrl: carfConfig?.adapter?.healthUrl,
-          startupGraceSeconds: carfConfig?.adapter?.startupGraceSeconds,
-          sharedPaths: carfConfig?.adapter?.sharedPaths,
-          probeCount: carfConfig?.adapter?.probeCount,
-        });
+      const defaultFactory = (revision: string) => {
+        if (!adapterConfig) throw new Error("Repository has no supported runtime adapter");
+        return buildRuntimeAdapter(adapterConfig, revision);
+      };
 
       const buildAdapter = options.adapterFactory ?? defaultFactory;
-      const adapter = buildAdapter(previousSha, targetName);
+      if (rollout.status === "ROLLED_BACK" && rollout.rollbackVerified === true) {
+        return reply.send({ success: true, rolloutId: rollout.id, status: "ROLLED_BACK", message: "Rollback already completed and verified" });
+      }
+      if (!["PENDING", "SUCCESS"].includes(rollout.status) || rollout.rollbackStartedAt) {
+        return reply.code(409).send({ error: "Rollback is already running or this rollout cannot be rolled back" });
+      }
+      const lease = await acquireDeploymentLease(prismaClient, owner, repo);
+      if (!lease) return reply.code(409).send({ error: "Another deployment or observation owns this repository" });
+      const heartbeat = setInterval(() => { void lease.assertHeld().catch(error => request.log.error({ error }, "rollback lease renewal failed")); }, 20_000);
 
       let claimed = false;
       try {
-        if (automatic) {
-          if (!adapter.getCurrentRevision || !adapter.rollbackWithVerification || !prismaClient.rolloutOutcome.updateMany) {
-            return reply.code(409).send({ error: "Actions rollback requires revision checks and verified recovery" });
-          }
-          const currentSha = await adapter.getCurrentRevision(false);
-          if (currentSha !== rollout.commitSha && currentSha !== previousSha) {
-            return reply.code(409).send({ error: "A different revision is deployed; refusing a stale rollback" });
-          }
-          const claim = await prismaClient.rolloutOutcome.updateMany({
-            where: { id: rollout.id, status: "PENDING", rollbackStartedAt: null },
-            data: { rollbackStartedAt: new Date() },
-          });
-          if (claim.count !== 1) return reply.code(409).send({ error: "Rollback is already claimed" });
-          claimed = true;
+        const adapter = guardAdapter(buildAdapter(previousSha, targetName), lease);
+        if (!adapter.getCurrentRevision || !adapter.rollbackWithVerification || !prismaClient.rolloutOutcome.updateMany) {
+          return reply.code(409).send({ error: "Rollback requires revision checks and verified recovery" });
         }
+        const currentSha = await adapter.getCurrentRevision(false);
+        if (currentSha !== (rollout.deployedRevision ?? rollout.commitSha) && currentSha !== previousSha) {
+          return reply.code(409).send({ error: "A different revision is deployed; refusing a stale rollback" });
+        }
+        const claim = await prismaClient.rolloutOutcome.updateMany({
+          where: { id: rollout.id, status: rollout.status, rollbackStartedAt: null },
+          data: { rollbackStartedAt: new Date() },
+        });
+        if (claim.count !== 1) return reply.code(409).send({ error: "Rollback is already claimed" });
+        claimed = true;
         let rollbackVerified: boolean | undefined = undefined;
         if (typeof adapter.rollbackWithVerification === "function") {
           const res = await adapter.rollbackWithVerification(targetName, carfConfig?.adapter?.startupGraceSeconds ?? 60);
           rollbackVerified = res.rollbackVerified;
-          if (automatic && !rollbackVerified) throw new Error("Previous revision was restored but its health check failed");
-          if (automatic && await adapter.getCurrentRevision!(false) !== previousSha) {
+          if (!rollbackVerified) throw new Error("Previous revision was restored but its health check failed");
+          if (await adapter.getCurrentRevision!(false) !== previousSha) {
             throw new Error("Recovery revision does not match the saved previous deployment");
           }
         } else {
@@ -342,10 +349,14 @@ export async function registerRolloutRollbackRoute(
           message: `Rollback to ${previousSha} executed and health verified: ${rollbackVerified === true}`,
         });
       } catch (err) {
-        if (automatic && claimed) {
+        if (err instanceof DeploymentLeaseLostError) {
+          request.log.error({ err, id: rollout.id }, "rollback stopped after losing deployment ownership");
+          return reply.code(409).send({ error: "Deployment ownership was lost; inspect the current rollout before retrying" });
+        }
+        if (claimed) {
           await prismaClient.rolloutOutcome.update({
             where: { id: rollout.id },
-            data: { status: "FAILED", trigger: "auto", rolledBack: false, rollbackVerified: false, reason: `GitHub Actions rollback failed: ${(err as Error).message}`, finishedAt: new Date() },
+            data: { status: "FAILED", trigger: automatic ? "auto" : "manual", rolledBack: false, rollbackVerified: false, reason: `GitHub Actions rollback failed: ${(err as Error).message}`, finishedAt: new Date() },
           });
         }
         request.log.error({ err, id: rollout.id }, "manual rollback execution failed");
@@ -366,6 +377,9 @@ export async function registerRolloutRollbackRoute(
         }
 
         return reply.code(500).send({ error: `Rollback command failed: ${(err as Error).message}` });
+      } finally {
+        clearInterval(heartbeat);
+        await lease.release();
       }
     }
   );

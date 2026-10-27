@@ -6,6 +6,12 @@ import { PM2Adapter } from "../adapters/pm2.js";
 import { findPm2Process } from "../adapters/pm2Process.js";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
 import { prisma as defaultPrisma } from "../db/client.js";
+import { configuredPm2Targets, type RuntimeConnection } from "../auth/pm2Access.js";
+import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "../auth/localRuntime.js";
+
+interface Pm2PrismaClient extends InstallationAuthPrismaClient {
+  repoConnection: { findMany(args: { where: { installationId: string } }): Promise<RuntimeConnection[]> };
+}
 
 export interface Pm2AppInfo {
   name: string;
@@ -80,8 +86,9 @@ interface RawPm2Process {
 }
 
 export interface Pm2RouteOptions {
+  localInstallationId?: string;
   executor?: CommandExecutor | ExecFn;
-  prismaClient?: InstallationAuthPrismaClient;
+  prismaClient?: Pm2PrismaClient;
   fsAccess?: (path: string, mode?: number) => Promise<void>;
   lstat?: (path: string) => Promise<{ isSymbolicLink: () => boolean }>;
   httpFetch?: (url: string, init?: RequestInit) => Promise<{ status: number; text: () => Promise<string> }>;
@@ -184,16 +191,22 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     executor = new LocalCommandExecutor(defaultExec);
   }
 
-  const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as InstallationAuthPrismaClient);
+  const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as Pm2PrismaClient);
+  const connections = (installationId: string) => prismaClient.repoConnection.findMany({ where: { installationId } });
 
   app.get("/v1/pm2/discovery", { schema: discoveryResponseSchema }, async (request, reply) => {
     const installationId = await resolveInstallationFromAuthHeader(prismaClient, request.headers.authorization);
     if (!installationId) {
       return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
     }
+    if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+      return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
+    }
 
     const adapter = new PM2Adapter("", { exec: executor });
     const result = await adapter.discover();
+    const allowed = new Set((await connections(installationId)).flatMap(configuredPm2Targets));
+    result.processes = result.processes.filter(process => allowed.has(process.name));
     return reply.code(200).send(result);
   });
 
@@ -202,8 +215,12 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     if (!installationId) {
       return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
     }
+    if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+      return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
+    }
 
     try {
+      const allowed = new Set((await connections(installationId)).flatMap(configuredPm2Targets));
       const { stdout } = await executor.exec("pm2 jlist");
       let rawList: RawPm2Process[] = [];
       try {
@@ -214,7 +231,7 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
 
       const now = Date.now();
       const sanitized: Pm2AppInfo[] = rawList
-        .filter((proc) => typeof proc.name === "string" && proc.name.trim().length > 0)
+        .filter((proc) => typeof proc.name === "string" && allowed.has(proc.name))
         .map((proc) => {
           const pm2Env = proc.pm2_env || {};
           const status = pm2Env.status || "unknown";
@@ -252,6 +269,9 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     if (!installationId) {
       return reply.code(401).send({ error: "missing or invalid Authorization: Bearer <installation API key> header" });
     }
+    if (!localRuntimeAllowed(installationId, options.localInstallationId)) {
+      return reply.code(403).send({ error: LOCAL_RUNTIME_ERROR });
+    }
 
     const body = request.body;
     if (!body || !body.owner || !body.repo || !body.target || !body.target.name) {
@@ -259,6 +279,13 @@ export async function registerPm2Route(app: FastifyInstance, options: Pm2RouteOp
     }
 
     const checks: VerificationCheckItem[] = [];
+
+    const owned = (await connections(installationId)).find(connection =>
+      connection.owner.toLowerCase() === body.owner.toLowerCase() &&
+      connection.repo.toLowerCase() === body.repo.toLowerCase());
+    if (!owned || !configuredPm2Targets(owned).includes(body.target.name)) {
+      return reply.code(403).send({ error: "PM2 target is not configured for this installation and repository" });
+    }
 
     // Check 1: PM2 daemon reachable
     let pm2List: RawPm2Process[] = [];

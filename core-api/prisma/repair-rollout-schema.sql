@@ -21,6 +21,9 @@ ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "trigger" "RolloutTrigger"
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "readyAt" TIMESTAMP(3);
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "previousSha" TEXT;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "deployedAt" TIMESTAMP(3);
+ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "deployedRevision" TEXT;
+ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "durationMs" INTEGER;
+ALTER TABLE "RolloutOutcome" ALTER COLUMN "durationMs" DROP NOT NULL;
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackExecutor" TEXT NOT NULL DEFAULT 'server';
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackRequestedAt" TIMESTAMP(3);
 ALTER TABLE "RolloutOutcome" ADD COLUMN IF NOT EXISTS "rollbackStartedAt" TIMESTAMP(3);
@@ -209,7 +212,8 @@ CREATE INDEX IF NOT EXISTS "RepoIntegration_owner_repo_idx" ON "RepoIntegration"
 CREATE INDEX IF NOT EXISTS "Commit_installationId_createdAt_idx" ON "Commit"("installationId", "createdAt");
 
 CREATE INDEX IF NOT EXISTS "RolloutOutcome_status_idx" ON "RolloutOutcome"("status");
-CREATE UNIQUE INDEX IF NOT EXISTS "RolloutOutcome_installationId_commitSha_key" ON "RolloutOutcome"("installationId", "commitSha");
+DROP INDEX IF EXISTS "RolloutOutcome_installationId_commitSha_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "RolloutOutcome_installationId_owner_repo_commitSha_key" ON "RolloutOutcome"("installationId", "owner", "repo", "commitSha");
 CREATE INDEX IF NOT EXISTS "RolloutSample_rolloutId_ts_idx" ON "RolloutSample"("rolloutId", "ts");
 CREATE INDEX IF NOT EXISTS "RolloutSample_ts_idx" ON "RolloutSample"("ts");
 CREATE INDEX IF NOT EXISTS "RepoConnection_installationId_idx" ON "RepoConnection"("installationId");

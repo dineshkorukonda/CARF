@@ -1,5 +1,8 @@
 import { assertSafeTarget, type CommandExecutor, defaultExec, type ExecFn, LocalCommandExecutor } from "./execFn.js";
 import type { RuntimeAdapter, RuntimeHealthResult, RuntimeStatus } from "./contracts.js";
+import { mkdtemp, writeFile, unlink, rmdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 export interface DockerAdapterOptions {
   containerName?: string | undefined;
@@ -14,6 +17,7 @@ export interface DockerAdapterOptions {
 }
 
 export interface DockerInspectOutput {
+  Image?: string;
   State?: {
     Status?: string | undefined;
     Running?: boolean | undefined;
@@ -52,7 +56,7 @@ export class DockerAdapter implements RuntimeAdapter {
   private readonly baselineRestarts = new Map<string, number>();
 
   constructor(
-    private readonly previousImageTag: string = "",
+    private previousImageTag: string = "",
     options: DockerAdapterOptions = {}
   ) {
     if (previousImageTag && previousImageTag.trim().length > 0) {
@@ -80,7 +84,7 @@ export class DockerAdapter implements RuntimeAdapter {
     this.healthUrl = options.healthUrl;
     this.probeCount = options.probeCount ?? 1;
     this.startupGraceSeconds = options.startupGraceSeconds ?? 60;
-    this.fetchFn = options.fetchFn ?? ((url: string) => globalThis.fetch(url));
+    this.fetchFn = options.fetchFn ?? ((url: string) => globalThis.fetch(url, { signal: AbortSignal.timeout(5000) }));
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.now = options.now ?? Date.now;
   }
@@ -213,12 +217,7 @@ export class DockerAdapter implements RuntimeAdapter {
     assertSafeTarget(container, "container");
     assertSafeTarget(imageTag, "imageTag");
 
-    if (this.composeFile) {
-      await this.executor.exec(`docker compose -f ${this.composeFile} up -d --force-recreate`);
-    } else {
-      await this.executor.exec(`docker stop ${container} && docker rm ${container}`);
-      await this.executor.exec(`docker run -d --name ${container} ${imageTag}`);
-    }
+    await this.recreateComposeService(container, imageTag);
 
     this.baselineRestarts.delete(container);
   }
@@ -231,14 +230,37 @@ export class DockerAdapter implements RuntimeAdapter {
       throw new Error("Cannot rollback Docker container: previousImageTag is not set");
     }
 
-    if (this.composeFile) {
-      await this.executor.exec(`docker compose -f ${this.composeFile} up -d --force-recreate`);
-    } else {
-      await this.executor.exec(`docker stop ${container} && docker rm ${container}`);
-      await this.executor.exec(`docker run -d --name ${container} ${this.previousImageTag}`);
-    }
+    await this.recreateComposeService(container, this.previousImageTag);
 
     this.baselineRestarts.delete(container);
+  }
+
+  async getCurrentRevision(capture = true): Promise<string> {
+    const { stdout } = await this.executor.exec(`docker inspect ${this.defaultContainer}`);
+    const info = (JSON.parse(stdout) as DockerInspectOutput[])[0];
+    const revision = info?.Image ?? info?.Config?.Image;
+    if (!revision) throw new Error("Cannot identify the current Docker image");
+    assertSafeTarget(revision, "currentImage");
+    if (capture) this.previousImageTag = revision;
+    return revision;
+  }
+
+  private async recreateComposeService(container: string, image: string): Promise<void> {
+    if (!this.composeFile) throw new Error("Docker deployment requires composeFile to preserve service ports, volumes, and environment");
+    const { stdout } = await this.executor.exec(`docker inspect ${container}`);
+    const info = (JSON.parse(stdout) as DockerInspectOutput[])[0];
+    const service = info?.Config?.Labels?.["com.docker.compose.service"];
+    if (!service) throw new Error("Target is not a Docker Compose service");
+    assertSafeTarget(service, "composeService");
+    const directory = await mkdtemp(join(tmpdir(), "carf-compose-"));
+    const override = join(directory, "image.json");
+    try {
+      await writeFile(override, JSON.stringify({ services: { [service]: { image } } }));
+      await this.executor.exec(`docker compose -f "${this.composeFile}" -f "${override}" up -d --no-build --no-deps --force-recreate ${service}`);
+    } finally {
+      await unlink(override).catch(() => undefined);
+      await rmdir(directory);
+    }
   }
 
   async rollbackWithVerification(

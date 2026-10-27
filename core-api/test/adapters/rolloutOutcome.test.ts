@@ -30,8 +30,10 @@ describe("RolloutOutcome persistence helpers", () => {
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          installationId_commitSha: {
+          installationId_owner_repo_commitSha: {
             installationId: "inst-1",
+            owner: "acme",
+            repo: "widgets",
             commitSha: "head456",
           },
         },

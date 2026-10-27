@@ -18,6 +18,7 @@ export interface RolloutOutcomeRecord {
   readyAt?: Date | null | undefined;
   previousSha?: string | null | undefined;
   deployedAt?: Date | null | undefined;
+  deployedRevision?: string | null | undefined;
   rollbackExecutor?: string | undefined;
   rollbackRequestedAt?: Date | null | undefined;
   rollbackStartedAt?: Date | null | undefined;
@@ -49,10 +50,10 @@ export interface RolloutOutcomePrismaClient {
       orderBy?: { startedAt?: "asc" | "desc" | undefined } | undefined;
     } | undefined): Promise<RolloutOutcomeRecord[]>;
     findUnique?(args: {
-      where: { id?: string | undefined; installationId_commitSha?: { installationId: string; commitSha: string } | undefined };
+      where: { id?: string | undefined; installationId_owner_repo_commitSha?: { installationId: string; owner: string; repo: string; commitSha: string } | undefined };
     }): Promise<RolloutOutcomeRecord | null>;
     upsert(args: {
-      where: { installationId_commitSha: { installationId: string; commitSha: string } };
+      where: { installationId_owner_repo_commitSha: { installationId: string; owner: string; repo: string; commitSha: string } };
       create: {
         commit?: { connect: { owner_repo_sha: { owner: string; repo: string; sha: string } } } | undefined;
         owner?: string | undefined;
@@ -87,6 +88,7 @@ export interface RolloutOutcomePrismaClient {
         rollbackVerified?: boolean | null | undefined;
         previousSha?: string | undefined;
         deployedAt?: Date | undefined;
+        deployedRevision?: string | undefined;
         rollbackExecutor?: string | undefined;
         rollbackRequestedAt?: Date | undefined;
         startedAt?: Date | undefined;
@@ -141,8 +143,10 @@ export async function createPendingRolloutOutcome(
   const installationKey = params.installationId ?? "";
   return await prisma.rolloutOutcome.upsert({
     where: {
-      installationId_commitSha: {
+      installationId_owner_repo_commitSha: {
         installationId: installationKey,
+        owner: params.owner,
+        repo: params.repo,
         commitSha: params.commitSha,
       },
     },
@@ -159,7 +163,7 @@ export async function createPendingRolloutOutcome(
       owner: params.owner,
       repo: params.repo,
       commitSha: params.commitSha,
-      ...(params.installationId !== undefined ? { installationId: params.installationId } : {}),
+      installationId: installationKey,
       status: "PENDING",
       trigger: params.trigger ?? "auto",
       ...(params.readyAt !== undefined ? { readyAt: params.readyAt } : {}),

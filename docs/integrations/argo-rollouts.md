@@ -1,87 +1,15 @@
-# Argo Rollouts Integration Guide
+# Argo Rollouts integration (preview)
 
-This guide describes how to connect CARF with **Argo Rollouts** for cloud-native progressive delivery on Kubernetes using custom `AnalysisTemplate` web metrics.
+Argo Rollouts remains a preview integration. Controller adapter contracts and reference manifests exist; the production standalone config does not accept an Argo runtime adapter. Argo owns rollout execution and recovery.
 
----
-
-## Architectural Flow
-
-```mermaid
-sequenceDiagram
-    participant GitOps as GitOps (Argo CD)
-    participant Argo as Argo Rollouts Controller
-    participant CARF as CARF Core API
-    participant K8s as Kubernetes Pods
-
-    GitOps->>Argo: Sync new container image (SHA)
-    Argo->>K8s: Create canary replicaset (20% traffic)
-    loop Canary Step (30s interval)
-        Argo->>CARF: Webhook POST /v1/report
-        CARF-->>Argo: result == "continue" or "rollback"
-    end
-    alt All Analysis steps pass
-        Argo->>K8s: Promote Canary to 100% stable
-    else Breach occurs
-        Argo->>K8s: Abort Rollout & shift traffic to stable
-    end
-```
-
----
-
-## AnalysisTemplate Manifest (`analysis-template.yaml`)
-
-Deploy the following `AnalysisTemplate` in your cluster:
+Example `.carf.yml` for policy use:
 
 ```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: AnalysisTemplate
-metadata:
-  name: carf-canary-metric
-  namespace: default
-spec:
-  metrics:
-  - name: carf-evaluation
-    interval: 30s
-    successCondition: result == "continue"
-    failureLimit: 2
-    provider:
-      web:
-        url: "https://api.carf.dev/v1/report"
-        headers:
-        - key: Authorization
-          value: "Bearer YOUR_CARF_API_KEY"
-        - key: Content-Type
-          value: "application/json"
-        jsonBody:
-          sha: "{{args.target-sha}}"
-          errorRate: 0.0
-          healthy: true
+mode: augment
+deploymentIntegration: argo_rollouts
+runtimeAdapter: none
 ```
 
----
+Fetch CARF policy through authenticated HTTP in the delivery pipeline and use the threshold/window in your controller analysis. Do not assume environments/argo-rollouts/analysis-template.yaml performs that wiring: it probes the sample application's HTTP health endpoint directly and does not read CARF policy.
 
-## Rollout Definition (`rollout.yaml`)
-
-Reference the `carf-canary-metric` in your Rollout strategy:
-
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
-metadata:
-  name: api-service
-spec:
-  strategy:
-    canary:
-      analysis:
-        templates:
-        - templateName: carf-canary-metric
-        args:
-        - name: target-sha
-          valueFrom:
-            podTemplateHashValue: Latest
-      steps:
-      - setWeight: 20
-      - pause: { duration: 1m }
-      - setWeight: 50
-      - pause: { duration: 2m }
-```
+The reference environment includes controller installation, healthy/broken rollout manifests, and abort scripts. Validate controller readiness, authenticated policy lookup, a healthy promotion, a failed analysis, abort, previous revision restoration, and traffic recovery on a disposable cluster before treating this integration as live-tested.

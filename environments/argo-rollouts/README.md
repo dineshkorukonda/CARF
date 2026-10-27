@@ -1,3 +1,5 @@
+> Reference environment: see [support and verification status](../../docs/integrations/README.md). Artifacts and mocked tests do not establish live deployment or recovery.
+
 # Environment D — Argo Rollouts Deployment Environment
 
 This environment provides progressive canary delivery on top of Kubernetes using Argo Rollouts.

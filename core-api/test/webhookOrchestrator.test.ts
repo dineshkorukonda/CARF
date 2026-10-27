@@ -161,6 +161,7 @@ const target: DeployTarget = {
 
 function baseDeps(overrides: Partial<WebhookOrchestratorDeps> = {}): WebhookOrchestratorDeps {
   return {
+    localInstallationId: "inst-1",
     githubApiClient: fakeGithubApiClient(),
     installationTokenClient: fakeInstallationTokenClient(),
     carfConfig: undefined,
@@ -259,7 +260,7 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).not.toHaveBeenCalled();
   });
 
-  it("issues an installation API key on first webhook for a new installationId, and logs it once (issue #65)", async () => {
+  it("issues an installation API key without logging its plaintext credential", async () => {
     const apiKeyPrismaClient = new FakeInstallationApiKeyPrismaClient();
     const deps = baseDeps({ apiKeyPrismaClient });
 
@@ -267,9 +268,12 @@ describe("handleWebhookCommit", () => {
 
     expect(apiKeyPrismaClient.rows.has("inst-1")).toBe(true);
     expect(deps.logger.info).toHaveBeenCalledWith(
-      expect.objectContaining({ installationId: "inst-1", apiKey: expect.stringMatching(/^carf_/) }),
+      { installationId: "inst-1" },
       expect.stringContaining("issued a new installation API key")
     );
+    const logs = JSON.stringify((deps.logger.info as ReturnType<typeof vi.fn>).mock.calls);
+    expect(logs).not.toContain('"apiKey":');
+    expect(logs).not.toMatch(/carf_[A-Za-z0-9_-]{20,}/);
   });
 
   it("does not re-issue or re-log a key on a second webhook for an installation that already has one", async () => {
@@ -336,7 +340,7 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
     const call = standaloneLoopRunner.mock.calls[0]!;
     expect(call[0]).toBe("head456"); // sha
-    expect(call[1]).toBe(fakeAdapter);
+    expect(call[1]).toEqual(expect.objectContaining({ checkHealth: expect.any(Function), rollback: expect.any(Function) }));
     expect(call[3]).toBe("web"); // target string
   });
 
@@ -554,7 +558,7 @@ describe("handleWebhookCommit", () => {
     expect(fakeRolloutMonitor.enqueue).toHaveBeenCalledTimes(1);
     expect(fakeRolloutMonitor.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({ commitSha: "head456" }),
-      fakeAdapter,
+      expect.objectContaining({ checkHealth: expect.any(Function), rollback: expect.any(Function) }),
       "sahaay",
       30
     );

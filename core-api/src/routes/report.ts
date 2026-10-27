@@ -1,29 +1,21 @@
+import type { Prisma } from "@prisma/client";
 import type { FastifyInstance, FastifySchema } from "fastify";
 import { prisma as defaultPrisma } from "../db/client.js";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
-import { incrementHealthReports, incrementRollbacksExecuted } from "./metrics.js";
+import { incrementHealthReports } from "./metrics.js";
 
 export interface ReportRoutePrismaClient extends InstallationAuthPrismaClient {
   threshold: {
-    findFirst(args: {
-      where: { commit: { sha: string; installationId: string | null } };
-      include?: { commit: true };
-    }): Promise<{
-      finalThreshold: number;
-      finalWindow: number;
+    findMany(args: {
+      where: { commit: { sha: string; installationId: string | null; owner?: string; repo?: string } };
+      include: { commit: true }; take: number;
+    }): Promise<Array<{
+      finalThreshold: number; finalWindow: number;
       commit: { id: string; sha: string; installationId: string | null };
-    } | null>;
+    }>>;
   };
-  rolloutOutcome: {
-    create(args: {
-      data: {
-        commitId: string;
-        installationId: string | null;
-        rolledBack: boolean;
-        finalErrorRate: number;
-        durationMs: number;
-      };
-    }): Promise<unknown>;
+  healthReport: {
+    create(args: { data: Prisma.HealthReportUncheckedCreateInput }): Promise<unknown>;
   };
 }
 
@@ -38,6 +30,8 @@ const reportBodySchema = {
   properties: {
     commit: { type: "string" },
     errorRate: { type: "number", minimum: 0 },
+    owner: { type: "string", minLength: 1 },
+    repo: { type: "string", minLength: 1 },
     durationMs: { type: "number", minimum: 0 },
   },
   additionalProperties: false,
@@ -84,14 +78,14 @@ const responseSchema: FastifySchema = {
  * it against the commit's computed dynamic threshold, and returns an actionable verdict:
  * `{ action: "continue" | "rollback", reason: "within_budget" | "threshold_violation", ... }`.
  *
- * Automatically records a RolloutOutcome entry when a rollback is triggered or durationMs
- * is reported.
+ * Persists health readings and verdicts separately from deployment outcomes.
+ * External deployers remain responsible for executing rollback decisions.
  */
 export async function registerReportRoute(app: FastifyInstance, options: ReportRouteOptions = {}) {
-  const prismaClient = options.prismaClient ?? (defaultPrisma as unknown as ReportRoutePrismaClient);
+  const prismaClient: ReportRoutePrismaClient = options.prismaClient ?? defaultPrisma;
 
   app.post<{
-    Body: { commit: string; errorRate: number; durationMs?: number };
+    Body: { commit: string; errorRate: number; durationMs?: number; owner?: string; repo?: string };
   }>("/v1/report", { schema: responseSchema }, async (request, reply) => {
     const { commit: commitSha, errorRate, durationMs } = request.body;
 
@@ -104,39 +98,36 @@ export async function registerReportRoute(app: FastifyInstance, options: ReportR
       }
     }
 
-    const thresholdRow = await prismaClient.threshold.findFirst({
-      where: { commit: { sha: commitSha, installationId } },
-      include: { commit: true },
+    const thresholdRows = await prismaClient.threshold.findMany({
+      where: { commit: { sha: commitSha, installationId,
+        ...(request.body.owner ? { owner: request.body.owner } : {}),
+        ...(request.body.repo ? { repo: request.body.repo } : {}),
+      } },
+      include: { commit: true }, take: 2,
     });
 
+    const thresholdRow = thresholdRows[0];
     if (!thresholdRow) {
       return reply.code(404).send({ error: "commit not found" });
     }
+
+    if (thresholdRows.length > 1) return reply.code(409).send({ error: "Commit exists in multiple repositories; supply owner and repo" });
 
     const isBreached = errorRate >= thresholdRow.finalThreshold;
     const action = isBreached ? "rollback" : "continue";
     const reason = isBreached ? "threshold_violation" : "within_budget";
 
+    try {
+      await prismaClient.healthReport.create({ data: {
+        commitId: thresholdRow.commit.id, installationId: thresholdRow.commit.installationId,
+        errorRate, action, threshold: thresholdRow.finalThreshold, window: thresholdRow.finalWindow,
+        ...(durationMs !== undefined ? { durationMs } : {}),
+      } });
+    } catch (err) {
+      request.log.error({ err }, "failed to persist health report");
+      return reply.code(503).send({ error: "Unable to persist health report; retry the report" });
+    }
     incrementHealthReports(action);
-    if (isBreached) {
-      incrementRollbacksExecuted();
-    }
-
-    if (isBreached || durationMs !== undefined) {
-      try {
-        await prismaClient.rolloutOutcome.create({
-          data: {
-            commitId: thresholdRow.commit.id,
-            installationId: thresholdRow.commit.installationId,
-            rolledBack: isBreached,
-            finalErrorRate: errorRate,
-            durationMs: durationMs ?? 0,
-          },
-        });
-      } catch (err) {
-        request.log.error({ err }, "failed to record rollout outcome from /v1/report");
-      }
-    }
 
     return reply.code(200).send({
       action,

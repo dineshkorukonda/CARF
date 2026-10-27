@@ -240,7 +240,11 @@ describe("Agent API Routes", () => {
       const data = await res.json();
       expect(data.ok).toBe(true);
       expect(data.rolloutId).toBe("ro-1");
-      expect(prisma.rolloutOutcome.upsert).toHaveBeenCalled();
+      expect(prisma.rolloutOutcome.upsert).toHaveBeenCalledWith(expect.objectContaining({
+        where: { installationId_owner_repo_commitSha: {
+          installationId: "inst-1", owner: "octocat", repo: "hello-world", commitSha: "abc1234",
+        } },
+      }));
       expect(prisma.rolloutSample.createMany).toHaveBeenCalled();
     });
   });

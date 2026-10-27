@@ -1,29 +1,24 @@
-# CARF Integrations & Target Adapters Architecture
+# Integration support and verification
 
-This directory provides production-grade integration guides, manifest templates, and architectural specifications for all deployment orchestrators and runtime execution environments supported by CARF (**Commit-Aware Rollback Framework**).
+CARF policy computation is implemented. Runtime control depends on the execution host; installing the verification agent on another machine does not connect a remote deployment executor.
 
----
+| Integration / runtime | Production wiring | Evidence and remaining work |
+| --- | --- | --- |
+| GitHub Actions + PM2 | Managed CI-gated deployment, observation, Actions rollback request | Unit/route/shell tests and opt-in real PM2 lifecycle suite; hosted GitHub delivery still needs acceptance testing |
+| PM2 | Local core-api host only | Bind CARF_LOCAL_INSTALLATION_ID, configure a repository target, and verify it |
+| Docker Compose | Local core-api host; exact SHA image selection and saved image rollback | Contract tests; requires a real Compose daemon acceptance run; dashboard auto-generated managed deployment workflow currently targets PM2 |
+| Generic HTTP / CI | Threshold reads and persisted health verdicts | External pipeline executes rollback; HTTP adapter notifications are not execution acknowledgments |
+| Argo Rollouts | Preview: external policy integration | Reference controller manifests and adapter contract tests; cluster installation and CARF policy wiring require acceptance testing |
+| Flagger | Preview: external policy integration | Reference native metric canary and adapter contract tests; sample canary does not call CARF policy |
+| Kubernetes runtime | Preview | Adapter and reference manifests exist; standalone config accepts only PM2/Docker |
+| systemd runtime | Roadmap | Library adapter unit tests only; no managed standalone config or reference environment |
+| Prometheus / PromQL | Library telemetry adapter and external CI reporting | Unit tests; not selectable as a standalone .carf.yml health source |
+| Remote host agent execution | Not implemented | Agent verifies, heartbeats, and updates; no remote deploy/rollback transport |
 
-## Supported Integrations Matrix
+## Repeatable checks
 
-For pre-merge policy lookups, see [GitHub Actions pull request workflows](./github-actions-pr.md).
+After installing core-api dependencies, run `node environments/validate-environments.mjs` from the repository root. This parses YAML and checks required artifacts. It deliberately reports STATIC-VALIDATED and runtimeVerified=false. `--require-live` exits nonzero; file presence or an available CLI is not proof of live recovery.
 
-| Target Adapter | Type | Mode | Health Telemetry | Automated Rollback Mechanism |
-| :--- | :--- | :--- | :--- | :--- |
-| [**GitHub Actions + PM2**](./github-actions-pm2.md) | CI/CD Pipeline | Augment | HTTP probe + Process restart tracking | GitHub Actions rollback job dispatch (`workflow_dispatch`) |
-| [**Argo Rollouts**](./argo-rollouts.md) | K8s Progressive | Augment | CARF AnalysisTemplate / Web probe | Native Argo Rollout abort & revision rollback |
-| [**Flagger Canary**](./flagger.md) | Service Mesh | Augment | Flagger rollout webhooks (`/v1/report`) | Native Flagger canary phase rollback & traffic cutoff |
-| [**Generic CI / HTTP**](./generic-ci-http.md) | Universal Webhook | Augment | REST API telemetry (`/v1/report`) | Pipeline fail exit-code / webhook dispatch |
-| [**Kubernetes (kubectl)**](./kubernetes.md) | Container Orchestration | Standalone | Pod readiness & container restart probe | `kubectl rollout undo deployment/<name>` |
-| [**Docker Compose**](./docker-compose.md) | Container Runtime | Standalone | Docker container status & healthcheck probe | Recreate container with previous image tag |
-| [**Linux systemd**](./systemd.md) | Linux Host Service | Standalone | `systemctl is-active` & HTTP probe | Git checkout previous SHA + `systemctl restart` |
-| [**Prometheus PromQL**](./prometheus.md) | Telemetry & SLO | Augment/Standalone | PromQL dynamic instant query evaluation | Error rate threshold comparison triggering rollback |
+Run core-api tests for adapter contracts and route wiring. For real PM2 lifecycle testing, run `CARF_TEST_REAL_PM2=1 npm test -- test/integration/pm2Live.test.ts` inside core-api. The suite uses a private PM2_HOME and disposable application. Run cluster/container reference scripts only against disposable infrastructure you control.
 
----
-
-## Architectural Principles
-
-1. **Commit-Aware Dynamic Thresholds**: Rather than applying static arbitrary error rates, CARF analyzes incoming Git commit AST diffs, test ratios, and churn vectors to dynamically calibrate an adaptive risk ceiling and soak window.
-2. **Grace Period Isolation**: All runtime adapters isolate cold-start initialization to prevent false-positive crash-loop rollbacks during deployment startup.
-3. **Idempotent Rollback Synchronization**: Distributed rollback calls (from CI pipelines or standalone monitors) acquire atomic state locks to prevent duplicate rollback triggers.
-4. **Shell Injection Prevention**: All command-executing runtime adapters sanitize target names, image tags, and namespaces against POSIX/Windows command injection attacks.
+See [audit validation and rollout requirements](../validation/audit-remediation.md) for migration and host setup. None of the reference manifests alone establishes production readiness.

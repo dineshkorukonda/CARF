@@ -1,0 +1,4 @@
+# Preserve executable scripts across Windows checkouts. Vitest/Vite also loads
+# ESM shebangs correctly only when their line endings remain LF.
+*.mjs text eol=lf
+*.sh text eol=lf

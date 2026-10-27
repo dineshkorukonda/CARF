@@ -9,6 +9,9 @@ import { prisma as defaultPrisma } from "../db/client.js";
 import { EmptyChangeSetError } from "../pipeline.js";
 
 export interface RefreshCommitsPrismaClient extends InstallationAuthPrismaClient {
+  repoConnection?: {
+    findUnique(args: { where: { installationId_owner_repo: { installationId: string; owner: string; repo: string } } }): Promise<{ storedConfig: unknown } | null>;
+  };
   commit: {
     findMany(args: {
       where: { installationId: string; owner: string; repo: string; sha: { in: string[] } };
@@ -97,7 +100,13 @@ export async function registerRefreshCommitsRoute(app: FastifyInstance, options:
 
     if (observeLive) {
       try {
-        await verifyDeploymentCi({ owner, repo, branch, sha: expectedSha, runId: Number(body.ciRunId), token }, options.fetchFn);
+        const connection = await prismaClient.repoConnection?.findUnique({
+          where: { installationId_owner_repo: { installationId, owner, repo } },
+        });
+        const stored = connection?.storedConfig as { ciWorkflowName?: unknown } | null;
+        const ciWorkflowName = typeof stored?.ciWorkflowName === "string" && stored.ciWorkflowName.trim()
+          ? stored.ciWorkflowName : "CI";
+        await verifyDeploymentCi({ owner, repo, branch, sha: expectedSha, runId: Number(body.ciRunId), token, ciWorkflowName }, options.fetchFn);
       } catch (error) {
         return reply.code(403).send({ error: error instanceof Error ? error.message : "CI verification failed" });
       }

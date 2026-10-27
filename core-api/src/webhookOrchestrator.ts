@@ -1,20 +1,16 @@
+import { buildRuntimeAdapter as defaultRollbackAdapterFactory, dockerDeploymentImage } from "./adapters/runtimeFactory.js";
 import { acquireDiff, fetchBlobContent } from "./adapters/github/diffAcquisition.js";
 import { load as loadYaml } from "js-yaml";
 import type { GitHubApiClient } from "./adapters/github/githubApiClient.js";
 import type { InstallationTokenClient } from "./adapters/github/installationTokenClient.js";
 import type { DeployTarget } from "./adapters/github/webhookPayload.js";
 import { runStandaloneLoop } from "./adapters/loop.js";
-import { PM2Adapter } from "./adapters/pm2.js";
-import { DockerAdapter } from "./adapters/docker.js";
 import type { RollbackAdapter } from "./adapters/rollbackAdapter.js";
 import { createPendingRolloutOutcome, type RolloutOutcomePrismaClient, type RolloutOutcomeRecord } from "./adapters/rolloutOutcome.js";
 import { ensureApiKeyForInstallation, type InstallationApiKeyPrismaClient } from "./auth/installationApiKeyService.js";
 import {
-  acquireLock,
   DEFAULT_HEARTBEAT_INTERVAL_MS,
   DEFAULT_LOCK_TTL_MS,
-  releaseLock,
-  renewLock,
   type StandaloneLoopLockPrismaClient,
 } from "./adapters/standaloneLoopLock.js";
 import { CarfConfigSchema, type CarfConfig } from "./config/carfConfigSchema.js";
@@ -24,7 +20,9 @@ import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 import { resolveRepoMode } from "./deploymentMode.js";
 import { resolveFromLegacy } from "./capabilities/resolver.js";
+import { acquireDeploymentLease, guardAdapter, DeploymentLeaseLostError } from "./adapters/deploymentLease.js";
 import { resolveRepoAdapterConfig } from "./config/repoAdapterConfig.js";
+import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "./auth/localRuntime.js";
 
 export type AdapterConfig = NonNullable<CarfConfig["adapter"]>;
 
@@ -34,6 +32,7 @@ export interface OrchestratorLogger {
 }
 
 export interface WebhookOrchestratorDeps {
+  localInstallationId?: string;
   githubApiClient: GitHubApiClient;
   installationTokenClient: InstallationTokenClient;
   /** Loaded once at startup (index.ts). undefined means no .carf.yml -- all defaults. */
@@ -70,32 +69,6 @@ export interface WebhookOrchestratorDeps {
   respectAnalysisTrigger?: boolean;
 }
 
-function defaultRollbackAdapterFactory(adapterConfig: AdapterConfig, baseSha: string): RollbackAdapter {
-  if (adapterConfig.kind === "pm2") {
-    // baseSha stands in for the previous release SHA. See issue #51.
-    return new PM2Adapter(baseSha, {
-      releasesRoot: adapterConfig.releasesRoot,
-      currentSymlink: adapterConfig.currentSymlink,
-      cwd: adapterConfig.cwd,
-      buildCommand: adapterConfig.buildCommand,
-      layout: adapterConfig.layout,
-      healthUrl: adapterConfig.healthUrl,
-      probeCount: adapterConfig.probeCount,
-    });
-  }
-  if (adapterConfig.kind === "docker") {
-    return new DockerAdapter(adapterConfig.previousImageTag || baseSha, {
-      containerName: adapterConfig.target || adapterConfig.containerName,
-      composeFile: adapterConfig.composeFile,
-      healthUrl: adapterConfig.healthUrl,
-      probeCount: adapterConfig.probeCount,
-      startupGraceSeconds: adapterConfig.startupGraceSeconds,
-    });
-  }
-  throw new Error(`Adapter kind "${(adapterConfig as { kind: string }).kind}" is unsupported.`);
-}
-
-
 /**
  * Composition root for a validated webhook DeployTarget: exchanges the installation ID
  * for a token, fetches the diff from GitHub, runs it through processCommit() (classify +
@@ -118,11 +91,9 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     const apiKeyClient = deps.apiKeyPrismaClient ?? (defaultPrisma as unknown as InstallationApiKeyPrismaClient);
     const result = await ensureApiKeyForInstallation(apiKeyClient, target.installationId);
     if (result.created) {
-      // Only time this plaintext key ever exists outside the hash stored in the DB --
-      // shown once, here, deliberately (see InstallationApiKey's schema doc comment).
       deps.logger.info(
-        { installationId: target.installationId, apiKey: result.plaintextKey },
-        "issued a new installation API key -- store it now, it cannot be recovered later"
+        { installationId: target.installationId },
+        "issued a new installation API key"
       );
     }
   } catch (error) {
@@ -293,6 +264,11 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   const adapterConfig = connectionAdapter;
+  if (!localRuntimeAllowed(target.installationId, deps.localInstallationId)) {
+    if (deps.observeLive === true) throw new Error(LOCAL_RUNTIME_ERROR);
+    deps.logger.error({ installationId: target.installationId }, LOCAL_RUNTIME_ERROR);
+    return;
+  }
   if (deps.observeLive === true && adapterConfig?.kind === "pm2" && adapterConfig.layout === "git" && !adapterConfig.buildCommand?.trim()) {
     throw new Error("Git PM2 deployment requires an explicit buildCommand (use true for apps without a build step)");
   }
@@ -319,7 +295,16 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   const rollbackViaActions = deps.observeLive === true && deps.rollbackViaActions === true;
   if (rollbackViaActions && !deps.rolloutMonitor) throw new Error("Actions rollback requires the rollout monitor");
 
-  // Create PENDING RolloutOutcome row (idempotent per installationId, commitSha)
+  const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
+  const key = `${target.owner}/${target.repo}@${target.headSha}`;
+  const lease = await acquireDeploymentLease(lockClient, target.owner, target.repo, deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS);
+  if (!lease) {
+    if (deps.observeLive === true) throw new Error("Another deployment or observation owns this repository");
+    deps.logger.info({ key }, "standalone loop already running for repository, skipping redelivery");
+    return;
+  }
+
+  // Rollout identity is installation + repository + commit SHA.
   let pendingOutcome: RolloutOutcomeRecord | undefined;
   try {
     pendingOutcome = await createPendingRolloutOutcome(rolloutOutcomeClient, {
@@ -337,22 +322,19 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     }
   } catch (error) {
     deps.logger.error({ error, sha: target.headSha }, "failed to create pending rollout outcome");
-    if (rollbackViaActions) throw error;
+    await lease.release();
+    throw error;
   }
-
-  const lockClient = deps.lockPrismaClient ?? (defaultPrisma as unknown as StandaloneLoopLockPrismaClient);
-  const ttlMs = deps.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
-  const heartbeatIntervalMs = deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-  const key = `${target.owner}/${target.repo}@${target.headSha}`;
-
-  const acquired = await acquireLock(lockClient, target.owner, target.repo, target.headSha, ttlMs);
-  if (!acquired) {
-    deps.logger.info({ key }, "standalone loop already running for this commit (durable lock held), skipping redelivery");
+  if (pendingOutcome.status !== "PENDING") {
+    await lease.release();
+    if (deps.observeLive === true) throw new Error("This revision already has a terminal deployment outcome");
     return;
   }
 
   const buildAdapter = deps.rollbackAdapterFactory ?? defaultRollbackAdapterFactory;
-  const adapter = buildAdapter(adapterConfig, target.baseSha);
+  let adapter: RollbackAdapter;
+  try { adapter = guardAdapter(buildAdapter(adapterConfig, target.baseSha), lease); }
+  catch (error) { await lease.release(); throw error; }
   const firstTarget = adapterConfig.targets?.[0];
   const targetName =
     adapterConfig.target ??
@@ -365,10 +347,10 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
 
   // Builds can outlast the lock TTL; keep the lease alive during deployment too.
   const heartbeat = setInterval(() => {
-    renewLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+    lease.assertHeld().catch((error: unknown) => {
       deps.logger.error({ error, key }, "failed to renew standalone loop lock heartbeat");
     });
-  }, heartbeatIntervalMs);
+  }, deps.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS);
 
   if (typeof adapter.applyRelease === "function") {
     let capturedRevision = false;
@@ -379,14 +361,19 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { previousSha } });
         capturedRevision = true;
       }
-      await adapter.applyRelease(target.headSha, targetName);
+      await adapter.applyRelease(adapterConfig.kind === "docker" ? dockerDeploymentImage(adapterConfig.imageTag, target.headSha) : target.headSha, targetName);
       if (pendingOutcome) {
         // Compilation/install time must not consume startup grace or observation time.
         const deployedAt = new Date();
-        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: deployedAt, deployedAt } });
+        pendingOutcome = await rolloutOutcomeClient.rolloutOutcome.update({ where: { id: pendingOutcome.id }, data: { startedAt: deployedAt, deployedAt, ...(adapter.getCurrentRevision ? { deployedRevision: await adapter.getCurrentRevision(false) } : {}) } });
       }
     } catch (error) {
       deps.logger.error({ error, key, sha: target.headSha }, "failed to apply commit on the host before soak");
+      if (error instanceof DeploymentLeaseLostError) {
+        clearInterval(heartbeat);
+        await lease.release();
+        throw error;
+      }
       let rollbackVerified: boolean | undefined;
       let recoveryReason = "";
       if (capturedRevision && adapter.rollbackWithVerification && !rollbackViaActions) {
@@ -419,7 +406,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
           deps.logger.error({ error: finalizeError, key }, "failed to record applyRelease failure");
         }
       }
-      await releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((releaseError: unknown) => {
+      await lease.release().catch((releaseError: unknown) => {
         deps.logger.error({ error: releaseError, key }, "failed to release standalone loop lock");
       });
       clearInterval(heartbeat);
@@ -441,7 +428,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         })
         .finally(() => {
           clearInterval(heartbeat);
-          releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+          lease.release().catch((error: unknown) => {
             deps.logger.error({ error, key }, "failed to release standalone loop lock");
           });
         });
@@ -473,7 +460,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     })
     .finally(() => {
       clearInterval(heartbeat);
-      releaseLock(lockClient, target.owner, target.repo, target.headSha).catch((error: unknown) => {
+      lease.release().catch((error: unknown) => {
         // Non-fatal: the lock will still expire via TTL and become reclaimable, just not
         // immediately. Logged for visibility, not left as an unhandled rejection.
         deps.logger.error({ error, key }, "failed to release standalone loop lock");

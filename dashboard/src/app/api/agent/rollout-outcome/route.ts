@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
   const commit = await prisma.commit.findFirst({
     where: {
       sha: commitSha,
+      installationId: connection.installationId,
       owner: connection.owner,
       repo: connection.repo,
     },
@@ -77,8 +78,10 @@ export async function POST(req: NextRequest) {
   // Upsert the RolloutOutcome record scoped by installationId and commitSha
   const outcome = await prisma.rolloutOutcome.upsert({
     where: {
-      installationId_commitSha: {
+      installationId_owner_repo_commitSha: {
         installationId: connection.installationId,
+        owner: connection.owner,
+        repo: connection.repo,
         commitSha,
       },
     },
