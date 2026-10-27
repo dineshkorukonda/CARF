@@ -170,10 +170,10 @@ export function AccountSettingsView({ initialAccount }: AccountSettingsViewProps
             alt={initialAccount.name ?? initialAccount.email}
             width={60}
             height={60}
-            className="rounded-full border border-border/80 object-cover"
+            className="rounded-md border border-border/80 object-cover"
           />
         ) : (
-          <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary">
+          <div className="flex size-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xl font-bold text-primary">
             {(name || email || "U").charAt(0).toUpperCase()}
           </div>
         )}

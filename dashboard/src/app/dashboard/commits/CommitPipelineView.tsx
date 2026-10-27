@@ -315,9 +315,9 @@ export function CommitPipelineView(data: CommitPipelineData) {
                   {complexity.scoreOutOf100.toFixed(1)}
                   <span className="ml-1 text-sm font-normal text-muted-foreground">/ 100</span>
                 </p>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div className="h-2 overflow-hidden rounded-sm bg-muted">
                   <div
-                    className="h-full rounded-full bg-primary"
+                    className="h-full rounded-sm bg-primary"
                     style={{ width: `${Math.min(100, complexity.scoreOutOf100)}%` }}
                   />
                 </div>

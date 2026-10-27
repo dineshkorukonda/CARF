@@ -285,7 +285,7 @@ export function RepoListView({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold tracking-tight text-foreground">Connected Repositories</h2>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono font-medium text-muted-foreground">
                 {repos.length}
               </span>
             </div>
@@ -748,7 +748,7 @@ export function RepoListView({
                                   {r.commitSha.slice(0, 7)}
                                 </Link>
                                 <span
-                                  className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-mono font-medium ${
                                     r.status === "SUCCESS"
                                       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                                       : r.status === "ROLLED_BACK"

@@ -291,7 +291,7 @@ export function DashboardAnalyticsHub({
           <div className="flex items-center gap-2">
             <BarChart2 className="size-4 text-primary" />
             <h2 className="text-sm font-semibold text-foreground">Deployment Intelligence Hub</h2>
-            <span className="rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary">
+            <span className="rounded bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[10px] font-mono font-medium text-primary">
               CARF Core
             </span>
           </div>
@@ -404,7 +404,7 @@ export function DashboardAnalyticsHub({
 
               {/* Stacked Progress Bar */}
               <div className="space-y-1.5 pt-1">
-                <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+                <div className="flex h-3 w-full overflow-hidden rounded-sm bg-muted">
                   <div
                     style={{ width: `${changeIntelligenceData.codePct}%` }}
                     className="bg-blue-500"

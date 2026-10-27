@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, GitBranch, Terminal, Layers, Webhook } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, GitBranch, Terminal, Layers, Webhook } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { DeploymentIntegration } from "../../../lib/capabilities";
 import type { AnalysisTrigger } from "../../../lib/carfConfigSchema";
@@ -158,7 +158,7 @@ export function DeploymentIntegrationStep({
                 <ul className="mt-4 space-y-1.5 border-t border-border pt-4 text-xs text-muted-foreground">
                   {opt.features.map((feat, i) => (
                     <li key={i} className="flex items-start gap-2">
-                      <span className="text-emerald-500 font-bold">✓</span>
+                      <Check className="size-3.5 shrink-0 text-emerald-500 mt-0.5" />
                       <span>{feat}</span>
                     </li>
                   ))}

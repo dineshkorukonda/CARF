@@ -249,9 +249,9 @@ export function InteractiveSimulator() {
         `[${time}] Current Error Reading: ${manualErrorRate.toFixed(2)}%`,
       ];
       if (isBreached) {
-        base.push(`[${time}] ⚠️ BREACH DETECTED: Action: "${runtime.command}"`);
+        base.push(`[${time}] [ALERT] BREACH DETECTED: Action: "${runtime.command}"`);
       } else {
-        base.push(`[${time}] ✓ HEALTHY: Within error-rate threshold.`);
+        base.push(`[${time}] [OK] HEALTHY: Within error-rate threshold.`);
       }
       return base;
     }
@@ -421,7 +421,7 @@ export function InteractiveSimulator() {
                       onClick={() => handleStepClick(idx)}
                       className="group relative flex flex-col text-left focus:outline-hidden"
                     >
-                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-1.5 w-full rounded-sm bg-muted overflow-hidden">
                         <div
                           className={`h-full transition-all duration-75 ${
                             isPassed

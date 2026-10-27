@@ -120,11 +120,11 @@ export function CompatChecker() {
             {result.signals.map((signal) => (
               <div key={signal.id} className="flex items-start gap-2.5 px-3.5 py-2.5 text-xs">
                 {signal.matched ? (
-                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                     <Check className="size-3" />
                   </span>
                 ) : (
-                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground/60">
+                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground/60">
                     <X className="size-3" />
                   </span>
                 )}

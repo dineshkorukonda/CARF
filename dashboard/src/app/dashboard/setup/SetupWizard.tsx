@@ -170,7 +170,7 @@ export function SetupWizard({
               : "border-border text-muted-foreground"
           }`}
         >
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-[10px]">
             {step > 1 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "1"}
           </span>
           <span className="truncate">Repository</span>
@@ -185,7 +185,7 @@ export function SetupWizard({
               : "border-border text-muted-foreground"
           }`}
         >
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-[10px]">
             {step > 2 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "2"}
           </span>
           <span className="truncate">{CARF_TERMS.deploymentIntegration.label}</span>
@@ -200,7 +200,7 @@ export function SetupWizard({
               : "border-border text-muted-foreground"
           }`}
         >
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-[10px]">
             {step > 3 ? <CheckCircle2 className="size-3 text-emerald-500" /> : "3"}
           </span>
           <span className="truncate">{CARF_TERMS.runtimeIntegration.label}</span>
@@ -213,7 +213,7 @@ export function SetupWizard({
               : "border-border text-muted-foreground"
           }`}
         >
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px]">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-muted text-[10px]">
             4
           </span>
           <span className="truncate">Configuration Review</span>
