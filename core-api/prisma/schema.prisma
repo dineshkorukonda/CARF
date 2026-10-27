@@ -106,6 +106,7 @@ model Commit {
   threshold       Threshold?
   riskProfile     RiskProfile?
   rolloutOutcomes RolloutOutcome[]
+  healthReports   HealthReport[]
   createdAt       DateTime         @default(now())
 
   @@unique([owner, repo, sha])
@@ -334,4 +335,21 @@ model RepoIntegration {
 
   @@unique([installationId, owner, repo, integration])
   @@index([installationId])
+}
+
+// Observed health and policy verdicts; a rollback verdict is not proof of execution.
+model HealthReport {
+  id             String   @id @default(cuid())
+  commitId       String
+  commit         Commit   @relation(fields: [commitId], references: [id], onDelete: Cascade)
+  installationId String?
+  errorRate      Float
+  action         String
+  durationMs     Float?
+  threshold      Float
+  window         Int
+  createdAt      DateTime @default(now())
+
+  @@index([commitId, createdAt])
+  @@index([installationId, createdAt])
 }
