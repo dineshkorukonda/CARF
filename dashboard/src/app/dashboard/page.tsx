@@ -67,6 +67,10 @@ export default async function DashboardPage() {
           where: {
             installationId: { in: installationIds },
           },
+          include: {
+            changeVector: true,
+            threshold: true,
+          },
           orderBy: {
             createdAt: "desc",
           },

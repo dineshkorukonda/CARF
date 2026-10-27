@@ -12,6 +12,7 @@ import {
   Clock,
   ArrowRight,
   PlugZap,
+  Check,
 } from "lucide-react";
 import {
   deriveRepoStatus,
@@ -23,6 +24,7 @@ import {
   repoIdentityKey,
 } from "../../lib/deploymentMode";
 import { resolveFromLegacy } from "../../lib/capabilities";
+import { CARF_TERMS, CAPABILITY_LABELS } from "../../lib/terminology";
 import { commitPageHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
 import { Button } from "../../components/ui/button";
@@ -42,14 +44,13 @@ interface RepoConnectionItem {
   owner: string;
   repo: string;
   mode?: string | null;
-  deploymentIntegration?: string | null;
   runtimeAdapter?: string | null;
-  verifiedAt: Date | string | null;
-  monitoringPaused: boolean;
-  storedConfig?: unknown;
+  deploymentIntegration?: string | null;
   agentLastHeartbeat?: Date | string | null;
   agentRevoked?: boolean | null;
-  installTokenHash?: string | null;
+  storedConfig?: unknown;
+  verifiedAt?: Date | string | null;
+  monitoringPaused?: boolean;
 }
 
 interface RolloutOutcomeItem {
@@ -57,13 +58,13 @@ interface RolloutOutcomeItem {
   commitSha: string;
   owner: string | null;
   repo: string | null;
-  status: "PENDING" | "SUCCESS" | "ROLLED_BACK" | "FAILED";
+  status: "SUCCESS" | "ROLLED_BACK" | "FAILED" | "PENDING";
   threshold: number;
   window: number;
   startedAt: Date | string;
   finishedAt: Date | string | null;
   rolledBack: boolean;
-  reason: string | null;
+  reason?: string | null;
 }
 
 interface CommitItem {
@@ -72,6 +73,18 @@ interface CommitItem {
   owner: string;
   repo: string;
   createdAt: Date | string;
+  threshold?: {
+    finalThreshold: number;
+    finalWindow: number;
+    activeTypes?: string[];
+  } | null;
+  changeVector?: {
+    code: number;
+    config: number;
+    dependency: number;
+    infra: number;
+    codeComplexity?: number;
+  } | null;
 }
 
 interface RepoListViewProps {
@@ -139,14 +152,14 @@ export function RepoListView({
     });
 
     return Object.values(buckets);
-  }, [standaloneRollouts, dates]);
+  }, [dates, standaloneRollouts]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-5">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground">Repositories</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Repositories</h1>
+          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
             3-Layer Deployment Intelligence: CARF Core policy, deployment integrations, and runtime observability.
           </p>
         </div>
@@ -160,12 +173,6 @@ export function RepoListView({
           </Button>
         </div>
       </div>
-
-      {activityError ? (
-        <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-foreground" role="status">
-          {activityError}
-        </p>
-      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
@@ -199,9 +206,7 @@ export function RepoListView({
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">{rolledBackCount}</span>
-            <span className="text-xs text-muted-foreground">
-              {totalRollouts > 0 ? `of ${totalRollouts} rollouts` : "automated"}
-            </span>
+            <span className="text-xs text-muted-foreground">of {totalRollouts} rollouts</span>
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">Automated threshold-breach rollbacks</p>
         </div>
@@ -225,20 +230,15 @@ export function RepoListView({
         </div>
       </div>
 
-      {standaloneRollouts.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-5 shadow-xs">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground">Rollout Outcomes (last 14 days)</h2>
-              <p className="text-[11px] text-muted-foreground">
-                Runtime observation verdicts and rollback history across monitored applications.
-              </p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <RolloutOutcomeChart data={chartData} />
-          </div>
-        </div>
+      {(standaloneRollouts.length > 0 || commits.length > 0) && (
+        <RolloutOutcomeChart
+          data={chartData}
+          commits={commits}
+          rollouts={standaloneRollouts}
+          totalRollouts={totalRollouts}
+          rolledBackCount={rolledBackCount}
+          activePendingCount={activePendingCount}
+        />
       )}
 
       <div className="space-y-3">
@@ -254,7 +254,7 @@ export function RepoListView({
             <FolderGit2 className="mx-auto size-8 text-muted-foreground/60" />
             <p className="mt-2 text-xs font-semibold text-foreground">No connected repositories</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Add a repository to configure deployment integration and runtime adapters.
+              Add a repository to configure deployment integrations and runtime integrations.
             </p>
             <Link
               href="/dashboard/setup"
@@ -299,17 +299,24 @@ export function RepoListView({
               return (
                 <article
                   key={repo.id}
-                  className="flex min-w-0 flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs"
+                  className="flex min-w-0 flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs hover:border-border/80 transition-colors"
                 >
-                  <div className="space-y-3">
-                    <div className="flex min-w-0 flex-wrap items-start gap-3">
-                      <div className="min-w-0 flex-1 basis-48">
-                        <p className="font-semibold text-sm text-foreground [overflow-wrap:anywhere]">{repo.full_name}</p>
+                  <div className="space-y-3.5">
+                    {/* Header Row: Title, Branch, Integration Pills */}
+                    <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <FolderGit2 className="size-4 shrink-0 text-muted-foreground" />
+                          <p className="font-semibold text-sm text-foreground [overflow-wrap:anywhere]">
+                            {repo.full_name}
+                          </p>
+                        </div>
                         <p className="mt-1 text-[11px] text-muted-foreground [overflow-wrap:anywhere]">
-                          Branch <span className="font-mono text-foreground">{repo.default_branch}</span>
+                          Branch <span className="font-mono text-foreground font-medium">{repo.default_branch}</span>
                         </p>
                       </div>
-                      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+
+                      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5 sm:justify-end">
                         <span className="max-w-full rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold tracking-wider text-primary [overflow-wrap:anywhere]">
                           {resolved.integrationLabel.toUpperCase()}
                         </span>
@@ -325,103 +332,154 @@ export function RepoListView({
                       </div>
                     </div>
 
-                    <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-xs [overflow-wrap:anywhere] sm:grid-cols-2 [&>div]:min-w-0">
-                      <div>
-                        <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Deployment</dt>
-                        <dd className="font-semibold text-foreground">{resolved.integrationLabel}</dd>
+                    {/* Architecture Specification Grid */}
+                    <dl className="grid grid-cols-1 gap-2 text-xs [overflow-wrap:anywhere] sm:grid-cols-2 [&>div]:min-w-0">
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {CARF_TERMS.deploymentIntegration.label}
+                        </dt>
+                        <dd className="mt-1 font-semibold text-foreground text-xs truncate">
+                          {resolved.integrationLabel}
+                        </dd>
                       </div>
-                      <div>
-                        <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Runtime</dt>
-                        <dd className="font-semibold text-foreground">
-                          {resolved.runtimeLabel}
+
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          {CARF_TERMS.runtimeIntegration.label}
+                        </dt>
+                        <dd className="mt-1 font-semibold text-foreground text-xs flex items-center gap-1.5 truncate">
+                          <span className="truncate">{resolved.runtimeLabel}</span>
                           {resolved.runtimeStatus === "active" && (
-                            <span className="ml-1 inline-block whitespace-nowrap text-[10px] text-emerald-500 font-bold">● Active</span>
+                            <span className="inline-block whitespace-nowrap text-[10px] text-emerald-500 font-bold">● Active</span>
                           )}
                         </dd>
                       </div>
-                      {resolved.requiresAgent ? (
-                        <div>
-                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Host Agent</dt>
-                          <dd className="font-semibold text-foreground">
-                            {agentStatus === "online" || agentStatus === "colocated"
-                              ? "Connected"
-                              : agentStatus === "offline"
-                                ? "Offline"
-                                : agentStatus === "revoked"
-                                  ? "Revoked"
-                                  : "Not installed"}
-                          </dd>
-                        </div>
-                      ) : (
-                        <div>
-                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Agent Footprint</dt>
-                          <dd className="font-semibold text-emerald-600 dark:text-emerald-400">Zero Agent</dd>
-                        </div>
-                      )}
-                      <div>
-                        <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Status</dt>
-                        <dd className={`font-semibold ${badge.colorClass.split(" ")[1] ?? "text-foreground"}`}>
-                          {derivedStatus}
+
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                        {resolved.requiresAgent ? (
+                          <>
+                            <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Host Agent
+                            </dt>
+                            <dd className="mt-1 font-semibold text-foreground text-xs">
+                              {agentStatus === "online" || agentStatus === "colocated"
+                                ? "Connected"
+                                : agentStatus === "offline"
+                                  ? "Offline"
+                                  : agentStatus === "revoked"
+                                    ? "Revoked"
+                                    : "Not installed"}
+                            </dd>
+                          </>
+                        ) : (
+                          <>
+                            <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Agent Footprint
+                            </dt>
+                            <dd className="mt-1 font-semibold text-emerald-600 dark:text-emerald-400 text-xs">
+                              Zero Agent
+                            </dd>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5">
+                        <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Runtime Status
+                        </dt>
+                        <dd className={`mt-1 font-semibold text-xs flex items-center gap-1.5 ${badge.colorClass.split(" ")[1] ?? "text-foreground"}`}>
+                          <span className={`size-1.5 rounded-full ${badge.dotClass}`} />
+                          <span className="truncate">{derivedStatus}</span>
                         </dd>
                       </div>
+
                       {pm2Target && (
-                        <div>
-                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Target</dt>
-                          <dd className="font-mono font-semibold text-foreground">{pm2Target}</dd>
+                        <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 sm:col-span-1">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {CARF_TERMS.deploymentTarget.label}
+                          </dt>
+                          <dd className="mt-1 font-mono font-semibold text-foreground text-xs truncate">
+                            {pm2Target}
+                          </dd>
                         </div>
                       )}
+
                       {resolved.capabilities.rollback && (
-                        <div>
-                          <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">Rollouts / Rollbacks</dt>
-                          <dd className="font-semibold text-foreground">
+                        <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 sm:col-span-1">
+                          <dt className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Rollouts / Rollbacks
+                          </dt>
+                          <dd className="mt-1 font-semibold text-foreground text-xs">
                             {repoRollouts.length} / {repoRollouts.filter((r) => r.status === "ROLLED_BACK").length}
                           </dd>
                         </div>
                       )}
                     </dl>
 
-                    <div className="border-t border-border pt-2 text-[11px] text-muted-foreground">
+                    {/* Available Capabilities Row */}
+                    <div className="rounded-lg border border-border/50 bg-muted/10 p-2.5 text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-medium text-foreground">Capabilities:</span>
-                        <span className="rounded bg-muted/60 px-1.5 py-0.5">Policy & Risk</span>
-                        <span className="rounded bg-muted/60 px-1.5 py-0.5">Dynamic Thresholds</span>
-                        {resolved.capabilities.rollback && (
-                          <span className="rounded bg-sky-500/10 text-sky-700 dark:text-sky-300 px-1.5 py-0.5">
-                            Automated Rollback
+                        <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider mr-0.5">
+                          Available Capabilities:
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium px-2 py-0.5 text-[11px] border border-emerald-500/20">
+                          <Check className="size-3" />
+                          <span>{CAPABILITY_LABELS.policy}</span>
+                        </span>
+                        {resolved.capabilities.monitoring ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-sky-500/10 text-sky-700 dark:text-sky-300 font-medium px-2 py-0.5 text-[11px] border border-sky-500/20">
+                            <Check className="size-3" />
+                            <span>{CAPABILITY_LABELS.monitoring}</span>
+                          </span>
+                        ) : (
+                          <span className="rounded bg-muted/40 text-muted-foreground/60 px-2 py-0.5 text-[11px] border border-border/50">
+                            {CAPABILITY_LABELS.monitoring}
+                          </span>
+                        )}
+                        {resolved.capabilities.rollback ? (
+                          <span className="inline-flex items-center gap-1 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-medium px-2 py-0.5 text-[11px] border border-indigo-500/20">
+                            <Check className="size-3" />
+                            <span>{CAPABILITY_LABELS.rollback}</span>
+                          </span>
+                        ) : (
+                          <span className="rounded bg-muted/40 text-muted-foreground/60 px-2 py-0.5 text-[11px] border border-border/50">
+                            {CAPABILITY_LABELS.rollback}
                           </span>
                         )}
                       </div>
                     </div>
 
+                    {/* Recent Activity Section */}
                     <div className="border-t border-border pt-3">
-                      <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-muted-foreground mb-1.5">
                         <span className="font-semibold uppercase tracking-wider text-[11px]">
                           {repoRollouts.length > 0 ? "Recent Rollouts" : "Recent Commits"}
                         </span>
                         {latestRollout && <span className="text-[11px]">Latest: {latestRollout.status}</span>}
                       </div>
+
                       {repoRollouts.length > 0 ? (
-                        <ul className="mt-2 space-y-1.5">
+                        <ul className="space-y-1.5">
                           {repoRollouts.slice(0, 3).map((r) => (
                             <li
                               key={r.id}
-                              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs"
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs"
                             >
                               <div className="flex items-center gap-2">
                                 <Link
                                   href={commitPageHref(repo.owner, repo.name, r.commitSha)}
-                                  className="font-mono text-[11px] text-primary hover:underline"
+                                  className="font-mono text-[11px] font-semibold text-primary hover:underline"
                                 >
                                   {r.commitSha.slice(0, 7)}
                                 </Link>
                                 <span
                                   className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                                     r.status === "SUCCESS"
-                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
                                       : r.status === "ROLLED_BACK"
-                                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
                                         : r.status === "PENDING"
-                                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
                                           : "bg-muted text-muted-foreground"
                                   }`}
                                 >
@@ -435,18 +493,33 @@ export function RepoListView({
                           ))}
                         </ul>
                       ) : recentCommits.length > 0 ? (
-                        <ul className="mt-2 space-y-1.5">
+                        <ul className="space-y-1.5">
                           {recentCommits.map((commit) => (
-                            <li key={commit.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-2.5 py-1.5 text-xs">
-                              <Link href={commitPageHref(repo.owner, repo.name, commit.sha)} className="font-mono text-[11px] text-primary hover:underline">
-                                {commit.sha.slice(0, 7)}
-                              </Link>
-                              <span className="text-[11px] text-muted-foreground">{dates.date(commit.createdAt)}</span>
+                            <li
+                              key={commit.id}
+                              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-1.5 text-xs"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Link
+                                  href={commitPageHref(repo.owner, repo.name, commit.sha)}
+                                  className="font-mono text-[11px] font-semibold text-primary hover:underline"
+                                >
+                                  {commit.sha.slice(0, 7)}
+                                </Link>
+                                {commit.threshold && (
+                                  <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.2 font-mono text-[10px] text-primary">
+                                    {(commit.threshold.finalThreshold * 100).toFixed(1)}% / {commit.threshold.finalWindow}s
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground">
+                                {dates.date(commit.createdAt)}
+                              </span>
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p className="mt-2 text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground py-1">
                           {activityError ? "Recent activity is unavailable." : "No activity recorded yet. New commits will appear here."}
                         </p>
                       )}
@@ -456,7 +529,7 @@ export function RepoListView({
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
                     <Link
                       href={`/dashboard/repos/${repo.owner}/${repo.name}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
                     >
                       <span>View details</span>
                       <ArrowRight className="size-3" />

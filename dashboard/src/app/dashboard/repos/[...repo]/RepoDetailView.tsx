@@ -49,6 +49,7 @@ import {
 } from "../../../../lib/repoStatusDerivation";
 import { resolveRepoMode, resolveAugmentIntegration, type AugmentIntegration } from "../../../../lib/deploymentMode";
 import { resolveFromLegacy } from "../../../../lib/capabilities";
+import { CARF_TERMS, CAPABILITY_LABELS } from "../../../../lib/terminology";
 import { GitHubActionsIntegrationPanel } from "./GitHubActionsIntegrationPanel";
 import { AnalysisTriggerSettings } from "../../../../components/AnalysisTriggerSettings";
 import { PullRequestHistory } from "../../../../components/PullRequestHistory";
@@ -849,12 +850,12 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <p className="mt-1 text-xs text-muted-foreground">{commits[0]?.threshold ? `${(commits[0].threshold.finalThreshold * 100).toFixed(2)}% ceiling · ${commits[0].threshold.finalWindow}s window` : "Policy pending"}</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
-              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Runtime</p>
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">{CARF_TERMS.runtimeIntegration.label}</p>
               <p className="mt-2 text-lg font-semibold text-foreground">{isPm2 ? pm2Status?.process?.status ?? "Unknown" : resolved.runtimeLabel}</p>
               <p className="mt-1 font-mono text-xs text-muted-foreground">{isPm2 ? pm2Status?.processName ?? connection?.pm2Process ?? "Process unselected" : resolved.integrationLabel}</p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
-              <p className="text-[11px] font-semibold uppercase text-muted-foreground">Monitoring</p>
+              <p className="text-[11px] font-semibold uppercase text-muted-foreground">{CAPABILITY_LABELS.monitoring}</p>
               <p className="mt-2 text-lg font-semibold text-foreground">{monitoringPaused ? "Paused" : "Active"}</p>
               <p className="mt-1 text-xs text-muted-foreground">{connection?.verifiedAt ? `Verified ${dates.date(connection.verifiedAt)}` : "Connection needs verification"}</p>
             </div>
@@ -906,7 +907,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <div className="flex items-center gap-2">
                 <Server className="size-4 text-sky-500" />
                 <h3 className="text-sm font-semibold text-foreground">
-                  PM2 Runtime Adapter
+                  PM2 {CARF_TERMS.runtimeIntegration.label}
                 </h3>
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
@@ -954,7 +955,7 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-xs">
             <div className="rounded-lg border border-border bg-muted/20 p-3">
               <div className="text-[11px] font-medium text-muted-foreground uppercase">
-                Target Process
+                {CARF_TERMS.deploymentTarget.label}
               </div>
               <div className="mt-1 font-bold text-foreground font-mono truncate">
                 {pm2Status?.processName || connection?.pm2Process || "Unconfigured"}
@@ -1046,12 +1047,12 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
           <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
             <div className="flex items-center gap-4">
               <span className="font-medium text-foreground">Capabilities:</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Change-aware Policy</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Monitoring</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Rollback Control</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {CAPABILITY_LABELS.policy}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {CAPABILITY_LABELS.monitoring}</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ {CAPABILITY_LABELS.rollback}</span>
             </div>
             <div className="text-[11px] text-muted-foreground">
-              Adapter: <span className="font-mono text-foreground font-semibold">Local PM2 (Direct)</span>
+              {CARF_TERMS.runtimeIntegration.label}: <span className="font-mono text-foreground font-semibold">Local PM2 (Direct)</span>
             </div>
           </div>
         </div>

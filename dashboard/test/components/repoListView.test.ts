@@ -12,6 +12,7 @@ const repos = ["policy", "runtime", "empty"].map((name, index) => ({
 const connections = repos.map((repo) => ({
   id: String(repo.id), installationId: "1", owner: repo.owner, repo: repo.name,
   mode: repo.name === "policy" ? "augment" : "standalone",
+  storedConfig: repo.name === "runtime" ? { target: "api-service" } : undefined,
   verifiedAt: null, monitoringPaused: false,
 }));
 const commit = (id: string, repo: string, createdAt: string) => ({ id, sha: `${id}abcdef123`, owner: "ACME", repo, createdAt });
@@ -70,5 +71,25 @@ describe("repository card recent activity", () => {
       expect(card).toContain("Recent activity is unavailable.");
       expect(card).not.toContain("No activity recorded yet");
     }
+  });
+});
+
+describe("standardized terminology on repository cards", () => {
+  it("renders standardized field labels and capabilities", () => {
+    const [policy, runtime] = cards(render());
+    // Deployment Integration & Runtime Integration labels
+    expect(policy).toContain("Deployment Integration");
+    expect(policy).toContain("Runtime Integration");
+    expect(policy).toContain("Runtime Status");
+    expect(policy).toContain("Available Capabilities");
+    expect(policy).toContain("Risk Policy");
+
+    // Runtime repo with target
+    expect(runtime).toContain("Deployment Integration");
+    expect(runtime).toContain("Runtime Integration");
+    expect(runtime).toContain("Deployment Target");
+    expect(runtime).toContain("api-service");
+    expect(runtime).toContain("Runtime Monitoring");
+    expect(runtime).toContain("Automated Rollback");
   });
 });
