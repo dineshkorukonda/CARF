@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 const execAsync = promisify(exec);
 export const VERSION = "0.1.0";
@@ -31,7 +32,7 @@ export function compareAgentVersion(a, b) {
 }
 
 function getEnvPaths() {
-  const agentDir = path.dirname(new URL(import.meta.url).pathname);
+  const agentDir = path.dirname(fileURLToPath(import.meta.url));
   return [
     path.resolve(agentDir, ".env"),
     path.resolve(process.cwd(), ".env"),
@@ -143,7 +144,7 @@ async function apiRequest(endpoint, method = "GET", body = null) {
 }
 
 function agentFilePath() {
-  return new URL(import.meta.url).pathname;
+  return fileURLToPath(import.meta.url);
 }
 
 /**
@@ -153,7 +154,7 @@ function agentFilePath() {
  */
 export async function applyStagedAgentUpdate(nextSource, options = {}) {
   const currentPath = options.currentPath ?? agentFilePath();
-  const nextPath = `${currentPath}.next`;
+  const nextPath = `${currentPath}.next.mjs`;
   const bakPath = `${currentPath}.bak`;
   const writeFile = options.writeFile ?? ((p, data) => fs.writeFileSync(p, data, "utf-8"));
   const rename = options.rename ?? ((from, to) => fs.renameSync(from, to));
@@ -757,7 +758,7 @@ async function startDaemon() {
 }
 
 // CLI argument execution — skip when imported by tests
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname);
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 
 // Check for --token or -t
@@ -810,7 +811,7 @@ Options:
       if (INSTALL_TOKEN) {
         await sendHeartbeat(checks);
       }
-      process.exit(checks.every((c) => c.passed) ? 0 : 0);
+      process.exit(checks.every((c) => c.passed) ? 0 : 1);
     } catch (err) {
       console.error(`Verification error: ${err.message}`);
       process.exit(1);

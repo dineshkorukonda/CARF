@@ -16,6 +16,14 @@ describe("compareAgentVersion", () => {
 });
 
 describe("applyStagedAgentUpdate", () => {
+  it("uses the real Node syntax checker for valid and invalid modules", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "carf-agent-"));
+    const currentPath = join(dir, "agent.mjs");
+    writeFileSync(currentPath, "export const ok = true;\n");
+    await applyStagedAgentUpdate("export const ok = false;\n", { currentPath });
+    await expect(applyStagedAgentUpdate("invalid {", { currentPath })).rejects.toThrow(/syntax check/);
+    expect(readFileSync(currentPath, "utf-8")).toBe("export const ok = false;\n");
+  });
   it("rejects a staged file that fails the syntax check and keeps the current file", async () => {
     const dir = mkdtempSync(join(tmpdir(), "carf-agent-"));
     const currentPath = join(dir, "agent.mjs");

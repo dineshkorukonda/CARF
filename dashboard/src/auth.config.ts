@@ -57,18 +57,23 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
+      // Machine routes authenticate their own scoped bearer tokens.
+      const isMachineRoute = nextUrl.pathname.startsWith("/api/agent/") ||
+        nextUrl.pathname === "/api/health";
       const isAuthRoute =
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/api/auth");
       const isPublicAsset =
         nextUrl.pathname === "/" ||
+        nextUrl.pathname === "/install.sh" ||
+        nextUrl.pathname === "/agent/agent.mjs" ||
         nextUrl.pathname.startsWith("/_next") ||
         nextUrl.pathname.startsWith("/static") ||
         nextUrl.pathname.endsWith(".ico") ||
         nextUrl.pathname.endsWith(".png") ||
         nextUrl.pathname.endsWith(".svg");
 
-      if (isAuthRoute || isPublicAsset) {
+      if (isAuthRoute || isPublicAsset || isMachineRoute) {
         return true;
       }
 
