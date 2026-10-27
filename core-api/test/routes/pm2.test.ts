@@ -29,6 +29,10 @@ describe("resolvePm2VerifyLayout", () => {
 
 function createMockPrisma(installationId = "inst-100") {
   return {
+    repoConnection: { findMany: vi.fn(async () => [
+      { owner: "test-owner", repo: "test-repo", storedConfig: { targets: ["my-app", "non-existent-app", "api-server", "worker"] } },
+      { owner: "dineshkorukonda", repo: "Sahaay", pm2Process: "sahaay" },
+    ]) },
     installationApiKey: {
       findUnique: vi.fn(async ({ where }: { where: { keyHash: string } }) => {
         if (where.keyHash === TEST_KEY_HASH) {
@@ -41,6 +45,31 @@ function createMockPrisma(installationId = "inst-100") {
 }
 
 describe("GET /v1/pm2/discovery", () => {
+  it("does not expose processes or verify targets belonging to another repository", async () => {
+    const app = Fastify();
+    const prisma = createMockPrisma();
+    prisma.repoConnection.findMany.mockResolvedValue([{ owner: "mine", repo: "app", pm2Process: "owned" }] as never);
+    const executor = vi.fn().mockResolvedValue({ stdout: JSON.stringify([
+      { name: "owned", pm2_env: { status: "online" } },
+      { name: "other-tenant", pm2_env: { status: "online", pm_cwd: "/secret" } },
+    ]), stderr: "" });
+    await registerPm2Route(app, { prismaClient: prisma as any, executor });
+    for (const url of ["/v1/pm2/discovery", "/v1/pm2/apps"]) {
+      const response = await app.inject({ method: "GET", url, headers: { authorization: `Bearer ${TEST_API_KEY}` } });
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain("owned");
+      expect(response.body).not.toContain("other-tenant");
+      expect(response.body).not.toContain("/secret");
+    }
+    executor.mockClear();
+    const denied = await app.inject({ method: "POST", url: "/v1/pm2/verify",
+      headers: { authorization: `Bearer ${TEST_API_KEY}` }, payload: {
+        owner: "other", repo: "app", target: { name: "other-tenant" },
+      } });
+    expect(denied.statusCode).toBe(403);
+    expect(executor).not.toHaveBeenCalled();
+    await app.close();
+  });
   it("returns 401 when no Authorization header is provided", async () => {
     const app = Fastify();
     await registerPm2Route(app, {
@@ -258,6 +287,7 @@ describe("POST /v1/pm2/verify", () => {
     const prismaMock = {
       ...createMockPrisma(),
       repoConnection: {
+        ...createMockPrisma().repoConnection,
         upsert: upsertFn,
         findUnique: vi.fn().mockResolvedValue({ storedConfig: { buildCommand: "npm run build", probeCount: 3 } }),
       },
@@ -329,6 +359,7 @@ describe("POST /v1/pm2/verify", () => {
     const prismaMock = {
       ...createMockPrisma(),
       repoConnection: {
+        ...createMockPrisma().repoConnection,
         upsert: upsertFn,
       },
     };
@@ -512,7 +543,7 @@ describe("POST /v1/pm2/verify", () => {
     const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
 
     await registerPm2Route(app, {
-      prismaClient: { ...createMockPrisma(), repoConnection: { upsert: vi.fn().mockResolvedValue({}) } } as any,
+      prismaClient: { ...createMockPrisma(), repoConnection: { ...createMockPrisma().repoConnection, upsert: vi.fn().mockResolvedValue({}) } } as any,
       executor: mockExecutor,
       fsAccess: mockFsAccess,
       httpFetch: mockHttpFetch,
@@ -557,7 +588,7 @@ describe("POST /v1/pm2/verify", () => {
     const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
 
     await registerPm2Route(app, {
-      prismaClient: { ...createMockPrisma(), repoConnection: { upsert: vi.fn().mockResolvedValue({}) } } as any,
+      prismaClient: { ...createMockPrisma(), repoConnection: { ...createMockPrisma().repoConnection, upsert: vi.fn().mockResolvedValue({}) } } as any,
       executor: mockExecutor,
       fsAccess: mockFsAccess,
       httpFetch: mockHttpFetch,
@@ -603,7 +634,7 @@ describe("POST /v1/pm2/verify", () => {
     const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
 
     await registerPm2Route(app, {
-      prismaClient: { ...createMockPrisma(), repoConnection: { upsert: vi.fn().mockResolvedValue({}) } } as any,
+      prismaClient: { ...createMockPrisma(), repoConnection: { ...createMockPrisma().repoConnection, upsert: vi.fn().mockResolvedValue({}) } } as any,
       executor: mockExecutor,
       fsAccess: mockFsAccess,
       httpFetch: mockHttpFetch,
@@ -647,7 +678,7 @@ describe("POST /v1/pm2/verify", () => {
     const mockHttpFetch = vi.fn().mockResolvedValue({ status: 200, text: async () => "OK" });
 
     await registerPm2Route(app, {
-      prismaClient: { ...createMockPrisma(), repoConnection: { upsert: vi.fn().mockResolvedValue({}) } } as any,
+      prismaClient: { ...createMockPrisma(), repoConnection: { ...createMockPrisma().repoConnection, upsert: vi.fn().mockResolvedValue({}) } } as any,
       executor: mockExecutor,
       fsAccess: mockFsAccess,
       httpFetch: mockHttpFetch,
