@@ -1,3 +1,5 @@
+import { acquireDeploymentLease, guardAdapter, DeploymentLeaseLostError } from "../adapters/deploymentLease.js";
+import type { StandaloneLoopLockPrismaClient } from "../adapters/standaloneLoopLock.js";
 import type { RollbackAdapter } from "../adapters/rollbackAdapter.js";
 import {
   finalizeRolloutOutcome,
@@ -16,6 +18,7 @@ export interface MonitorLogger {
 
 export interface RolloutMonitorOptions {
   prismaClient: RolloutOutcomePrismaClient;
+  leaseClient?: StandaloneLoopLockPrismaClient;
   logger: MonitorLogger;
   /** Poll interval in milliseconds. Defaults to 2000ms. */
   pollIntervalMs?: number;
@@ -41,6 +44,7 @@ function realSleep(ms: number): Promise<void> {
 }
 
 export class RolloutMonitor {
+  private readonly leaseClient: StandaloneLoopLockPrismaClient | undefined;
   private readonly prisma: RolloutOutcomePrismaClient;
   private readonly logger: MonitorLogger;
   private readonly pollIntervalMs: number;
@@ -54,6 +58,7 @@ export class RolloutMonitor {
 
   constructor(options: RolloutMonitorOptions) {
     this.prisma = options.prismaClient;
+    this.leaseClient = options.leaseClient;
     this.logger = options.logger;
     this.pollIntervalMs = options.pollIntervalMs ?? 2000;
     this.sleep = options.sleep ?? realSleep;
@@ -106,11 +111,24 @@ export class RolloutMonitor {
       if (outcome.rollbackExecutor === "github_actions" && outcome.rollbackRequestedAt) {
         continue;
       }
+      if (this.leaseClient && (!outcome.owner || !outcome.repo)) {
+        await finalizeRolloutOutcome(this.prisma, { id: outcome.id, status: "FAILED", rolledBack: false,
+          reason: "Cannot recover deployment without repository identity" });
+        continue;
+      }
+      const lease = this.leaseClient ? await acquireDeploymentLease(this.leaseClient, outcome.owner!, outcome.repo!) : null;
+      if (this.leaseClient && !lease) continue;
+      const heartbeat = lease ? setInterval(() => {
+        lease.assertHeld().catch(error => this.logger.error({ error, id: outcome.id }, "recovery lease renewal failed"));
+      }, 20_000) : undefined;
+      let job: Promise<void> | undefined;
+      try {
       const startTime = outcome.readyAt ? new Date(outcome.readyAt).getTime() : new Date(outcome.startedAt).getTime();
       const elapsedSeconds = Math.max(0, Math.floor((currentTime - startTime) / 1000));
       const remainingSeconds = outcome.window - elapsedSeconds;
 
-      const adapter = factory ? await factory(outcome) : undefined;
+      const rawAdapter = factory ? await factory(outcome) : undefined;
+      const adapter = rawAdapter && lease ? guardAdapter(rawAdapter, lease) : rawAdapter;
 
       if (!adapter) {
         if (outcome.rollbackExecutor === "github_actions") {
@@ -118,12 +136,12 @@ export class RolloutMonitor {
           continue;
         }
         if (remainingSeconds <= 0) {
-          // Expired while offline without an adapter: finalize as SUCCESS
+          // Missing observations cannot establish deployment health.
           await finalizeRolloutOutcome(this.prisma, {
             id: outcome.id,
-            status: "SUCCESS",
+            status: "FAILED",
             rolledBack: false,
-            reason: "Window expired during server offline period",
+            reason: "Observation unavailable during server offline period; no recovery adapter",
             finishedAt: this.now(),
           });
           recoveredCount++;
@@ -145,6 +163,9 @@ export class RolloutMonitor {
               await this.handleRollback(outcome, adapter, undefined, health.errorRate, "Health breach during boot recovery", 60);
               recoveredCount++;
               continue;
+            }
+            if (adapter.getCurrentRevision && await adapter.getCurrentRevision(false) !== outcome.commitSha) {
+              throw new Error("A different revision is deployed; refusing stale recovery rollback");
             }
             let rollbackVerified: boolean | undefined = undefined;
             if (typeof adapter.rollbackWithVerification === "function") {
@@ -190,9 +211,14 @@ export class RolloutMonitor {
         }
       } else {
         // Still within window: resume active monitoring
-        this.enqueue(outcome, adapter);
+        job = this.enqueue(outcome, adapter);
       }
       recoveredCount++;
+      } finally {
+        const release = async () => { if (heartbeat) clearInterval(heartbeat); await lease?.release(); };
+        if (job) void job.finally(release).catch(error => this.logger.error({ error, id: outcome.id }, "recovery lease release failed"));
+        else await release();
+      }
     }
 
     return recoveredCount;
@@ -360,6 +386,10 @@ export class RolloutMonitor {
         await this.sleep(sleepDuration);
       }
     } catch (error) {
+      if (error instanceof DeploymentLeaseLostError) {
+        this.logger.error({ id: outcome.id, error }, "monitor stopped after losing deployment ownership");
+        return;
+      }
       this.logger.error(
         { id: outcome.id, error: (error as Error).message },
         "adapter threw during rollout monitoring; marking FAILED"
@@ -411,6 +441,9 @@ export class RolloutMonitor {
       });
       this.logger.info({ id: outcome.id }, "rollback requested; awaiting GitHub Actions rollback job");
       return;
+    }
+    if (adapter.getCurrentRevision && await adapter.getCurrentRevision(false) !== outcome.commitSha) {
+      throw new Error("A different revision is deployed; refusing stale monitor rollback");
     }
     let rollbackVerified: boolean | undefined = undefined;
     if (typeof adapter.rollbackWithVerification === "function") {

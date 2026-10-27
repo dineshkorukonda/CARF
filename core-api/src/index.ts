@@ -92,6 +92,7 @@ const app = buildApp({
 });
 
 rolloutMonitor = new RolloutMonitor({
+  leaseClient: prisma,
   prismaClient: prisma as unknown as RolloutOutcomePrismaClient,
   logger: app.log,
   onRollbackAlert: (event) => dispatchRollbackAlert(process.env.CARF_ALERT_WEBHOOK_URL, event),

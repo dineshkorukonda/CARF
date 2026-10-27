@@ -26,12 +26,12 @@ export const DEFAULT_HEARTBEAT_INTERVAL_MS = 20_000;
 /** Minimal seam over the subset of PrismaClient's API this module needs. */
 export interface StandaloneLoopLockPrismaClient {
   standaloneLoopLock: {
-    create(args: { data: { owner: string; repo: string; sha: string } }): Promise<unknown>;
+    create(args: { data: { id?: string; owner: string; repo: string; sha: string } }): Promise<unknown>;
     deleteMany(args: {
-      where: { owner: string; repo: string; sha: string; heartbeatAt?: { lt: Date } };
+      where: { id?: string; owner: string; repo: string; sha: string; heartbeatAt?: { lt: Date } };
     }): Promise<{ count: number }>;
     updateMany(args: {
-      where: { owner: string; repo: string; sha: string };
+      where: { id?: string; owner: string; repo: string; sha: string };
       data: { heartbeatAt: Date };
     }): Promise<{ count: number }>;
   };

@@ -336,7 +336,7 @@ describe("handleWebhookCommit", () => {
     expect(standaloneLoopRunner).toHaveBeenCalledTimes(1);
     const call = standaloneLoopRunner.mock.calls[0]!;
     expect(call[0]).toBe("head456"); // sha
-    expect(call[1]).toBe(fakeAdapter);
+    expect(call[1]).toEqual(expect.objectContaining({ checkHealth: expect.any(Function), rollback: expect.any(Function) }));
     expect(call[3]).toBe("web"); // target string
   });
 
@@ -554,7 +554,7 @@ describe("handleWebhookCommit", () => {
     expect(fakeRolloutMonitor.enqueue).toHaveBeenCalledTimes(1);
     expect(fakeRolloutMonitor.enqueue).toHaveBeenCalledWith(
       expect.objectContaining({ commitSha: "head456" }),
-      fakeAdapter,
+      expect.objectContaining({ checkHealth: expect.any(Function), rollback: expect.any(Function) }),
       "sahaay",
       30
     );
