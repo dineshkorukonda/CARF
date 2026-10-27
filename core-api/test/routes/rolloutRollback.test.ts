@@ -51,6 +51,21 @@ function createMockPrisma(options: {
 }
 
 describe("POST /v1/rollouts/:id/rollback", () => {
+  it("does not overwrite a successor's outcome after losing the deployment lease", async () => {
+    const prisma = createMockPrisma({ rolloutOutcome: {
+      id: "lost", installationId: "inst-100", owner: "org", repo: "api",
+      commitSha: "head", previousSha: "base", status: "SUCCESS",
+    } });
+    prisma.standaloneLoopLock.updateMany.mockResolvedValue({ count: 0 });
+    const adapter = { checkHealth: vi.fn(), rollback: vi.fn(), getCurrentRevision: vi.fn(), rollbackWithVerification: vi.fn() };
+    const app = Fastify();
+    await registerRolloutRollbackRoute(app, { localInstallationId: "inst-100", prismaClient: prisma as any, adapterFactory: () => adapter });
+    const response = await app.inject({ method: "POST", url: "/v1/rollouts/lost/rollback", headers: { authorization: `Bearer ${TEST_API_KEY}` } });
+    expect(response.statusCode).toBe(409);
+    expect(prisma.rolloutOutcome.update).not.toHaveBeenCalled();
+    expect(adapter.rollbackWithVerification).not.toHaveBeenCalled();
+    await app.close();
+  });
   it.each(["stale", "claimed", "unhealthy"])("protects manual rollback: %s", async scenario => {
     const prisma = createMockPrisma({ rolloutOutcome: {
       id: "manual", installationId: "inst-100", owner: "org", repo: "api",

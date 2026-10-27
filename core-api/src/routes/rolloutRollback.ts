@@ -1,4 +1,4 @@
-import { acquireDeploymentLease, guardAdapter } from "../adapters/deploymentLease.js";
+import { acquireDeploymentLease, guardAdapter, DeploymentLeaseLostError } from "../adapters/deploymentLease.js";
 import type { StandaloneLoopLockPrismaClient } from "../adapters/standaloneLoopLock.js";
 import type { FastifyInstance, FastifySchema } from "fastify";
 import { resolveInstallationFromAuthHeader, type InstallationAuthPrismaClient } from "../auth/installationAuth.js";
@@ -349,6 +349,10 @@ export async function registerRolloutRollbackRoute(
           message: `Rollback to ${previousSha} executed and health verified: ${rollbackVerified === true}`,
         });
       } catch (err) {
+        if (err instanceof DeploymentLeaseLostError) {
+          request.log.error({ err, id: rollout.id }, "rollback stopped after losing deployment ownership");
+          return reply.code(409).send({ error: "Deployment ownership was lost; inspect the current rollout before retrying" });
+        }
         if (claimed) {
           await prismaClient.rolloutOutcome.update({
             where: { id: rollout.id },
