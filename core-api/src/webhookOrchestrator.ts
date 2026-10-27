@@ -116,11 +116,9 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
     const apiKeyClient = deps.apiKeyPrismaClient ?? (defaultPrisma as unknown as InstallationApiKeyPrismaClient);
     const result = await ensureApiKeyForInstallation(apiKeyClient, target.installationId);
     if (result.created) {
-      // Only time this plaintext key ever exists outside the hash stored in the DB --
-      // shown once, here, deliberately (see InstallationApiKey's schema doc comment).
       deps.logger.info(
-        { installationId: target.installationId, apiKey: result.plaintextKey },
-        "issued a new installation API key -- store it now, it cannot be recovered later"
+        { installationId: target.installationId },
+        "issued a new installation API key"
       );
     }
   } catch (error) {
