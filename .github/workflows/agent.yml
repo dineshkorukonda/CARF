@@ -2,9 +2,9 @@ name: agent CI
 on:
   push:
     branches: [main]
-    paths: ["agent/**", ".github/workflows/agent.yml"]
+    paths: ["agent/**", ".gitattributes", ".github/workflows/agent.yml"]
   pull_request:
-    paths: ["agent/**", ".github/workflows/agent.yml"]
+    paths: ["agent/**", ".gitattributes", ".github/workflows/agent.yml"]
 jobs:
   test:
     strategy:
