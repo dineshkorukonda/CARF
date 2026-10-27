@@ -15,10 +15,8 @@ export async function verifyDeploymentCi(
     head_branch?: string; head_repository?: { full_name?: string }; repository?: { full_name?: string };
   };
   const repository = `${input.owner}/${input.repo}`.toLowerCase();
-  const isCarfDeployment = run.name === "CARF PM2 Deployment" || run.name === "CARF Deployment";
-  const validWorkflowName = input.ciWorkflowName
-    ? run.name?.toLowerCase() === input.ciWorkflowName.toLowerCase()
-    : Boolean(run.name && !isCarfDeployment);
+  // A green unrelated workflow (for example docs) does not authorize deployment.
+  const validWorkflowName = run.name === (input.ciWorkflowName ?? "CI");
 
   if (!validWorkflowName || run.status !== "completed" || run.conclusion !== "success" || run.event !== "push" ||
     run.head_sha?.toLowerCase() !== input.sha || run.head_branch !== input.branch ||

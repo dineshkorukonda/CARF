@@ -36,6 +36,24 @@ describe("POST /v1/commits/refresh", () => {
   afterEach(async () => {
     await app.close();
   });
+  it("uses the stored required workflow instead of accepting the caller's successful unrelated run", async () => {
+    const prisma = new FakePrisma();
+    const key = generateApiKey();
+    prisma.apiKeys.set(key.hash, "inst-1");
+    const classifyCommit = vi.fn();
+    app = Fastify();
+    await registerRefreshCommitsRoute(app, {
+      prismaClient: { ...prisma, repoConnection: { findUnique: async () => ({ storedConfig: { ciWorkflowName: "Required tests" } }) } },
+      getInstallationToken: async () => "token", classifyCommit, fetchFn: passedCi,
+    });
+    const response = await app.inject({ method: "POST", url: "/v1/commits/refresh",
+      headers: { authorization: `Bearer ${key.plaintext}` }, payload: {
+        owner: "acme", repo: "widgets", observeLive: true, expectedSha: "a".repeat(40), ciRunId: 12,
+        ciWorkflowName: "CI",
+      } });
+    expect(response.statusCode).toBe(403);
+    expect(classifyCommit).not.toHaveBeenCalled();
+  });
 
   it("classifies a missing tip without deploying when requested by integration verification", async () => {
     const prisma = new FakePrisma();

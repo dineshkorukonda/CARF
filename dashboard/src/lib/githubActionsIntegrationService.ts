@@ -335,10 +335,10 @@ export class GitHubActionsIntegrationService {
       if (managedPm2 && pm2Setup.layout === "git" && !pm2Setup.buildCommand?.trim()) {
         throw new IntegrationError("invalid_configuration", "Set the PM2 build command before integrating. For Sahaay use npm ci && npm run build in /opt/sahaay/my-app; it runs during deployment and rollback. Apps without a build step can use true.");
       }
-      if (managedPm2 && !await gh.hasDeploymentCi(token, ctx.owner, ctx.repo)) {
+      if (managedPm2 && !await gh.hasDeploymentCi(token, ctx.owner, ctx.repo, undefined, this.ciWorkflowName(ctx))) {
         throw new IntegrationError("invalid_configuration", "Automatic PM2 deployment requires an active GitHub Actions workflow named CI that runs on pushes to the deployment branch. Add it before integrating.");
       }
-      const desired = renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch, managedPm2 });
+      const desired = renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch, managedPm2, ciWorkflowName: this.ciWorkflowName(ctx) });
       const existing = await gh.getFile(token, ctx.owner, ctx.repo, CARF_WORKFLOW_PATH, branch);
       const ownership = inspectExistingWorkflow(existing?.content ?? null);
 
@@ -407,7 +407,7 @@ export class GitHubActionsIntegrationService {
       if (this.managesPm2(ctx)) {
         const setup = pm2FieldsFromStoredConfig(ctx.connection.storedConfig);
         checks.push({ id: "pm2-build", label: "PM2 deployment and rollback build command is configured", ok: setup.layout !== "git" || Boolean(setup.buildCommand?.trim()) });
-        checks.push({ id: "ci-workflow", label: "Active CI workflow is available for deployment", ok: await gh.hasDeploymentCi(token, ctx.owner, ctx.repo), detail: "PM2 deploys only after the CI workflow succeeds for a push to the deployment branch." });
+        checks.push({ id: "ci-workflow", label: "Active CI workflow is available for deployment", ok: await gh.hasDeploymentCi(token, ctx.owner, ctx.repo, undefined, this.ciWorkflowName(ctx)), detail: "PM2 deploys only after the required CI workflow succeeds for a push to the deployment branch." });
       }
 
       const file = await gh.getFile(token, ctx.owner, ctx.repo, CARF_WORKFLOW_PATH, branch);
@@ -567,12 +567,17 @@ export class GitHubActionsIntegrationService {
   }
 
   /** Canonical template for the "Advanced / Manual configuration" view. Contains no secret values. */
+  private ciWorkflowName(ctx: IntegrationContext): string {
+    const stored = ctx.connection.storedConfig as { ciWorkflowName?: unknown } | null;
+    return typeof stored?.ciWorkflowName === "string" && stored.ciWorkflowName.trim() ? stored.ciWorkflowName : "CI";
+  }
+
   async manualWorkflow(ctx: IntegrationContext): Promise<string> {
     try {
       const record = await this.deps.store.find(this.key(ctx));
-      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: record?.branch ?? "main", managedPm2: this.managesPm2(ctx) });
+      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: record?.branch ?? "main", managedPm2: this.managesPm2(ctx), ciWorkflowName: this.ciWorkflowName(ctx) });
     } catch {
-      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: "main", managedPm2: this.managesPm2(ctx) });
+      return renderCarfWorkflow({ coreApiUrl: this.deps.coreApiUrl, branch: "main", managedPm2: this.managesPm2(ctx), ciWorkflowName: this.ciWorkflowName(ctx) });
     }
   }
 
