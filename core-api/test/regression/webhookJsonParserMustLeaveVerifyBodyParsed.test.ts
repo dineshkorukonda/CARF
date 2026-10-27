@@ -24,7 +24,7 @@ describe("webhook JSON parser must not leave /v1/pm2/verify with a string body",
               : null
           ),
         },
-        repoConnection: { upsert: vi.fn().mockResolvedValue({}) },
+        repoConnection: { upsert: vi.fn().mockResolvedValue({}), findMany: vi.fn().mockResolvedValue([{ owner: "dineshkorukonda", repo: "CARF", pm2Process: "carf-dashboard" }]) },
       } as never,
       executor: {
         exec: vi.fn(async () => ({

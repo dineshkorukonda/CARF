@@ -222,7 +222,7 @@ model RolloutOutcome {
   updatedAt        DateTime        @default(now()) @updatedAt
   samples          RolloutSample[]
 
-  @@unique([installationId, commitSha])
+  @@unique([installationId, owner, repo, commitSha])
   @@index([commitId])
   @@index([installationId])
   @@index([status])
