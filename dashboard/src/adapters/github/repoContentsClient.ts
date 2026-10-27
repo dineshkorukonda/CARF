@@ -98,11 +98,7 @@ export interface RepoInfo {
 
 /** CI-gated PM2 deployment checks for an active CI workflow matching configured or standard CI names. */
 export async function hasDeploymentCi(token: string, owner: string, repo: string, fetchFn: FetchFn = fetch, targetWorkflowName?: string): Promise<boolean> {
-  const isCiName = (name: string) => {
-    if (targetWorkflowName && name.toLowerCase() === targetWorkflowName.toLowerCase()) return true;
-    const lower = name.toLowerCase();
-    return lower === "ci" || lower === "build" || lower === "test" || lower === "build and test" || lower === "continuous integration";
-  };
+  const isCiName = (name: string) => name === (targetWorkflowName ?? "CI");
   for (let page = 1; page <= 10; page++) {
     const res = await call(fetchFn, `${GITHUB_API_BASE}/repos/${owner}/${repo}/actions/workflows?per_page=100&page=${page}`, { headers: headers(token) });
     if (!res.ok) throw await failure(res, "read CI workflows (Actions: Read)");
