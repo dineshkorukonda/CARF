@@ -10,7 +10,10 @@ describe("session middleware boundaries", () => {
     "allows machine authentication or public assets at %s", async (path) => {
       expect(await authorize(path)).toBe(true);
     });
-  it.each(["/dashboard", "/api/repo/link", "/api/agent-admin", "/agent/private.mjs"])(
+  it.each(["/docs", "/docs/integrations"])("allows public documentation at %s", async (path) => {
+    expect(await authorize(path)).toBe(true);
+  });
+  it.each(["/docs-private", "/dashboard", "/api/repo/link", "/api/agent-admin", "/agent/private.mjs"])(
     "requires a session at %s", async (path) => {
       expect(await authorize(path)).toBe(false);
     });

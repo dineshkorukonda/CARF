@@ -1,6 +1,6 @@
 export const DASHBOARD_NAV_ITEMS = [
   { href: "/dashboard", exact: true, label: "Repositories" },
-  { href: "/dashboard/integrations", exact: false, label: "Integrations" },
+  { href: "/docs/integrations", exact: false, label: "Integration docs" },
   { href: "/dashboard/settings", exact: false, label: "Settings" },
 ] as const;
 
@@ -11,8 +11,8 @@ export const DASHBOARD_NAV_GROUPS = [
     items: [DASHBOARD_NAV_ITEMS[0]],
   },
   {
-    id: "connections",
-    label: "Connections",
+    id: "resources",
+    label: "Resources",
     items: [DASHBOARD_NAV_ITEMS[1]],
   },
   {

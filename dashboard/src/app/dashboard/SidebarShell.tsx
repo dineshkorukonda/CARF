@@ -35,7 +35,7 @@ const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
 const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/dashboard": FolderGit2,
-  "/dashboard/integrations": PlugZap,
+  "/docs/integrations": PlugZap,
   "/dashboard/settings": Sliders,
 };
 

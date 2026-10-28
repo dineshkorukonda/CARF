@@ -205,7 +205,7 @@ export function RepoListView({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button nativeButton={false} variant="outline" size="sm" render={<Link href="/dashboard/integrations" />}>
+          <Button nativeButton={false} variant="outline" size="sm" render={<Link href="/docs/integrations" />}>
             <PlugZap className="size-3.5" />
             Integrations
           </Button>

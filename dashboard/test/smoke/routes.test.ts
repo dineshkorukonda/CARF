@@ -41,6 +41,8 @@ const ROUTE_MODULES: Array<[path: string, verbs: string[], loader: () => Promise
 ];
 
 const PAGE_MODULES: Array<[path: string, loader: () => Promise<unknown>]> = [
+  ["docs", () => import("../../src/app/docs/page")],
+  ["docs/integrations", () => import("../../src/app/docs/integrations/page")],
   ["/", () => import("../../src/app/page")],
   ["(auth)/login", () => import("../../src/app/(auth)/login/page")],
   ["dashboard", () => import("../../src/app/dashboard/page")],

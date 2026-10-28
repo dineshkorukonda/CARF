@@ -96,7 +96,7 @@ export default async function HomePage() {
               <a href="#capabilities" className="transition-colors hover:text-foreground">
                 Capabilities
               </a>
-              <Link href="/dashboard/integrations" className="transition-colors hover:text-foreground">
+              <Link href="/docs/integrations" className="transition-colors hover:text-foreground">
                 Integrations
               </Link>
             </nav>
@@ -153,7 +153,7 @@ export default async function HomePage() {
                     <span>{account ? "Open Dashboard" : "Connect Repository"}</span>
                     <ArrowRight className="size-3.5 ml-1.5" />
                   </Button>
-                  <Button size="default" variant="outline" render={<Link href="/dashboard/integrations" />}>
+                  <Button size="default" variant="outline" render={<Link href="/docs/integrations" />}>
                     <span>View Architecture Spec</span>
                   </Button>
                 </div>
@@ -408,7 +408,7 @@ export default async function HomePage() {
             <a href="https://github.com/dineshkorukonda/CARF" target="_blank" rel="noreferrer" className="hover:text-foreground">
               GitHub
             </a>
-            <Link href="/dashboard/integrations" className="hover:text-foreground">
+            <Link href="/docs/integrations" className="hover:text-foreground">
               Integrations
             </Link>
             <Link href="/dashboard" className="hover:text-foreground">
