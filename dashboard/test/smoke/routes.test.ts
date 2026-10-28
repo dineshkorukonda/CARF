@@ -74,7 +74,9 @@ describe("every page module loads and exports a component", () => {
     const loaded = (await load()) as { default?: unknown };
     expect(loaded.default, `${_path} missing default export`).toBeDefined();
     expect(typeof loaded.default).toBe("function");
-  });
+  // Cold page imports transform the full UI dependency graph on slower runners.
+  // Keep this allowance local to import smoke checks, rather than all unit tests.
+  }, 30_000);
 });
 
 describe("every layout module loads and exports a component", () => {
