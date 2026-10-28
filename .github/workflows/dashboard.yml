@@ -6,11 +6,13 @@ on:
     branches: [main]
     paths:
       - "dashboard/**"
+      - "core-api/src/capabilities/**"
       - "agent/**"
       - ".github/workflows/dashboard.yml"
   pull_request:
     paths:
       - "dashboard/**"
+      - "core-api/src/capabilities/**"
       - "agent/**"
       - ".github/workflows/dashboard.yml"
 
