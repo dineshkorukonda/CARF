@@ -63,7 +63,7 @@ describe("deploymentMode resolution", () => {
     ).toBe("argo-rollouts");
     expect(
       resolveAugmentIntegration({ storedConfig: { integration: "flagger" } })
-    ).toBe("flagger");
+    ).toBe("unsupported");
     expect(
       resolveAugmentIntegration({ storedConfig: { integration: "generic" } })
     ).toBe("generic-http");
@@ -78,7 +78,7 @@ describe("deploymentMode resolution", () => {
     ).toBe("argo-rollouts");
     expect(
       resolveAugmentIntegration({ deploymentIntegration: "flagger" })
-    ).toBe("flagger");
+    ).toBe("unsupported");
     expect(
       resolveAugmentIntegration({ deploymentIntegration: "generic_http" })
     ).toBe("generic-http");

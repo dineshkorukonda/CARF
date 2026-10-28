@@ -469,10 +469,12 @@ export class PM2Adapter implements RollbackAdapter {
       lastHealth = await this.checkHealth(target);
 
       if (lastHealth.healthy) {
+        let restored = false;
+        try { restored = (await this.getCurrentRevision(false)) === this.previousSha; } catch { /* Identity unavailable: unverified. */ }
         return {
-          verified: true,
+          verified: restored,
           errorRate: lastHealth.errorRate,
-          rollbackVerified: true,
+          rollbackVerified: restored,
         };
       }
 

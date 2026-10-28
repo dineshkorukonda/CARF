@@ -101,24 +101,33 @@ describe("computeThreshold", () => {
     expect(result.finalThreshold).toBeCloseTo(0.025, 10);
   });
 
-  it("does not throw on an all-zero vector and returns the documented safe default", () => {
-    const result = computeThreshold(vector(), TEST_CONFIG);
-
-    expect(() => computeThreshold(vector(), TEST_CONFIG)).not.toThrow();
-    // Safe default: no active types means nothing should ever trigger a rollback off
-    // this commit alone, so we surface Infinity/Infinity with an empty activeTypes list
-    // rather than a fabricated numeric threshold. See engine.ts doc comment.
-    expect(result.finalThreshold).toBe(Infinity);
-    expect(result.finalWindow).toBe(Infinity);
-    expect(result.activeTypes).toEqual([]);
+  it("rejects empty vectors explicitly, including complexity-only vectors", () => {
+    expect(() => computeThreshold(vector())).toThrow("Empty change vector");
+    expect(() => computeThreshold(vector({ code_complexity: 0.9 }))).toThrow("Empty change vector");
   });
 
-  it("ignores code_complexity on an all-zero vector (still returns the safe default, no throw)", () => {
-    const result = computeThreshold(vector({ code_complexity: 0.9 }), TEST_CONFIG);
+  it.each([NaN, Infinity, -1, 1.01])("rejects invalid vector magnitude %s", value => {
+    expect(() => computeThreshold(vector({ code: value }))).toThrow(RangeError);
+    expect(() => computeThreshold(vector({ code: 1, code_complexity: value }))).toThrow(RangeError);
+  });
 
-    expect(result.finalThreshold).toBe(Infinity);
-    expect(result.finalWindow).toBe(Infinity);
-    expect(result.activeTypes).toEqual([]);
+  it.each([NaN, Infinity, -1, 2])("rejects invalid decay %s", decay => {
+    expect(() => computeThreshold(vector({ code: 1 }), { ...TEST_CONFIG, decay })).toThrow(RangeError);
+  });
+
+  it.each([NaN, Infinity, -1, 0])("rejects invalid baseline %s", value => {
+    expect(() => computeThreshold(vector({ code: 1 }), {
+      ...TEST_CONFIG, baseWindow: { ...TEST_CONFIG.baseWindow, code: value }
+    })).toThrow(RangeError);
+  });
+
+  it("keeps saturated risk finite and nonnegative at decay bounds", () => {
+    const result = computeThreshold(vector({ code: 1, data: 1, code_complexity: 1 }), {
+      ...TEST_CONFIG, decay: 1, complexityDecay: 1
+    });
+    expect(result.finalWindow).toBe(0);
+    expect(result.finalThreshold).toBe(0);
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 
   it("uses DEFAULT_CONFIG when no config argument is supplied", () => {

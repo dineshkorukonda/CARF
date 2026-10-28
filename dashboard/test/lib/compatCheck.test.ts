@@ -17,8 +17,8 @@ describe("evaluateCompatibility", () => {
     expect(report.signals.find((s) => s.id === "argoRollouts")?.matched).toBe(true);
   });
 
-  it("recommends either when both PM2 and Flagger are present", () => {
-    const report = evaluateCompatibility(["ecosystem.config.js", "flagger/canary.yaml"]);
+  it("recommends either when both PM2 and Argo Rollouts are present", () => {
+    const report = evaluateCompatibility(["ecosystem.config.js", "argo/rollout.yaml"]);
 
     expect(report.recommendedMode).toBe("either");
   });

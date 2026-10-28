@@ -26,7 +26,6 @@ function vector(overrides: Partial<ChangeVector> = {}): ChangeVector {
 /** Every corner of the input space: each type alone at its extremes, all types together,
  *  and complexity layered on top. */
 const VECTORS: Array<[label: string, value: ChangeVector]> = [
-  ["all zero", vector()],
   ["infra minimal", vector({ infra: 0.0001 })],
   ["infra maximal", vector({ infra: 1 })],
   ["dependency maximal", vector({ dependency: 1 })],
@@ -83,22 +82,9 @@ describe("threshold invariants that must hold for every vector", () => {
 });
 
 describe("the no-signal default", () => {
-  // Documented contract: a signal-less commit must never trip a rollback by itself. Infinity
-  // is what makes that true without a special case at every call site, so returning 0 here
-  // would invert the meaning and roll back everything.
-  it("returns Infinity, not zero, when no change type is active", () => {
-    const result = computeThreshold(vector());
-
-    expect(result.finalThreshold).toBe(Infinity);
-    expect(result.finalWindow).toBe(Infinity);
-    expect(result.activeTypes).toEqual([]);
-  });
-
-  it("is not affected by code_complexity alone", () => {
-    const result = computeThreshold(vector({ code_complexity: 1 }));
-
-    expect(result.finalThreshold).toBe(Infinity);
-    expect(result.activeTypes).toEqual([]);
+  it("rejects empty and complexity-only vectors without producing a policy", () => {
+    expect(() => computeThreshold(vector())).toThrow("Empty change vector");
+    expect(() => computeThreshold(vector({ code_complexity: 1 }))).toThrow("Empty change vector");
   });
 });
 

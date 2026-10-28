@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, GitBranch, Terminal, Layers, Webhook } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, GitBranch, Layers, Webhook } from "lucide-react";
 import type { InstallationRepo } from "../../../adapters/github/reposClient";
 import type { DeploymentIntegration } from "../../../lib/capabilities";
 import type { AnalysisTrigger } from "../../../lib/carfConfigSchema";
@@ -55,19 +55,6 @@ const INTEGRATION_OPTIONS: IntegrationOption[] = [
       "Dynamic AnalysisTemplate threshold injection",
       "Kubernetes canary & blue-green step evaluation",
       "Webhook-driven metric verification",
-    ],
-  },
-  {
-    id: "flagger",
-    name: "Flagger",
-    tag: "Preview",
-    tagColor: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    icon: Terminal,
-    description: "Progressive delivery operator for service meshes (Istio, Linkerd, Contour).",
-    features: [
-      "Metric template threshold feeding",
-      "Canary release advancement gating",
-      "Automated promotion or halt recommendations",
     ],
   },
   {

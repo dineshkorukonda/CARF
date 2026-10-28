@@ -64,17 +64,4 @@ describe("Stage 1 — Target Environments Matrix Validation", () => {
     });
   });
 
-  describe("Environment E: Flagger", () => {
-    it("provides Canary CRD with metric analysis and failure scripts", () => {
-      const flaggerDir = path.join(ENV_DIR, "flagger");
-      expect(fs.existsSync(path.join(flaggerDir, "install.sh"))).toBe(true);
-      expect(fs.existsSync(path.join(flaggerDir, "canary.yaml"))).toBe(true);
-      expect(fs.existsSync(path.join(flaggerDir, "deploy.sh"))).toBe(true);
-      expect(fs.existsSync(path.join(flaggerDir, "trigger-failure.sh"))).toBe(true);
-
-      const canaryContent = fs.readFileSync(path.join(flaggerDir, "canary.yaml"), "utf8");
-      expect(canaryContent).toContain("flagger.app/v1beta1");
-      expect(canaryContent).toContain("targetRef");
-    });
-  });
 });

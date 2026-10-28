@@ -274,6 +274,7 @@ describe("PM2Adapter.rollbackWithVerification", () => {
       });
 
     const adapter = new PM2Adapter("abc123", { exec, target: "web" });
+    vi.spyOn(adapter, "getCurrentRevision").mockResolvedValue("abc123");
     const result = await adapter.rollbackWithVerification();
 
     expect(result).toEqual({
@@ -310,6 +311,7 @@ describe("PM2Adapter.rollbackWithVerification", () => {
       },
     });
 
+    vi.spyOn(adapter, "getCurrentRevision").mockResolvedValue("abc123");
     const result = await adapter.rollbackWithVerification();
 
     expect(result).toEqual({ verified: true, errorRate: 0, rollbackVerified: true });
@@ -337,6 +339,7 @@ describe("PM2Adapter.rollbackWithVerification", () => {
     });
 
     await expect(adapter.checkHealth()).resolves.toMatchObject({ healthy: true });
+    vi.spyOn(adapter, "getCurrentRevision").mockResolvedValue("abc123");
     const result = await adapter.rollbackWithVerification();
 
     expect(result).toEqual({ verified: true, errorRate: 0, rollbackVerified: true });
@@ -365,6 +368,7 @@ describe("PM2Adapter.rollbackWithVerification", () => {
       },
     });
 
+    vi.spyOn(adapter, "getCurrentRevision").mockResolvedValue("abc123");
     const result = await adapter.rollbackWithVerification();
 
     expect(result.rollbackVerified).toBe(false);
@@ -484,4 +488,13 @@ describe("PM2Adapter discovery and process management", () => {
     expect(result.healthy).toBe(true);
     expect(result.processErrorRate).toBe(0);
   });
+});
+
+it.each(["different", "unavailable"])("does not verify healthy PM2 restoration with %s identity", async identity => {
+  const adapter = new PM2Adapter("abc123", { target: "web", exec: vi.fn().mockResolvedValue({ stdout: "", stderr: "" }) });
+  vi.spyOn(adapter, "checkHealth").mockResolvedValue({ healthy: true, errorRate: 0, processErrorRate: 0, httpErrorRate: 0 });
+  const revision = vi.spyOn(adapter, "getCurrentRevision");
+  if (identity === "unavailable") revision.mockRejectedValue(new Error("unavailable"));
+  else revision.mockResolvedValue(identity);
+  expect((await adapter.rollbackWithVerification()).rollbackVerified).toBe(false);
 });

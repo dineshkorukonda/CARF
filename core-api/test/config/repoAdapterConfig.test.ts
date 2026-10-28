@@ -18,3 +18,13 @@ describe("repository adapter configuration", () => {
     expect(resolveRepoAdapterConfig({}, undefined, fallback)).toEqual(fallback);
   });
 });
+
+it("does not infer PM2 from an ambiguous target or unknown kind", () => {
+  expect(() => resolveRepoAdapterConfig({ target: "web" }, undefined, undefined)).toThrow("runtime");
+  expect(() => resolveRepoAdapterConfig({ kind: "systemd", target: "web" }, undefined, undefined)).toThrow("runtime");
+});
+
+it("preserves repository-column PM2 selection with legacy target settings", () => {
+  expect(resolveRepoAdapterConfig({ target: "sahaay" }, undefined, undefined, "pm2"))
+    .toMatchObject({ kind: "pm2", target: "sahaay" });
+});

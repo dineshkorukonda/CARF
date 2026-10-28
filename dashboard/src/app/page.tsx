@@ -145,7 +145,7 @@ export default async function HomePage() {
                 <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
                   Static canary timers and arbitrary 5% error gates miss acute infrastructure failures while unnecessarily failing trivial updates.
                   CARF classifies change risk across 5 distinct vector categories with Tree-sitter AST structural complexity scoring,
-                  calibrating per-commit error budgets, soak observation windows, and automated recovery actions.
+                  computing per-commit error-rate thresholds, soak observation windows, and automated recovery actions.
                 </p>
 
                 <div className="mt-6 flex flex-wrap items-center gap-3">

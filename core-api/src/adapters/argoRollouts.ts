@@ -127,10 +127,6 @@ export class ArgoRolloutsIntegration implements DeploymentIntegration {
     assertSafeTarget(deploymentId, "deploymentId");
     await this.abort(deploymentId, context);
 
-    try {
-      await this.executor.exec(`kubectl argo rollouts undo ${deploymentId} -n ${this.namespace}`);
-    } catch {
-      // Undo command executed or fallback
-    }
+    await this.executor.exec(`kubectl argo rollouts undo ${deploymentId} -n ${this.namespace}`);
   }
 }

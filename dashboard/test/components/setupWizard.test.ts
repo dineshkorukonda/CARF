@@ -14,13 +14,13 @@ describe("SetupWizard 3-layer architecture resolution", () => {
     expect(resolved.runtimeLabel).toBe("No direct runtime integration (Policy only)");
   });
 
-  it("resolves capabilities correctly for GitHub Actions + PM2 (active rollback & direct local runtime)", () => {
+  it("resolves capabilities correctly for GitHub Actions + PM2 (awaiting host validation)", () => {
     const resolved = resolveCapabilities("github_actions", "pm2");
     expect(resolved.deploymentIntegration).toBe("github_actions");
     expect(resolved.runtimeAdapter).toBe("pm2");
     expect(resolved.capabilities.policy).toBe(true);
-    expect(resolved.capabilities.monitoring).toBe(true);
-    expect(resolved.capabilities.rollback).toBe(true);
+    expect(resolved.capabilities.monitoring).toBe(false);
+    expect(resolved.capabilities.rollback).toBe(false);
     expect(resolved.requiresAgent).toBe(false);
     expect(resolved.runtimeStatus).toBe("active");
   });
@@ -34,11 +34,11 @@ describe("SetupWizard 3-layer architecture resolution", () => {
     expect(resolved.requiresAgent).toBe(false);
   });
 
-  it("resolves Docker to active capabilities with monitoring and rollback", () => {
+  it("resolves Docker to a runtime selection awaiting host validation", () => {
     const resolvedDocker = resolveCapabilities("github_actions", "docker");
     expect(resolvedDocker.runtimeStatus).toBe("active");
-    expect(resolvedDocker.capabilities.monitoring).toBe(true);
-    expect(resolvedDocker.capabilities.rollback).toBe(true);
+    expect(resolvedDocker.capabilities.monitoring).toBe(false);
+    expect(resolvedDocker.capabilities.rollback).toBe(false);
   });
 
   it("marks roadmap adapters as preview without claiming live rollback", () => {

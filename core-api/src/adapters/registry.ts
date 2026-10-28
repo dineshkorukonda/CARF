@@ -8,10 +8,9 @@ import { NoneRuntimeAdapter } from "./none.js";
 import { GitHubActionsIntegration, type GitHubActionsIntegrationOptions } from "./githubActions.js";
 import { GenericHttpIntegration, type GenericHttpIntegrationOptions } from "./genericHttp.js";
 import { ArgoRolloutsIntegration, type ArgoRolloutsIntegrationOptions } from "./argoRollouts.js";
-import { FlaggerIntegration, type FlaggerIntegrationOptions } from "./flagger.js";
 
 export interface DetectionResult {
-  recommendedIntegration: "github_actions" | "argo_rollouts" | "flagger" | "generic_http";
+  recommendedIntegration: "github_actions" | "argo_rollouts" | "generic_http";
   recommendedRuntime: "pm2" | "docker" | "kubernetes" | "systemd" | "none";
   reasons: string[];
 }
@@ -77,15 +76,13 @@ export function createDeploymentIntegration(
     case "argorollouts":
       return new ArgoRolloutsIntegration(options as ArgoRolloutsIntegrationOptions);
 
-    case "flagger":
-      return new FlaggerIntegration(options as FlaggerIntegrationOptions);
-
     case "generic_http":
     case "generic":
       return new GenericHttpIntegration(options as GenericHttpIntegrationOptions);
 
-    case "github_actions":
     default:
+      throw new Error(`Unsupported deployment integration: ${kind}`);
+    case "github_actions":
       return new GitHubActionsIntegration(options as GitHubActionsIntegrationOptions);
   }
 }
@@ -102,13 +99,9 @@ export function detectRepositoryAdapters(files: string[]): DetectionResult {
 
   // 1. Check for Deployment Integrations
   const hasArgo = lowerFiles.some((f) => f.includes("argo") || f.includes("rollout"));
-  const hasFlagger = lowerFiles.some((f) => f.includes("flagger") || f.includes("canary.yaml"));
   const hasGithub = lowerFiles.some((f) => f.startsWith(".github/workflows/"));
 
-  if (hasFlagger) {
-    recommendedIntegration = "flagger";
-    reasons.push("Detected Flagger canary definitions in repository");
-  } else if (hasArgo) {
+  if (hasArgo) {
     recommendedIntegration = "argo_rollouts";
     reasons.push("Detected Argo Rollouts specifications in repository");
   } else if (hasGithub) {
@@ -141,7 +134,7 @@ export function detectRepositoryAdapters(files: string[]): DetectionResult {
     (f) => f.endsWith(".service") || f.includes("systemd/")
   );
 
-  if (hasK8s || recommendedIntegration === "argo_rollouts" || recommendedIntegration === "flagger") {
+  if (hasK8s || recommendedIntegration === "argo_rollouts") {
     recommendedRuntime = "kubernetes";
     reasons.push("Detected Kubernetes manifests / cloud-native progressive delivery controllers");
   } else if (hasDocker) {

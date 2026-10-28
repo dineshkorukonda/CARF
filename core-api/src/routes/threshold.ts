@@ -62,7 +62,7 @@ const responseSchema: FastifySchema = {
 
 /**
  * GET /v1/threshold?commit=<sha> — Augment mode webhook API (#12). Deployment tooling
- * (Argo Rollouts AnalysisTemplate webhook metric providers, Flagger webhook metrics —
+ * (Argo Rollouts AnalysisTemplate webhook metric providers —
  * see examples/) polls this endpoint during a rollout to fetch the anomaly threshold and
  * evaluation window computed for a given commit by the threshold engine
  * (src/threshold/engine.ts), persisted via src/pipeline.ts's processCommit().

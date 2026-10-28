@@ -219,8 +219,8 @@ export class SystemdAdapter implements RuntimeAdapter {
     }
     const health = await this.checkHealth(target);
     return {
-      rollbackVerified: health.healthy,
-      verified: health.healthy,
+      rollbackVerified: false, // Health alone does not establish restoration identity.
+      verified: false,
       errorRate: health.errorRate,
     };
   }
