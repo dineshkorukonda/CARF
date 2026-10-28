@@ -117,7 +117,7 @@ describe("KubernetesAdapter (Kubernetes Runtime Adapter)", () => {
     );
   });
 
-  it("verifies post-rollback status via kubectl rollout status", async () => {
+  it("checks post-rollback health without claiming restoration identity", async () => {
     const mockExec = vi.fn().mockImplementation(async (cmd: string) => {
       if (cmd.includes("rollout status")) {
         return { stdout: "deployment \"sample-k8s-app\" successfully rolled out\n", stderr: "" };
@@ -141,7 +141,7 @@ describe("KubernetesAdapter (Kubernetes Runtime Adapter)", () => {
     });
 
     const result = await adapter.rollbackWithVerification();
-    expect(result.rollbackVerified).toBe(true);
+    expect(result.rollbackVerified).toBe(false);
     expect(result.errorRate).toBe(0);
   });
 });

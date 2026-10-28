@@ -12,7 +12,7 @@ import { normalizeDeploymentIntegration } from "./capabilities";
 
 export type DeploymentMode = "standalone" | "augment";
 
-export type AugmentIntegration = "github-actions" | "argo-rollouts" | "flagger" | "generic-http";
+export type AugmentIntegration = "github-actions" | "argo-rollouts" | "unsupported" | "generic-http";
 
 export interface RepoConfigLookupInput {
   storedConfig?: unknown;
@@ -73,14 +73,14 @@ export function resolveAugmentIntegration(input?: RepoConfigLookupInput | null):
   if (input?.deploymentIntegration) {
     const norm = normalizeDeploymentIntegration(input.deploymentIntegration);
     if (norm === "argo_rollouts") return "argo-rollouts";
-    if (norm === "flagger") return "flagger";
+    if (norm === "unsupported") return "unsupported";
     if (norm === "generic_http") return "generic-http";
     return "github-actions";
   }
   const cfg = storedConfigObject(input?.storedConfig);
   const integration = typeof cfg?.integration === "string" ? cfg.integration.toLowerCase() : "";
   if (integration === "argo-rollouts" || integration === "argo") return "argo-rollouts";
-  if (integration === "flagger") return "flagger";
+  if (integration && normalizeDeploymentIntegration(integration) === "unsupported") return "unsupported";
   if (integration === "generic" || integration === "generic-http" || integration === "api" || integration === "http") {
     return "generic-http";
   }
@@ -93,8 +93,8 @@ export function augmentIntegrationLabel(integration: AugmentIntegration): string
       return "GitHub Actions";
     case "argo-rollouts":
       return "Argo Rollouts";
-    case "flagger":
-      return "Flagger";
+    case "unsupported":
+      return "Unsupported integration";
     case "generic-http":
       return "Generic HTTP";
   }

@@ -15,11 +15,10 @@
 export const DEPLOYMENT_INTEGRATIONS = [
   "github_actions",
   "argo_rollouts",
-  "flagger",
   "generic_http",
 ] as const;
 
-export type DeploymentIntegration = (typeof DEPLOYMENT_INTEGRATIONS)[number];
+export type DeploymentIntegration = (typeof DEPLOYMENT_INTEGRATIONS)[number] | "unsupported";
 
 export const RUNTIME_ADAPTERS = [
   "none",
@@ -40,7 +39,7 @@ export interface CarfCapabilities {
   rollback: boolean;
 }
 
-export type IntegrationStatus = "active" | "preview" | "roadmap";
+export type IntegrationStatus = "active" | "preview" | "roadmap" | "unsupported";
 
 export interface ResolvedCapabilities {
   deploymentIntegration: DeploymentIntegration;
@@ -55,6 +54,7 @@ export interface ResolvedCapabilities {
 }
 
 export interface LegacyConfigInput {
+  pm2Process?: string | null | undefined;
   repo?: string | null | undefined;
   mode?: string | null | undefined;
   deploymentIntegration?: string | null | undefined;
@@ -71,11 +71,10 @@ export function normalizeDeploymentIntegration(value?: string | null | undefined
   const normalized = value.toLowerCase().replace(/[- ]/g, "_");
   if (normalized === "github_actions" || normalized === "github") return "github_actions";
   if (normalized === "argo_rollouts" || normalized === "argo") return "argo_rollouts";
-  if (normalized === "flagger") return "flagger";
   if (normalized === "generic_http" || normalized === "generic" || normalized === "http" || normalized === "api") {
     return "generic_http";
   }
-  return "github_actions";
+  return "unsupported";
 }
 
 /**
@@ -106,11 +105,7 @@ export const INTEGRATION_METADATA: Record<
     status: "preview",
     description: "Step-by-step progressive delivery analysis for Kubernetes rollouts.",
   },
-  flagger: {
-    label: "Flagger",
-    status: "preview",
-    description: "Automated canary promotion and rollback using Istio/Linkerd metrics.",
-  },
+  unsupported: { label: "Unsupported integration", status: "unsupported", description: "Select a supported deployment integration; saved configuration is retained." },
   generic_http: {
     label: "Generic HTTP / CI",
     status: "active",
@@ -159,7 +154,8 @@ export const RUNTIME_METADATA: Record<
  */
 export function resolveCapabilities(
   integrationInput?: string | null | undefined,
-  runtimeInput?: string | null | undefined
+  runtimeInput?: string | null | undefined,
+  infrastructure?: { localRuntimeAuthorized: boolean; adapterConfigured: boolean }
 ): ResolvedCapabilities {
   const deploymentIntegration = normalizeDeploymentIntegration(integrationInput);
   const runtimeAdapter = normalizeRuntimeAdapter(runtimeInput);
@@ -168,17 +164,19 @@ export function resolveCapabilities(
   const runtimeMeta = RUNTIME_METADATA[runtimeAdapter];
 
   // CARF Core always provides policy (thresholds, classification, risk scoring).
-  const policy = true;
+  const policy = deploymentIntegration !== "unsupported";
 
   // Active monitoring is enabled only when runtime adapter has live monitoring capability.
   // PM2 and Docker are actively implemented for live telemetry monitoring.
-  const monitoring = runtimeAdapter === "pm2" || runtimeAdapter === "docker";
+  const monitoring = policy && (deploymentIntegration === "github_actions" || deploymentIntegration === "generic_http")
+    && (runtimeAdapter === "pm2" || runtimeAdapter === "docker")
+    && infrastructure?.localRuntimeAuthorized === true && infrastructure.adapterConfigured;
 
   // Automated rollback is enabled only when runtime adapter has live execution capability.
   // PM2 and Docker are active runtime rollback adapters.
-  const rollback = runtimeAdapter === "pm2" || runtimeAdapter === "docker";
+  const rollback = monitoring;
 
-  let description = "Policy-only gating in delivery pipeline.";
+  let description = policy ? "Policy available. Monitoring and rollback require backend validation of the configured runtime and host authorization." : "Unsupported deployment integration. Saved configuration has not been changed.";
   if (rollback) {
     description =
       runtimeAdapter === "docker"
@@ -208,7 +206,8 @@ export function resolveCapabilities(
 /**
  * Resolves 3-layer architecture from either explicit columns or legacy configs.
  * Backward compatibility:
- * - mode === "standalone" or storedConfig.mode === "standalone" or adapter.kind === "pm2" -> github_actions + pm2
+ * - Explicit adapter kinds or PM2-specific evidence preserve runtime selection.
+ * - Mode and a generic target alone never select PM2.
  * - mode === "augment" or storedConfig.mode === "augment" -> github_actions + none
  */
 export function resolveFromLegacy(input?: LegacyConfigInput | null): ResolvedCapabilities {
@@ -231,19 +230,14 @@ export function resolveFromLegacy(input?: LegacyConfigInput | null): ResolvedCap
     );
   }
 
-  // Check legacy mode and targets
-  const mode = input.mode ?? (typeof stored.mode === "string" ? stored.mode : null);
-  const adapterKind = input.adapter?.kind ?? (typeof stored.kind === "string" ? stored.kind : null);
-  const hasTarget = typeof stored.target === "string" && stored.target.length > 0;
+  // A mode or generic target alone cannot identify a runtime. Preserve explicit
+  // adapter kinds and the historical PM2 process/layout fields without granting execution.
+  const nested = stored.adapter && typeof stored.adapter === "object" ? stored.adapter as Record<string, unknown> : {};
+  const adapterKind = input.adapter?.kind ?? stored.kind ?? nested.kind;
+  const pm2Evidence = Boolean(input.pm2Process) ||
+    ((stored.layout === "git" || stored.layout === "releases") && typeof stored.cwd === "string");
+  const runtime = typeof adapterKind === "string" ? adapterKind : pm2Evidence ? "pm2" : "none";
+  const integration = typeof stored.integration === "string" ? stored.integration : "github_actions";
+  return resolveCapabilities(integration, runtime);
 
-  if (mode === "standalone" || adapterKind === "pm2" || adapterKind === "docker" || hasTarget) {
-    return resolveCapabilities("github_actions", adapterKind === "docker" ? "docker" : "pm2");
-  }
-
-  if (mode === "augment" || stored.integration === "github-actions") {
-    return resolveCapabilities("github_actions", "none");
-  }
-
-  // Default to GitHub Actions + Policy-only (no agent requirement)
-  return resolveCapabilities("github_actions", "none");
 }

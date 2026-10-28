@@ -21,7 +21,7 @@ describe("Centralized Capability Resolver (core-api)", () => {
   });
 
   it("resolves GitHub Actions + PM2 to full capabilities with direct local runtime (no agent required)", () => {
-    const res = resolveCapabilities("github_actions", "pm2");
+    const res = resolveCapabilities("github_actions", "pm2", { localRuntimeAuthorized: true, adapterConfigured: true });
     expect(res.deploymentIntegration).toBe("github_actions");
     expect(res.runtimeAdapter).toBe("pm2");
     expect(res.capabilities).toEqual({
@@ -34,7 +34,7 @@ describe("Centralized Capability Resolver (core-api)", () => {
   });
 
   it("resolves GitHub Actions + Docker to full capabilities with monitoring and automated rollback", () => {
-    const res = resolveCapabilities("github_actions", "docker");
+    const res = resolveCapabilities("github_actions", "docker", { localRuntimeAuthorized: true, adapterConfigured: true });
     expect(res.deploymentIntegration).toBe("github_actions");
     expect(res.runtimeAdapter).toBe("docker");
     expect(res.capabilities).toEqual({
@@ -70,11 +70,11 @@ describe("Centralized Capability Resolver (core-api)", () => {
   });
 
   describe("resolveFromLegacy mapping", () => {
-    it("maps legacy standalone mode to github_actions + pm2", () => {
+    it("does not infer PM2 from standalone mode", () => {
       const res = resolveFromLegacy({ mode: "standalone" });
       expect(res.deploymentIntegration).toBe("github_actions");
-      expect(res.runtimeAdapter).toBe("pm2");
-      expect(res.capabilities.rollback).toBe(true);
+      expect(res.runtimeAdapter).toBe("none");
+      expect(res.capabilities.rollback).toBe(false);
       expect(res.requiresAgent).toBe(false);
     });
 
@@ -82,7 +82,7 @@ describe("Centralized Capability Resolver (core-api)", () => {
       const res = resolveFromLegacy({ mode: "standalone", adapter: { kind: "docker" } });
       expect(res.deploymentIntegration).toBe("github_actions");
       expect(res.runtimeAdapter).toBe("docker");
-      expect(res.capabilities.rollback).toBe(true);
+      expect(res.capabilities.rollback).toBe(false);
       expect(res.requiresAgent).toBe(false);
     });
 
@@ -117,9 +117,9 @@ describe("Centralized Capability Resolver (core-api)", () => {
     it("normalizes deployment integrations cleanly", () => {
       expect(normalizeDeploymentIntegration("GitHub-Actions")).toBe("github_actions");
       expect(normalizeDeploymentIntegration("argo-rollouts")).toBe("argo_rollouts");
-      expect(normalizeDeploymentIntegration("Flagger")).toBe("flagger");
+      expect(normalizeDeploymentIntegration("Flagger")).toBe("unsupported");
       expect(normalizeDeploymentIntegration("generic-http")).toBe("generic_http");
-      expect(normalizeDeploymentIntegration("unknown")).toBe("github_actions");
+      expect(normalizeDeploymentIntegration("unknown")).toBe("unsupported");
     });
 
     it("normalizes runtime adapters cleanly", () => {
@@ -132,3 +132,14 @@ describe("Centralized Capability Resolver (core-api)", () => {
     });
   });
 });
+
+ it("preserves explicit legacy PM2 identity without granting execution", () => {
+   expect(resolveFromLegacy({ adapter: { kind: "pm2", target: "sahaay" } }).runtimeAdapter).toBe("pm2");
+   expect(resolveFromLegacy({ pm2Process: "sahaay" }).runtimeAdapter).toBe("pm2");
+   expect(resolveFromLegacy({ storedConfig: { target: "ambiguous" } }).runtimeAdapter).toBe("none");
+ });
+ it("requires infrastructure and supported combinations", () => {
+   expect(resolveCapabilities("github_actions", "pm2").capabilities.rollback).toBe(false);
+   expect(resolveCapabilities("argo_rollouts", "pm2", { localRuntimeAuthorized: true, adapterConfigured: true }).capabilities.rollback).toBe(false);
+   expect(resolveCapabilities("flagger", "pm2", { localRuntimeAuthorized: true, adapterConfigured: true }).capabilities.policy).toBe(false);
+ });

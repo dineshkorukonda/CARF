@@ -21,7 +21,6 @@ import { INTEGRATION_CATEGORIES } from "../../../lib/terminology";
 type IntegrationType =
   | "github_actions"
   | "argo_rollouts"
-  | "flagger"
   | "generic_http"
   | "kubernetes"
   | "docker"
@@ -65,19 +64,6 @@ const INTEGRATIONS: IntegrationConfig[] = [
       "Core-API reachable from Argo Rollouts controller pod",
     ],
     docsLink: "/docs/integrations/argo-rollouts.md",
-  },
-  {
-    id: "flagger",
-    title: "Flagger Canary",
-    badge: "Service Mesh / Ingress",
-    category: INTEGRATION_CATEGORIES.deployment,
-    description: "Automate progressive traffic shifting and automated canary promotion or rollback using Flagger webhooks.",
-    prerequisites: [
-      "Flagger operator installed (Istio, Linkerd, Contour, or NGINX)",
-      "Canary CRD with webhooks pointing to CARF /v1/report",
-      "Deployment resource with target selector",
-    ],
-    docsLink: "/docs/integrations/flagger.md",
   },
   {
     id: "generic_http",
@@ -215,17 +201,6 @@ rules:
   base_ceiling: 0.02
   max_consecutive_failures: 2
 `;
-      case "flagger":
-        return `# .carf.yml - Flagger Canary Delivery
-version: "1.0"
-mode: "augment"
-target:
-  runtime: "kubernetes"
-  name: "${targetName}"
-rules:
-  window_seconds: 120
-  base_ceiling: 0.03
-`;
       case "kubernetes":
         return `# .carf.yml - Kubernetes Rollback Adapter
 version: "1.0"
@@ -361,34 +336,6 @@ spec:
           sha: "{{args.target-sha}}"
           errorRate: 0.0
           healthy: true
-`,
-        };
-
-      case "flagger":
-        return {
-          filename: "flagger-canary.yaml",
-          content: `apiVersion: flagger.app/v1beta1
-kind: Canary
-metadata:
-  name: ${targetName}
-  namespace: default
-spec:
-  targetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: ${targetName}
-  analysis:
-    interval: 1m
-    threshold: 2
-    maxWeight: 50
-    stepWeight: 10
-    webhooks:
-      - name: "carf-soak-verification"
-        type: rollout
-        url: "${apiUrl}/v1/report"
-        timeout: 10s
-        headers:
-          Authorization: "Bearer ${apiKey}"
 `,
         };
 

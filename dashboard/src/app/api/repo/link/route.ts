@@ -105,7 +105,16 @@ export async function POST(request: NextRequest) {
     repo,
   });
 
-  const deploymentMode: DeploymentMode = resolveRepoMode({ mode: resolved.capabilities.rollback ? "standalone" : "augment" });
+  if (resolved.deploymentIntegration === "unsupported") {
+    return NextResponse.json({ error: "Unsupported deployment integration; choose a supported integration" }, { status: 400 });
+  }
+  // Persist the requested execution model; a setup preview is not host authorization.
+  const deploymentMode: DeploymentMode = resolveRepoMode({ mode: mode ||
+    ((resolved.runtimeAdapter === "pm2" || resolved.runtimeAdapter === "docker") ? "standalone" : "augment") });
+
+  if (deploymentMode === "standalone" && resolved.runtimeAdapter !== "pm2" && resolved.runtimeAdapter !== "docker") {
+    return NextResponse.json({ error: "An explicit supported runtime adapter and adapterTarget are required" }, { status: 400 });
+  }
 
   if (deploymentMode === "standalone" || resolved.capabilities.rollback) {
     adapterKind = adapterKind || (resolved.runtimeAdapter === "docker" ? "docker" : "pm2");

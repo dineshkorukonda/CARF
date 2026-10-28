@@ -1,7 +1,7 @@
 // Confirms the Augment mode integration examples documented in the root README (see
 // "Augment Mode Integration"), plus the CARF Threshold Check Action's example workflow
 // (issue #55), are at least syntactically valid YAML. Doesn't validate against the Argo
-// Rollouts / Flagger CRD schemas or the GitHub Actions workflow schema — just that they parse.
+// Rollouts CRD schemas or the GitHub Actions workflow schema — just that they parse.
 
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";

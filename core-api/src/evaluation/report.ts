@@ -29,7 +29,7 @@ export function writeReport(
     "# CARF Synthetic Evaluation Report",
     "",
     "H1: does CARF's per-change-type dynamic threshold outperform a single static",
-    "threshold (matching common Argo Rollouts/Flagger canary defaults) on the same",
+    "threshold (matching common Argo Rollouts canary defaults) on the same",
     "synthetic deployment dataset?",
     "",
     "| Metric | Condition A (static) | Condition B (CARF dynamic) |",

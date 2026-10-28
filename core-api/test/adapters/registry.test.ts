@@ -39,10 +39,6 @@ describe("Adapter Registry & Discovery (core-api)", () => {
       expect(integ.kind).toBe("argo_rollouts");
     });
 
-    it("creates Flagger deployment integration", () => {
-      const integ = createDeploymentIntegration("flagger");
-      expect(integ.kind).toBe("flagger");
-    });
 
     it("creates Generic HTTP deployment integration", () => {
       const integ = createDeploymentIntegration("generic_http");
@@ -67,14 +63,6 @@ describe("Adapter Registry & Discovery (core-api)", () => {
       expect(result.recommendedRuntime).toBe("kubernetes");
     });
 
-    it("detects Flagger canary specifications", () => {
-      const result = detectRepositoryAdapters([
-        "k8s/canary.yaml",
-        "k8s/deployment.yaml",
-      ]);
-      expect(result.recommendedIntegration).toBe("flagger");
-      expect(result.recommendedRuntime).toBe("kubernetes");
-    });
 
     it("detects GitHub Actions workflow files", () => {
       const result = detectRepositoryAdapters([
@@ -94,4 +82,9 @@ describe("Adapter Registry & Discovery (core-api)", () => {
       expect(result.recommendedRuntime).toBe("pm2");
     });
   });
+});
+
+it("rejects removed and unknown integrations without remapping saved values", () => {
+  expect(() => createDeploymentIntegration("flagger")).toThrow("Unsupported deployment integration");
+  expect(() => createDeploymentIntegration("unknown")).toThrow("Unsupported deployment integration");
 });

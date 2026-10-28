@@ -58,3 +58,8 @@ describe("ArgoRolloutsIntegration (Argo Rollouts Deployment Integration)", () =>
     expect(executedCommands).toContain("kubectl argo rollouts undo sample-argo-rollout -n carf-test");
   });
 });
+
+it("propagates failed undo instead of claiming rollback execution", async () => {
+  const exec = vi.fn().mockResolvedValueOnce({ stdout: "", stderr: "" }).mockRejectedValueOnce(new Error("undo denied"));
+  await expect(new ArgoRolloutsIntegration({ exec }).rollback("app")).rejects.toThrow("undo denied");
+});

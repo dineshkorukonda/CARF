@@ -1,5 +1,7 @@
 "use client";
 
+import { dump } from "js-yaml";
+
 import React, { useState } from "react";
 import Link from "next/link";
 import {
@@ -63,29 +65,24 @@ export function CapabilitiesPreviewStep({
   const isPm2 = runtimeAdapter === "pm2";
   const isDocker = runtimeAdapter === "docker";
 
-  // Generate .carf.yml preview content based on choices
-  const carfYamlPreview = `# CARF 3-Layer Configuration for ${repo.full_name}
-version: 1
-policy:
-  deployment_integration: ${deploymentIntegration}
-  runtime_adapter: ${runtimeAdapter}
-  analysis_trigger: ${analysisTrigger}
-  auto_rollback: ${resolved.capabilities.rollback ? "true" : "false"}
-${
-  isPm2
-    ? `\npm2:
-  target: ${pm2Config.targetName || repo.name}
-  cwd: ${pm2Config.cwd}
-  health_url: ${pm2Config.healthUrl}${pm2Config.buildCommand ? `\n  build_command: ${pm2Config.buildCommand}` : ""}\n  layout: ${pm2Config.layout}
-`
-    : isDocker
-    ? `\ndocker:
-  container_name: ${dockerConfig.containerName || repo.name}
-  compose_file: ${dockerConfig.composeFile}
-  health_url: ${dockerConfig.healthUrl}
-`
-    : ""
-}`.trim();
+  // Use the same schema field names as activation; quote user-entered values safely.
+  const carfYamlPreview = dump({
+    deploymentIntegration,
+    runtimeAdapter,
+    analysisTrigger,
+    mode: (isPm2 || isDocker) ? "standalone" : "augment",
+    ...(isPm2 ? { adapter: {
+      kind: "pm2", target: pm2Config.targetName || repo.name,
+      cwd: pm2Config.cwd, layout: pm2Config.layout,
+      ...(pm2Config.healthUrl ? { healthUrl: pm2Config.healthUrl } : {}),
+      ...(pm2Config.buildCommand.trim() ? { buildCommand: pm2Config.buildCommand.trim() } : {}),
+    } } : isDocker ? { adapter: {
+      kind: "docker", target: dockerConfig.containerName || repo.name,
+      containerName: dockerConfig.containerName || repo.name,
+      ...(dockerConfig.composeFile ? { composeFile: dockerConfig.composeFile } : {}),
+      ...(dockerConfig.healthUrl ? { healthUrl: dockerConfig.healthUrl } : {}),
+    } } : {}),
+  }).trim();
 
   const handleConnect = async () => {
     setLinking(true);
@@ -98,7 +95,7 @@ ${
         deploymentIntegration,
         analysisTrigger,
         runtimeAdapter,
-        mode: resolved.capabilities.rollback ? "standalone" : "augment",
+        mode: (isPm2 || isDocker) ? "standalone" : "augment",
         ...(runtimeAdapter === "pm2"
           ? {
               adapterKind: "pm2",

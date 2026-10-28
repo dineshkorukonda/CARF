@@ -17,7 +17,7 @@ export interface EvalMetrics {
 
 /**
  * Condition A: a single fixed error-rate threshold/window applied to every deployment
- * regardless of change type — mirroring how Argo Rollouts/Flagger canary analyses are
+ * regardless of change type — mirroring how Argo Rollouts canary analyses are
  * typically configured out of the box (see examples/): one successCondition and one
  * canary duration for the whole rollout, not calibrated per change category. 1% error
  * rate is a common tight canary default (e.g. a `request-success-rate >= 99` check); 300s
@@ -184,7 +184,7 @@ export interface RunEvaluationOptions {
  * Runs the synthetic dataset through two conditions and returns aggregate metrics for
  * each:
  *   Condition A — a single static threshold/window (STATIC_THRESHOLD above), the same
- *     for every deployment, approximating an out-of-the-box Argo/Flagger canary config.
+ *     for every deployment, approximating an out-of-the-box Argo canary config.
  *   Condition B — CARF's dynamic threshold (src/threshold/engine.ts's computeThreshold(),
  *     via the real classifyCommit() pipeline), calibrated per deployment from its
  *     ChangeVector.

@@ -19,7 +19,7 @@ import { prisma as defaultPrisma } from "./db/client.js";
 import type { RolloutMonitor } from "./monitor/rolloutMonitor.js";
 import { NoSignalError, processCommit, type PipelinePrismaClient } from "./pipeline.js";
 import { resolveRepoMode } from "./deploymentMode.js";
-import { resolveFromLegacy } from "./capabilities/resolver.js";
+import { resolveFromLegacy, resolveCapabilities } from "./capabilities/resolver.js";
 import { acquireDeploymentLease, guardAdapter, DeploymentLeaseLostError } from "./adapters/deploymentLease.js";
 import { resolveRepoAdapterConfig } from "./config/repoAdapterConfig.js";
 import { localRuntimeAllowed, LOCAL_RUNTIME_ERROR } from "./auth/localRuntime.js";
@@ -214,7 +214,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
         connectionCapabilities = resolveFromLegacy(conn);
         monitoringPaused = Boolean(conn.monitoringPaused);
         if (connectionCapabilities.runtimeAdapter === "pm2" || connectionCapabilities.runtimeAdapter === "docker") {
-          connectionAdapter = resolveRepoAdapterConfig(conn.storedConfig, conn.pm2Process, connectionAdapter);
+          connectionAdapter = resolveRepoAdapterConfig(conn.storedConfig, conn.pm2Process, connectionAdapter, connectionCapabilities.runtimeAdapter);
         }
       }
     } catch (err) {
@@ -231,11 +231,25 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   // Resolve 3-layer capabilities:
   // Precedence: explicit RepoConnection capabilities if connection exists,
   // else fallback to .carf.yml configuration.
-  const resolved = connectionCapabilities ?? resolveFromLegacy({
+  const selection = connectionCapabilities ?? resolveFromLegacy({
     mode: carfConfig?.mode,
     deploymentIntegration: carfConfig?.deploymentIntegration,
     runtimeAdapter: carfConfig?.runtimeAdapter,
     adapter: carfConfig?.adapter,
+  });
+
+  if (!connectionAdapter && (connectionMode ?? carfConfig?.mode) === "standalone") {
+    if (deps.observeLive === true) throw new Error("No runtime adapter configured; deployment skipped");
+    deps.logger.error(
+      { adapter: connectionAdapter },
+      "standalone mode configured but no adapter specified"
+    );
+    return;
+  }
+
+  const resolved = resolveCapabilities(selection.deploymentIntegration, selection.runtimeAdapter, {
+    localRuntimeAuthorized: localRuntimeAllowed(target.installationId, deps.localInstallationId),
+    adapterConfigured: Boolean(connectionAdapter && connectionAdapter.kind === selection.runtimeAdapter),
   });
 
   // RepoConnection.mode is authoritative when a connection exists.
@@ -264,6 +278,7 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
 
   const adapterConfig = connectionAdapter;
+  if (!adapterConfig) return;
   if (!localRuntimeAllowed(target.installationId, deps.localInstallationId)) {
     if (deps.observeLive === true) throw new Error(LOCAL_RUNTIME_ERROR);
     deps.logger.error({ installationId: target.installationId }, LOCAL_RUNTIME_ERROR);
@@ -271,14 +286,6 @@ export async function handleWebhookCommit(target: DeployTarget, deps: WebhookOrc
   }
   if (deps.observeLive === true && adapterConfig?.kind === "pm2" && adapterConfig.layout === "git" && !adapterConfig.buildCommand?.trim()) {
     throw new Error("Git PM2 deployment requires an explicit buildCommand (use true for apps without a build step)");
-  }
-  if (!adapterConfig) {
-    if (deps.observeLive === true) throw new Error("No runtime adapter configured; deployment skipped");
-    deps.logger.error(
-      { adapter: adapterConfig },
-      "standalone mode configured but no adapter specified"
-    );
-    return;
   }
 
   if (target.event !== "push") {

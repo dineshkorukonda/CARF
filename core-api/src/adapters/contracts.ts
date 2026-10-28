@@ -72,7 +72,7 @@ export interface DeploymentStatus {
 }
 
 /**
- * Standard contract for Deployment Integrations (GitHub Actions, Generic HTTP, Argo Rollouts, Flagger).
+ * Standard contract for Deployment Integrations (GitHub Actions, Generic HTTP, Argo Rollouts).
  * Responsible for deployment intake, tracking lifecycle progression, and triggering aborts/rollbacks.
  */
 export interface DeploymentIntegration {

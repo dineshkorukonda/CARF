@@ -150,6 +150,7 @@ describe("DockerAdapter (Docker Runtime Adapter)", () => {
         return {
           stdout: JSON.stringify([
             {
+              Image: "carf-sample-app:v1",
               Config: { Labels: { "com.docker.compose.service": "sample-app" } },
               State: { Running: polled > 1 },
               RestartCount: 0,
@@ -176,4 +177,16 @@ describe("DockerAdapter (Docker Runtime Adapter)", () => {
     expect(verification.rollbackVerified).toBe(true);
     expect(verification.errorRate).toBe(0);
   });
+});
+
+it.each(["different-image", "unavailable"])("does not verify healthy Docker rollback with %s identity", async identity => {
+  let now = 0;
+  const adapter = new DockerAdapter("sha256:previous", { containerName: "app", now: () => now, sleep: async ms => { now += ms; } });
+  vi.spyOn(adapter, "rollback").mockResolvedValue();
+  vi.spyOn(adapter, "checkHealth").mockResolvedValue({ healthy: true, errorRate: 0 });
+  const revision = vi.spyOn(adapter, "getCurrentRevision");
+  if (identity === "unavailable") revision.mockRejectedValue(new Error("unavailable"));
+  else revision.mockResolvedValue(identity);
+  expect((await adapter.rollbackWithVerification("other-app")).rollbackVerified).toBe(false);
+  expect(revision).toHaveBeenCalledWith(false, "other-app");
 });

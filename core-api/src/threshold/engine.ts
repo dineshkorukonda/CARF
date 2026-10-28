@@ -57,18 +57,29 @@ export interface ThresholdResult {
  * window uses the maximum so a short-window type (infra, 60s) cannot truncate soak for
  * a long-window type shipped in the same commit (data, 600s). See issue #150.
  *
- * Safe default for an all-zero vector: with no active types there is nothing to take a
- * min() over, so rather than fabricate a numeric threshold we return
- * `{ finalThreshold: Infinity, finalWindow: Infinity, activeTypes: [] }`. Infinity reads
- * naturally at call sites — nothing can exceed it, so a signal-less commit can never by
- * itself trip a rollback, and callers don't need a special-cased branch to detect "no
- * signal" the way they already do for `classifyCommit()` returning `null`.
+ * Empty vectors have no policy: callers must skip classification results of null.
+ * Direct empty or invalid inputs are rejected rather than returning non-JSON numbers.
  */
 export function computeThreshold(vector: ChangeVector, config: ThresholdConfig = DEFAULT_CONFIG): ThresholdResult {
+  for (const type of [...CHANGE_TYPES, "code_complexity"] as const) {
+    if (!Number.isFinite(vector[type]) || vector[type] < 0 || vector[type] > 1) {
+      throw new RangeError(`Change vector ${type} must be finite and within [0, 1]`);
+    }
+  }
+  for (const value of [config.decay, config.complexityDecay]) {
+    if (!Number.isFinite(value) || value < 0 || value > 1) throw new RangeError("Decay must be within [0, 1]");
+  }
+  for (const type of CHANGE_TYPES) {
+    for (const value of [config.baseThreshold[type], config.baseWindow[type]]) {
+      if (!Number.isFinite(value) || value <= 0 || value > Number.MAX_SAFE_INTEGER) {
+        throw new RangeError(`Invalid threshold/window configuration for ${type}`);
+      }
+    }
+  }
   const activeTypes = CHANGE_TYPES.filter((type) => vector[type] > 0);
 
   if (activeTypes.length === 0) {
-    return { finalThreshold: Infinity, finalWindow: Infinity, activeTypes: [] };
+    throw new RangeError("Empty change vector has no policy; skip threshold computation");
   }
 
   const thresholdContributions = activeTypes.map(

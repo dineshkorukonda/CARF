@@ -113,7 +113,6 @@ export type AdapterConfig = z.infer<typeof AdapterConfigSchema>;
 export const DeploymentIntegrationSchema = z.enum([
   "github_actions",
   "argo_rollouts",
-  "flagger",
   "generic_http",
 ]);
 export type DeploymentIntegrationConfig = z.infer<typeof DeploymentIntegrationSchema>;

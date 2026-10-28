@@ -249,8 +249,8 @@ export class KubernetesAdapter implements RuntimeAdapter {
       );
       const health = await this.checkHealth(deployment);
       return {
-        rollbackVerified: health.healthy,
-        verified: health.healthy,
+        rollbackVerified: false, // Health alone does not establish restoration identity.
+        verified: false,
         errorRate: health.errorRate,
       };
     } catch {

@@ -81,7 +81,7 @@ describe("SystemdAdapter (Linux systemd Runtime Adapter)", () => {
     expect(mockExec).toHaveBeenCalledWith("systemctl restart app.service");
   });
 
-  it("executes verified rollback with verification", async () => {
+  it("reports healthy rollback as unverified without restoration identity", async () => {
     const mockExec = vi.fn().mockImplementation((cmd: string) => {
       if (cmd.includes("is-active")) {
         return Promise.resolve({ stdout: "active\n", stderr: "" });
@@ -95,7 +95,7 @@ describe("SystemdAdapter (Linux systemd Runtime Adapter)", () => {
     });
 
     const result = await adapter.rollbackWithVerification("app.service", 0);
-    expect(result.rollbackVerified).toBe(true);
+    expect(result.rollbackVerified).toBe(false);
     expect(result.errorRate).toBe(0.0);
   });
 });

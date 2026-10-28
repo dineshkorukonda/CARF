@@ -153,18 +153,6 @@ spec:
             value: "Bearer {{args.carf-api-key}}"
         jsonPath: "{$.threshold}"`;
 
-  const flaggerSnippet = `apiVersion: flagger.app/v1beta1
-kind: MetricTemplate
-metadata:
-  name: carf-policy-gate
-  namespace: test
-spec:
-  provider:
-    type: webhook
-    address: "${coreApiOrigin}/v1/threshold?owner=${repo.owner.login}&repo=${repo.name}"
-    secretRef:
-      name: carf-api-secret`;
-
   const genericHttpSnippet = `# Query change-aware threshold from your deployment pipeline:
 curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${repo.owner.login}&repo=${repo.name}&commit=\${COMMIT_SHA}" \\
   -H "Authorization: Bearer \${CARF_API_KEY}"`;
@@ -174,8 +162,6 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${repo.owner.login}&repo=${repo.
       ? githubActionsSnippet
       : activeSnippetTab === "argo-rollouts"
       ? argoRolloutsSnippet
-      : activeSnippetTab === "flagger"
-      ? flaggerSnippet
       : genericHttpSnippet;
 
   return (
@@ -213,11 +199,6 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${repo.owner.login}&repo=${repo.
                 id: "argo-rollouts" as AugmentIntegration,
                 title: "Argo Rollouts",
                 desc: "Kubernetes progressive delivery controller evaluating CARF AnalysisTemplates.",
-              },
-              {
-                id: "flagger" as AugmentIntegration,
-                title: "Flagger",
-                desc: "Kubernetes progressive delivery using Envoy/Istio/Linkerd and MetricTemplate gates.",
               },
               {
                 id: "generic-http" as AugmentIntegration,
@@ -370,7 +351,6 @@ mode: augment
                 {[
                   { id: "github-actions" as AugmentIntegration, label: "GitHub Actions" },
                   { id: "argo-rollouts" as AugmentIntegration, label: "Argo Rollouts" },
-                  { id: "flagger" as AugmentIntegration, label: "Flagger" },
                   { id: "generic-http" as AugmentIntegration, label: "Generic HTTP" },
                 ].map((tab) => (
                   <button

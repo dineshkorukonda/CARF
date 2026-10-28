@@ -235,8 +235,9 @@ export class DockerAdapter implements RuntimeAdapter {
     this.baselineRestarts.delete(container);
   }
 
-  async getCurrentRevision(capture = true): Promise<string> {
-    const { stdout } = await this.executor.exec(`docker inspect ${this.defaultContainer}`);
+  async getCurrentRevision(capture = true, target = this.defaultContainer): Promise<string> {
+    assertSafeTarget(target, "container");
+    const { stdout } = await this.executor.exec(`docker inspect ${target}`);
     const info = (JSON.parse(stdout) as DockerInspectOutput[])[0];
     const revision = info?.Image ?? info?.Config?.Image;
     if (!revision) throw new Error("Cannot identify the current Docker image");
@@ -278,7 +279,9 @@ export class DockerAdapter implements RuntimeAdapter {
       const health = await this.checkHealth(container);
       lastErrorRate = health.errorRate;
       if (health.healthy) {
-        return { rollbackVerified: true, verified: true, errorRate: 0 };
+        let restored = false;
+        try { restored = (await this.getCurrentRevision(false, container)) === this.previousImageTag; } catch { /* Identity unavailable: unverified. */ }
+        return { rollbackVerified: restored, verified: restored, errorRate: 0 };
       }
     }
 

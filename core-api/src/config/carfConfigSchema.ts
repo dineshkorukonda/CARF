@@ -89,7 +89,6 @@ export const ADAPTER_REGISTRY: Record<string, AdapterDescriptor> = {
 export const DeploymentIntegrationSchema = z.enum([
   "github_actions",
   "argo_rollouts",
-  "flagger",
   "generic_http",
 ]);
 export type DeploymentIntegrationConfig = z.infer<typeof DeploymentIntegrationSchema>;

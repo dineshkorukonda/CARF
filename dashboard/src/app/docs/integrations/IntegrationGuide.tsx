@@ -15,12 +15,6 @@ const GUIDES = {
     verify: "Deploy a staging canary and inspect the AnalysisRun result before increasing traffic. Rehearse an analysis failure and confirm Argo aborts the rollout.",
     troubleshoot: "For an analysis error, inspect AnalysisRun events, API connectivity, and response mapping. Use the git commit SHA rather than a pod template hash for commit lookup.",
   },
-  flagger: {
-    purpose: "Use CARF alongside Flagger's canary analysis and traffic management.",
-    steps: ["Install Flagger with the provider used by your cluster and confirm its Canary resource targets the right Deployment.", "Configure a webhook endpoint compatible with Flagger's request and response contract; adapt the payload if your CARF endpoint expects a different schema.", "Set analysis intervals and failure limits, and give the controller access to the endpoint and credentials."],
-    verify: "Run a staging canary and inspect Flagger events. Confirm successful analysis advances traffic and failed analysis returns traffic to the primary workload.",
-    troubleshoot: "For rejected webhooks, compare the actual Flagger payload with the endpoint contract. For timeouts, check controller network access and webhook timeout settings.",
-  },
   generic_http: {
     purpose: "Add CARF risk checks to GitLab CI, Jenkins, or another pipeline that can make HTTP requests.",
     steps: ["Store the CARF credential in your CI secret store and identify the owner, repository, and release SHA.", "Request the release policy from CARF and make the pipeline stop when the request or risk gate fails.", "Deploy, send measured health reports during the soak window, and connect a failure decision to your pipeline's recovery step."],

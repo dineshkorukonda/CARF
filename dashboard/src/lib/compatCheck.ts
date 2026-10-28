@@ -19,13 +19,13 @@ function matchesAny(paths: string[], patterns: RegExp[]): boolean {
 }
 
 const STANDALONE_SIGNAL_IDS = ["pm2"];
-const AUGMENT_SIGNAL_IDS = ["argoRollouts", "flagger"];
+const AUGMENT_SIGNAL_IDS = ["argoRollouts"];
 
 /**
  * Pure classification of a repo's file paths against the deployment targets CARF's
  * rollback adapters know how to drive (core-api/src/adapters/pm2: PM2 [active])
  * and the progressive-delivery tools Augment mode plugs into
- * (Argo Rollouts, Flagger via GET /v1/augment/threshold). No I/O -- callers supply the path list (a GitHub tree fetch,
+ * (Argo Rollouts via GET /v1/augment/threshold). No I/O -- callers supply the path list (a GitHub tree fetch,
  * a local `git ls-files`, wherever), so this is unit-testable with in-memory fixtures.
  */
 export function evaluateCompatibility(paths: string[]): CompatibilityReport {
@@ -41,7 +41,6 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
   const pm2 = matchesAny(paths, [/(^|\/)ecosystem\.config\.(js|cjs|json)$/i]);
   const gitops = matchesAny(paths, [/(^|\/)(argocd|flux)\//i, /(^|\/)kustomization\.ya?ml$/i]);
   const argoRollouts = matchesAny(paths, [/(^|\/)rollouts?\/.*\.ya?ml$/i, /rollout[^/]*\.ya?ml$/i]);
-  const flagger = matchesAny(paths, [/(^|\/)canary[^/]*\.ya?ml$/i, /flagger/i]);
   const githubActions = matchesAny(paths, [/^\.github\/workflows\/.*\.ya?ml$/i]);
 
   const signals: CompatSignal[] = [
@@ -92,14 +91,6 @@ export function evaluateCompatibility(paths: string[]): CompatibilityReport {
       detail: argoRollouts
         ? "Looks like Argo Rollouts is already in use — Augment mode is live: point analysis at GET /v1/augment/threshold. First-party AnalysisTemplate wiring is still an example, not a managed install."
         : "No Rollout-style manifests found.",
-    },
-    {
-      id: "flagger",
-      label: "Flagger",
-      matched: flagger,
-      detail: flagger
-        ? "Looks like Flagger is already in use — Augment mode is live: webhook GET /v1/augment/threshold. First-party Flagger wiring is still an example, not a managed install."
-        : "No Canary/Flagger manifests found.",
     },
     {
       id: "githubActions",

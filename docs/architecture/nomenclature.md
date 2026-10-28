@@ -90,7 +90,6 @@ Integrations in the CARF dashboard and documentation are organized into three st
 - **HTTP Health Probe**: Direct health endpoint polling (`/healthz`, `/health`) to evaluate service availability.
 - **Prometheus PromQL**: Authoritative health metric evaluation querying Prometheus or VictoriaMetrics instant query API.
 
-*(Note: Flagger is planned for deprecation and removal. It must not be introduced into new UI options or architectural guides.)*
 
 ---
 

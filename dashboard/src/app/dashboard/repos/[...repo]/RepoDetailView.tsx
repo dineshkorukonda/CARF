@@ -662,18 +662,6 @@ spec:
             value: "Bearer {{args.carf-api-key}}"
         jsonPath: "{$.threshold}"`;
 
-  const flaggerSnippet = `apiVersion: flagger.app/v1beta1
-kind: MetricTemplate
-metadata:
-  name: carf-policy-gate
-  namespace: test
-spec:
-  provider:
-    type: webhook
-    address: "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}"
-    secretRef:
-      name: carf-api-secret`;
-
   const genericHttpSnippet = `# Query change-aware threshold from your deployment pipeline:
 curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${COMMIT_SHA}" \\
   -H "Authorization: Bearer \${CARF_API_KEY}"`;
@@ -681,8 +669,6 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
   const currentSnippet =
     activeSnippetTab === "argo-rollouts"
       ? argoRolloutsSnippet
-      : activeSnippetTab === "flagger"
-      ? flaggerSnippet
       : genericHttpSnippet;
 
   return (
@@ -1274,7 +1260,6 @@ curl -fsSL "${coreApiOrigin}/v1/threshold?owner=${owner}&repo=${repo}&commit=\${
               <div className="flex items-center gap-1 border-b border-border">
                 {[
                   { id: "argo-rollouts" as AugmentIntegration, label: "Argo Rollouts" },
-                  { id: "flagger" as AugmentIntegration, label: "Flagger" },
                   { id: "generic-http" as AugmentIntegration, label: "Generic HTTP" },
                 ].map((tab) => (
                   <button

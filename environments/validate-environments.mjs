@@ -12,7 +12,6 @@ const references = {
   docker: ["Dockerfile", "compose.yml", "deploy.sh", "deploy.ps1", "rollback.sh", "rollback.ps1", "health-check.sh"],
   kubernetes: ["namespace.yaml", "deployment-v1.yaml", "deployment-v2.yaml", "deployment-broken.yaml", "service.yaml", "rollback.sh", "rollback.ps1"],
   "argo-rollouts": ["rollout-v1.yaml", "rollout-v2.yaml", "rollout-broken.yaml", "analysis-template.yaml", "install.sh", "abort.sh", "abort.ps1"],
-  flagger: ["canary.yaml", "install.sh", "deploy.sh", "trigger-failure.sh", "trigger-failure.ps1"],
 };
 
 export function validateEnvironmentArtifacts() {
