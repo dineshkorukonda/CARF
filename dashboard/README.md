@@ -158,6 +158,15 @@ client-side JavaScript. `StatusTable.tsx` is a small client component (`setInter
 `fetch`); "live push" is explicitly deferred (#64's acceptance criteria call out polling as
 an acceptable first cut).
 
+### CI jobs that never start
+
+If dashboard CI fails before any steps run, check the job annotations. A message
+about failed account payments or a spending limit requires the repository owner's
+GitHub Billing & plans settings to be corrected; changing application code cannot
+resolve that block. After resolving it, re-run the failed workflow, or use Actions
+→ dashboard CI → Run workflow on the desired branch. Keep the normal lint, type,
+database test, and build checks enabled.
+
 **Not yet built:** everything past what issues #61-#65 scoped -- e.g. installation-level
 settings beyond mode/adapter/classification/threshold, or acting on rollout outcomes from
 the dashboard itself.
