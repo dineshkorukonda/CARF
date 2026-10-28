@@ -118,7 +118,7 @@ export default async function LoginPage({
             <Link href="/" className="hover:text-foreground transition-colors">
               Home
             </Link>
-            <Link href="/dashboard/integrations" className="hover:text-foreground transition-colors">
+            <Link href="/docs/integrations" className="hover:text-foreground transition-colors">
               Integrations
             </Link>
           </div>

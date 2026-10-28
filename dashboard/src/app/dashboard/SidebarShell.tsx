@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, type ComponentType } from "react";
+import { Suspense, useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -23,11 +23,19 @@ import type { InstallationRow } from "../../lib/accountService";
 import { DASHBOARD_NAV_GROUPS, projectSectionsForAnalysis, projectSectionHref, type ProjectSection } from "../../lib/dashboardNav";
 import { AnalysisTriggerSchema, type AnalysisTrigger } from "../../lib/carfConfigSchema";
 
+function subscribeMobile(callback: () => void) {
+  const media = window.matchMedia("(max-width: 767px)");
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+function getMobileSnapshot() { return window.matchMedia("(max-width: 767px)").matches; }
+function getMobileServerSnapshot() { return false; }
+
 const COLLAPSE_STORAGE_KEY = "carf.sidebar.collapsed";
 
 const NAV_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/dashboard": FolderGit2,
-  "/dashboard/integrations": PlugZap,
+  "/docs/integrations": PlugZap,
   "/dashboard/settings": Sliders,
 };
 
@@ -81,6 +89,7 @@ function ProjectNavigation({ collapsed }: { collapsed: boolean }) {
           return (
             <Link key={section} href={projectSectionHref(owner, repo, section)} title={collapsed ? section === "pull_requests" ? "Pull requests" : section : undefined}
               aria-current={active ? "page" : undefined}
+              aria-label={section === "pull_requests" ? "Pull requests" : section}
               className={"flex items-center gap-2.5 rounded-sm px-3 py-2 text-sm font-medium capitalize transition-colors " +
                 (active ? "bg-sidebar-foreground text-sidebar" : "text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground")}>
               <Icon className="size-4 shrink-0" />
@@ -135,7 +144,9 @@ export function SidebarShell({
   installations: InstallationRow[];
   accountEmail: string;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [desktopCollapsed, setCollapsed] = useState(false);
+  const mobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, getMobileServerSnapshot);
+  const collapsed = mobile || desktopCollapsed;
 
   useEffect(() => {
     try {
@@ -189,7 +200,7 @@ export function SidebarShell({
             variant="ghost"
             onClick={toggleCollapse}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="size-7 text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
+            className="hidden md:inline-flex size-7 text-sidebar-foreground/60 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground"
           >
             {collapsed ? (
               <ChevronsRight className="size-4" />
@@ -237,7 +248,7 @@ export function SidebarShell({
         <div
           className={
             "flex items-center gap-2.5 rounded-sm p-1.5 " +
-            (collapsed ? "justify-center" : "justify-between")
+            (collapsed ? "flex-col justify-center" : "justify-between")
           }
         >
           <div className="flex items-center gap-2.5 min-w-0">
@@ -258,7 +269,7 @@ export function SidebarShell({
             )}
           </div>
 
-          {!collapsed && (
+          {(mobile || !collapsed) && (
             <button
               type="button"
               onClick={() => signOut({ callbackUrl: "/login" })}

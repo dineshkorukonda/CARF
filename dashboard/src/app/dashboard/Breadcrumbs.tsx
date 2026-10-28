@@ -16,6 +16,7 @@ interface Crumb {
  */
 function buildCrumbs(pathname: string): Crumb[] {
   if (pathname === "/dashboard") return [{ label: "Repositories" }];
+  if (pathname === "/dashboard/integrations") return [{ label: "Integrations" }];
   if (pathname === "/dashboard/setup") return [{ label: "Setup & Deployment" }];
   if (pathname === "/dashboard/verify") return [{ label: "Threshold Demo" }];
   if (pathname === "/dashboard/settings" || pathname === "/dashboard/account" || pathname === "/dashboard/installations") {
@@ -33,8 +34,8 @@ function buildCrumbs(pathname: string): Crumb[] {
     ];
   }
 
-  if (pathname.startsWith("/dashboard/commits/")) {
-    const parts = pathname.replace("/dashboard/commits/", "").split("/").filter(Boolean);
+  if (pathname.startsWith("/dashboard/commits/") || pathname.startsWith("/dashboard/pull-requests/")) {
+    const parts = pathname.replace(/^\/dashboard\/(commits|pull-requests)\//, "").split("/").filter(Boolean);
     const owner = parts[0] ? decodeURIComponent(parts[0]) : "";
     const repo = parts[1] ? decodeURIComponent(parts[1]) : "";
     const sha = parts[2] ? decodeURIComponent(parts[2]) : "";
@@ -42,7 +43,7 @@ function buildCrumbs(pathname: string): Crumb[] {
     if (owner && repo) {
       crumbs.push({ label: `${owner}/${repo}`, href: `/dashboard/repos/${owner}/${repo}` });
     }
-    crumbs.push({ label: sha ? sha.slice(0, 7) : "Commit" });
+    crumbs.push({ label: pathname.startsWith("/dashboard/pull-requests/") ? `Pull request #${sha}` : sha ? sha.slice(0, 7) : "Commit" });
     return crumbs;
   }
 
@@ -55,16 +56,16 @@ export function Breadcrumbs(_props: { installations?: InstallationRow[] }) {
   const crumbs = buildCrumbs(pathname);
 
   return (
-    <nav className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+    <nav aria-label="Breadcrumb" className="min-w-0 flex items-center gap-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
       {crumbs.map((crumb, index) => (
-        <span key={index} className="flex items-center gap-1.5">
+        <span key={index} className="min-w-0 flex items-center gap-1.5">
           {index > 0 && <span className="text-muted-foreground/40">/</span>}
           {crumb.href ? (
-            <Link href={crumb.href} className="hover:text-foreground">
+            <Link href={crumb.href} className="truncate hover:text-foreground" title={crumb.label}>
               {crumb.label}
             </Link>
           ) : (
-            <span className="text-foreground">{crumb.label}</span>
+            <span aria-current="page" className="truncate text-foreground" title={crumb.label}>{crumb.label}</span>
           )}
         </span>
       ))}

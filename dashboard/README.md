@@ -170,3 +170,7 @@ database test, and build checks enabled.
 **Not yet built:** everything past what issues #61-#65 scoped -- e.g. installation-level
 settings beyond mode/adapter/classification/threshold, or acting on rollout outcomes from
 the dashboard itself.
+
+## Public integration documentation
+
+Integration guides, sample configuration generators, and the simulator live at `/docs/integrations` on the marketing site and can be accessed without signing in. `/docs` opens the integration docs; the former `/dashboard/integrations` page redirects there. Repository setup, API keys, and live connection management remain authenticated dashboard features.

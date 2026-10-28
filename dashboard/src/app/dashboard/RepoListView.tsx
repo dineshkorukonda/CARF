@@ -2,7 +2,7 @@
 
 import { useDashboardDates } from "../../lib/useDashboardDates";
 
-import React, { useMemo, useSyncExternalStore } from "react";
+import React, { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   FolderGit2,
@@ -30,6 +30,7 @@ import { resolveFromLegacy } from "../../lib/capabilities";
 import { CARF_TERMS, CAPABILITY_LABELS } from "../../lib/terminology";
 import { commitPageHref } from "../../lib/dashboardNav";
 import { RolloutOutcomeChart, type OutcomeDayBucket } from "./RolloutOutcomeChart";
+import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
 
 const viewModeListeners = new Set<() => void>();
@@ -148,6 +149,8 @@ export function RepoListView({
   activityError = null,
 }: RepoListViewProps) {
   const dates = useDashboardDates();
+  const [query, setQuery] = useState("");
+  const visibleRepos = useMemo(() => repos.filter((repo) => repo.full_name.toLowerCase().includes(query.trim().toLowerCase())), [repos, query]);
   const viewMode = useSyncExternalStore(
     subscribeViewMode,
     getViewModeSnapshot,
@@ -193,16 +196,16 @@ export function RepoListView({
   }, [dates, standaloneRollouts]);
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
+    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">Repositories</h1>
           <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-            3-Layer Deployment Intelligence: CARF Core policy, deployment integrations, and runtime observability.
+            Monitor deployment health, review recent activity, and manage repository protection.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button nativeButton={false} variant="outline" size="sm" render={<Link href="/dashboard/integrations" />}>
+          <Button nativeButton={false} variant="outline" size="sm" render={<Link href="/docs/integrations" />}>
             <PlugZap className="size-3.5" />
             Integrations
           </Button>
@@ -284,13 +287,13 @@ export function RepoListView({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-3">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold tracking-tight text-foreground">Connected Repositories</h2>
+              <h2 className="text-base font-bold tracking-tight text-foreground">Repositories</h2>
               <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-mono font-medium text-muted-foreground">
                 {repos.length}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Repositories with active CARF Core policies, deployment integrations, and runtime observability.
+              Open a repository to review its health, activity, and configuration.
             </p>
           </div>
 
@@ -304,6 +307,7 @@ export function RepoListView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
               aria-label="Compact view"
+              aria-pressed={viewMode === "compact"}
             >
               <LayoutList className="size-3.5" />
               <span>Compact</span>
@@ -317,6 +321,7 @@ export function RepoListView({
                   : "text-muted-foreground hover:text-foreground"
               }`}
               aria-label="Detailed view"
+              aria-pressed={viewMode === "detailed"}
             >
               <LayoutGrid className="size-3.5" />
               <span>Detailed</span>
@@ -324,6 +329,15 @@ export function RepoListView({
           </div>
         </div>
 
+        {repos.length > 0 && (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full sm:max-w-sm">
+              <label htmlFor="repository-search" className="mb-1.5 block text-xs font-medium">Find a repository</label>
+              <Input id="repository-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by owner or repository" />
+            </div>
+            <p role="status" className="text-xs text-muted-foreground">Showing {visibleRepos.length} of {repos.length} repositories</p>
+          </div>
+        )}
         {repos.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
             <FolderGit2 className="mx-auto size-8 text-muted-foreground/60" />
@@ -338,10 +352,16 @@ export function RepoListView({
               Add Repository
             </Link>
           </div>
+         ) : visibleRepos.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+            <p className="text-sm font-semibold">No matching repositories</p>
+            <p className="mt-1 text-sm text-muted-foreground">Try another owner or repository name.</p>
+            <Button variant="outline" className="mt-4" onClick={() => setQuery("")}>Clear search</Button>
+          </div>
         ) : viewMode === "compact" ? (
           /* COMPACT VIEW: High-density, professional SaaS list */
           <div className="space-y-3">
-            {repos.map((repo) => {
+            {visibleRepos.map((repo) => {
               const repoConn = connectionFor(connections, repo.owner, repo.name);
               const resolved = resolveFromLegacy(repoConn || {});
               const mode = resolveRepoMode(repoConn);
@@ -540,7 +560,7 @@ export function RepoListView({
         ) : (
           /* DETAILED VIEW: Structured 2-column Grid with Balanced Cards */
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {repos.map((repo) => {
+            {visibleRepos.map((repo) => {
               const repoConn = connectionFor(connections, repo.owner, repo.name);
               const resolved = resolveFromLegacy(repoConn || {});
               const mode = resolveRepoMode(repoConn);

@@ -65,6 +65,8 @@ export const authConfig: NextAuthConfig = {
         nextUrl.pathname.startsWith("/api/auth");
       const isPublicAsset =
         nextUrl.pathname === "/" ||
+        nextUrl.pathname === "/docs" ||
+        nextUrl.pathname.startsWith("/docs/") ||
         nextUrl.pathname === "/install.sh" ||
         nextUrl.pathname === "/agent/agent.mjs" ||
         nextUrl.pathname.startsWith("/_next") ||

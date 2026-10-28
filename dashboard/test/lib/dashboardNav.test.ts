@@ -100,18 +100,18 @@ describe("repo onboarding hrefs", () => {
     expect(THRESHOLD_DEMO_HREF).toBe("/dashboard/verify");
   });
 
-  it("makes integrations a dedicated Connections destination", () => {
+  it("links to public integration docs from Resources", () => {
     expect(DASHBOARD_NAV_ITEMS.map((item) => item.label)).toEqual([
       "Repositories",
-      "Integrations",
+      "Integration docs",
       "Settings",
     ]);
     expect(DASHBOARD_NAV_ITEMS.some((item) => item.label.includes("Demo"))).toBe(false);
     expect(DASHBOARD_NAV_ITEMS.map((item) => item.href)).toEqual([
       "/dashboard",
-      "/dashboard/integrations",
+      "/docs/integrations",
       "/dashboard/settings",
     ]);
-    expect(DASHBOARD_NAV_GROUPS.find((group) => group.id === "connections")?.items.map((item) => item.href)).toEqual(["/dashboard/integrations"]);
+    expect(DASHBOARD_NAV_GROUPS.find((group) => group.id === "resources")?.items.map((item) => item.href)).toEqual(["/docs/integrations"]);
   });
 });
